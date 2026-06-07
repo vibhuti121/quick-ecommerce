@@ -13,10 +13,14 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 /**
  * Entity → DTO conversion happens INSIDE the transactional methods on purpose: with
@@ -26,12 +30,23 @@ import java.util.List;
 @Service
 public class CatalogService {
 
+    // image/<subtype> -> file extension, for objects whose key should be human-readable in MinIO.
+    private static final Map<String, String> IMAGE_EXTENSIONS = Map.of(
+            "image/jpeg", ".jpg",
+            "image/png", ".png",
+            "image/webp", ".webp",
+            "image/gif", ".gif",
+            "image/svg+xml", ".svg");
+
     private final ProductRepository products;
     private final ProductCacheService cache;
+    private final ObjectStorageService storage;
 
-    public CatalogService(ProductRepository products, ProductCacheService cache) {
+    public CatalogService(ProductRepository products, ProductCacheService cache,
+                          ObjectStorageService storage) {
         this.products = products;
         this.cache = cache;
+        this.storage = storage;
     }
 
     // ---- public browse (read path) ----
@@ -75,6 +90,40 @@ public class CatalogService {
         cache.evictProduct(id);
         cache.evictBrowse();
         return saved;
+    }
+
+    /**
+     * Uploads a product image to object storage and points the product at its public URL. The image
+     * itself is the source of truth in MinIO; the DB only holds the URL. Caches are evicted so reads
+     * pick up the new image immediately.
+     */
+    @Transactional
+    public ProductResponse uploadImage(Long id, MultipartFile file) {
+        Product p = load(id);
+        if (file == null || file.isEmpty()) {
+            throw new IllegalArgumentException("image file is required");
+        }
+        String contentType = file.getContentType();
+        if (contentType == null || !contentType.toLowerCase().startsWith("image/")) {
+            throw new IllegalArgumentException("uploaded file must be an image (got: " + contentType + ")");
+        }
+        String key = "products/" + id + "/" + UUID.randomUUID() + extensionFor(contentType);
+        byte[] bytes;
+        try {
+            bytes = file.getBytes();
+        } catch (IOException e) {
+            throw new IllegalArgumentException("could not read uploaded file: " + e.getMessage());
+        }
+        String url = storage.upload(key, bytes, contentType);
+        p.setImageUrl(url);
+        ProductResponse saved = ProductResponse.from(products.save(p));
+        cache.evictProduct(id);
+        cache.evictBrowse();
+        return saved;
+    }
+
+    private static String extensionFor(String contentType) {
+        return IMAGE_EXTENSIONS.getOrDefault(contentType.toLowerCase(), "");
     }
 
     @Transactional
