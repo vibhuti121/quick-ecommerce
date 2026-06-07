@@ -1,0 +1,149 @@
+# Full local stack for quick-ecommerce — one `docker compose up` brings up the edge (gateway + auth),
+# all five commerce services, and their backing stores. Each service owns its own Postgres database;
+# cart lives in Redis. Data persists in named volumes, so the whole journey survives a restart.
+#
+# Edge entrypoint: http://localhost:8080 (gateway). Everything else is reachable through it.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./scripts/init-multiple-dbs.sh:/docker-entrypoint-initdb.d/init-multiple-dbs.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  auth-service:
+    build: ./auth-service
+    environment:
+      DB_HOST: postgres
+      DB_NAME: authdb
+      DB_USER: postgres
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      # HS256 requires a key >= 256 bits (32 bytes); a shorter secret makes jjwt throw WeakKeyException.
+      JWT_SECRET: ${JWT_SECRET:-varsha-dev-jwt-secret-min-256-bits-change-me}
+      # Google OAuth2 is optional for local dev (guest tokens cover the journey). Real values enable
+      # Google login; dummies let the service boot — the discovery URL itself is public.
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-dummy-client-id}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-dummy-client-secret}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  catalog-service:
+    build: ./catalog-service
+    environment:
+      DB_HOST: postgres
+      DB_NAME: catalogdb
+      DB_USER: postgres
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  cart-service:
+    build: ./cart-service
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      # cart snapshots price/name from catalog when a new line is added — must be the in-network host,
+      # not the localhost default (which would resolve to the cart container itself).
+      CATALOG_SERVICE_URL: http://catalog-service:8090
+    depends_on:
+      redis:
+        condition: service_healthy
+      catalog-service:
+        condition: service_started
+    restart: unless-stopped
+
+  inventory-service:
+    build: ./inventory-service
+    environment:
+      DB_HOST: postgres
+      DB_NAME: inventorydb
+      DB_USER: postgres
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  payment-service:
+    build: ./payment-service
+    environment:
+      DB_HOST: postgres
+      DB_NAME: paymentdb
+      DB_USER: postgres
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-mock}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  order-service:
+    build: ./order-service
+    environment:
+      DB_HOST: postgres
+      DB_NAME: orderdb
+      DB_USER: postgres
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      INVENTORY_SERVICE_URL: http://inventory-service:8092
+      PAYMENT_SERVICE_URL: http://payment-service:8093
+      OUTBOX_POLL_INTERVAL_MS: ${OUTBOX_POLL_INTERVAL_MS:-2000}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      inventory-service:
+        condition: service_started
+      payment-service:
+        condition: service_started
+    restart: unless-stopped
+
+  gateway:
+    build: ./gateway
+    ports:
+      - "${GATEWAY_PORT:-8080}:8080"
+    environment:
+      AUTH_HOST: auth-service
+      CATALOG_HOST: catalog-service
+      CART_HOST: cart-service
+      INVENTORY_HOST: inventory-service
+      PAYMENT_HOST: payment-service
+      ORDER_HOST: order-service
+      ALLOWED_ORIGIN: ${ALLOWED_ORIGIN:-http://localhost:5173}
+    depends_on:
+      - auth-service
+      - catalog-service
+      - cart-service
+      - inventory-service
+      - payment-service
+      - order-service
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+  redisdata:
