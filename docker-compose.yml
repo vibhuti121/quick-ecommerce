@@ -59,8 +59,13 @@ services:
       DB_NAME: catalogdb
       DB_USER: postgres
       DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      # Read-through cache for the catalog browse/detail path. A Redis outage degrades to DB reads.
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     restart: unless-stopped
 

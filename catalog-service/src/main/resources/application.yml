@@ -18,6 +18,12 @@ spring:
       idle-timeout: 600000
       max-lifetime: 1800000
       keepalive-time: 60000
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2s
+      connect-timeout: 2s
   jpa:
     open-in-view: false
     hibernate:
@@ -50,3 +56,10 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
+
+# Redis-backed read cache TTLs (seconds). Single products are stable → long TTL;
+# browse pages shift as inventory/products change → shorter TTL.
+app:
+  cache:
+    product-ttl-seconds: ${CACHE_PRODUCT_TTL:3600}
+    browse-ttl-seconds: ${CACHE_BROWSE_TTL:600}

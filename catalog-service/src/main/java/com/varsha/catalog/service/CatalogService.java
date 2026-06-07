@@ -27,32 +27,29 @@ import java.util.List;
 public class CatalogService {
 
     private final ProductRepository products;
+    private final ProductCacheService cache;
 
-    public CatalogService(ProductRepository products) {
+    public CatalogService(ProductRepository products, ProductCacheService cache) {
         this.products = products;
+        this.cache = cache;
     }
 
     // ---- public browse (read path) ----
+    // Non-transactional delegators: a cache HIT never opens a DB session; on a MISS the cache bean
+    // calls the transactional ProductReader. Caching lives in a separate bean so the @Cacheable
+    // proxy is not bypassed by self-invocation.
 
-    @Transactional(readOnly = true)
     public Page<ProductResponse> browse(String category, ProductType type, Pageable pageable) {
-        Page<Product> page;
-        if (category != null && !category.isBlank()) {
-            page = products.findByActiveTrueAndCategoryIgnoreCase(category, pageable);
-        } else if (type != null) {
-            page = products.findByActiveTrueAndProductType(type, pageable);
-        } else {
-            page = products.findByActiveTrue(pageable);
-        }
-        return page.map(ProductResponse::from);
+        return cache.browse(category, type, pageable.getPageNumber(), pageable.getPageSize())
+                .toPage(pageable);
     }
 
-    @Transactional(readOnly = true)
     public ProductResponse get(Long id) {
-        return ProductResponse.from(load(id));
+        return cache.product(id);
     }
 
     // ---- admin CRUD (write path) ----
+    // Each write evicts the affected entries so cached reads never outlive a change.
 
     @Transactional
     public ProductResponse create(ProductRequest req) {
@@ -61,7 +58,9 @@ public class CatalogService {
         }
         Product p = new Product();
         apply(p, req);
-        return ProductResponse.from(products.save(p));
+        ProductResponse saved = ProductResponse.from(products.save(p));
+        cache.evictBrowse();
+        return saved;
     }
 
     @Transactional
@@ -72,7 +71,10 @@ public class CatalogService {
         }
         p.getVariants().clear();
         apply(p, req);
-        return ProductResponse.from(products.save(p));
+        ProductResponse saved = ProductResponse.from(products.save(p));
+        cache.evictProduct(id);
+        cache.evictBrowse();
+        return saved;
     }
 
     @Transactional
@@ -81,6 +83,8 @@ public class CatalogService {
             throw new NotFoundException("Product not found: " + id);
         }
         products.deleteById(id);
+        cache.evictProduct(id);
+        cache.evictBrowse();
     }
 
     private Product load(Long id) {

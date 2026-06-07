@@ -1,0 +1,39 @@
+package com.varsha.catalog.config;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.cache.Cache;
+import org.springframework.cache.interceptor.CacheErrorHandler;
+
+/**
+ * Resilience-first cache error handling: if Redis is unreachable or misbehaves, log a warning and
+ * proceed as a cache miss/no-op instead of failing the request. A catalog read therefore degrades
+ * to a direct database query when Redis is down, rather than returning an error to shoppers.
+ */
+public class LoggingCacheErrorHandler implements CacheErrorHandler {
+
+    private static final Logger log = LoggerFactory.getLogger(LoggingCacheErrorHandler.class);
+
+    @Override
+    public void handleCacheGetError(RuntimeException exception, Cache cache, Object key) {
+        log.warn("Cache GET failed (cache={}, key={}) — falling back to source: {}",
+                cache.getName(), key, exception.toString());
+    }
+
+    @Override
+    public void handleCachePutError(RuntimeException exception, Cache cache, Object key, Object value) {
+        log.warn("Cache PUT failed (cache={}, key={}) — result not cached: {}",
+                cache.getName(), key, exception.toString());
+    }
+
+    @Override
+    public void handleCacheEvictError(RuntimeException exception, Cache cache, Object key) {
+        log.warn("Cache EVICT failed (cache={}, key={}): {}",
+                cache.getName(), key, exception.toString());
+    }
+
+    @Override
+    public void handleCacheClearError(RuntimeException exception, Cache cache) {
+        log.warn("Cache CLEAR failed (cache={}): {}", cache.getName(), exception.toString());
+    }
+}
