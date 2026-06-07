@@ -1,0 +1,68 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: auth-service
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:5432/${DB_NAME:authdb}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 2
+      connection-timeout: 20000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      keepalive-time: 60000
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 0
+  threads:
+    virtual:
+      enabled: true
+
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID}
+            client-secret: ${GOOGLE_CLIENT_SECRET}
+            scope: openid, email, profile
+            redirect-uri: ${OAUTH_REDIRECT_URI:http://localhost:8080/login/oauth2/code/google}
+        provider:
+          google:
+            issuer-uri: https://accounts.google.com
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when_authorized
+      show-components: when_authorized
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:varsha-secret}
+    expiration-ms: 86400000   # 24 hours
+  frontend-url: ${FRONTEND_URL:http://localhost:5173}

@@ -1,0 +1,269 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: gateway
+  cloud:
+    gateway:
+      routes:
+        - id: auth-oauth2
+          uri: http://${AUTH_HOST:localhost}:8081
+          predicates:
+            - Path=/oauth2/**,/login/**
+
+        - id: auth-service
+          uri: http://${AUTH_HOST:localhost}:8081
+          predicates:
+            - Path=/auth/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: auth-service
+                fallbackUri: forward:/fallback/unavailable
+                statusCodes:
+                  - BAD_GATEWAY
+                  - SERVICE_UNAVAILABLE
+                  - GATEWAY_TIMEOUT
+            - name: Retry
+              args:
+                retries: 2
+                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                methods: GET
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 500ms
+                  factor: 2
+                  basedOnPreviousValue: false
+
+        - id: catalog-service
+          uri: http://${CATALOG_HOST:localhost}:8090
+          predicates:
+            - Path=/api/catalog/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: catalog-service
+                fallbackUri: forward:/fallback/unavailable
+                statusCodes:
+                  - BAD_GATEWAY
+                  - SERVICE_UNAVAILABLE
+                  - GATEWAY_TIMEOUT
+            - name: Retry
+              args:
+                retries: 2
+                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                methods: GET
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 500ms
+                  factor: 2
+                  basedOnPreviousValue: false
+
+        - id: cart-service
+          uri: http://${CART_HOST:localhost}:8091
+          predicates:
+            - Path=/api/cart/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: cart-service
+                fallbackUri: forward:/fallback/unavailable
+                statusCodes:
+                  - BAD_GATEWAY
+                  - SERVICE_UNAVAILABLE
+                  - GATEWAY_TIMEOUT
+            - name: Retry
+              args:
+                retries: 2
+                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                methods: GET
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 500ms
+                  factor: 2
+                  basedOnPreviousValue: false
+
+        - id: inventory-service
+          uri: http://${INVENTORY_HOST:localhost}:8092
+          predicates:
+            - Path=/api/inventory/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: inventory-service
+                fallbackUri: forward:/fallback/unavailable
+                statusCodes:
+                  - BAD_GATEWAY
+                  - SERVICE_UNAVAILABLE
+                  - GATEWAY_TIMEOUT
+            - name: Retry
+              args:
+                retries: 2
+                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                methods: GET
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 500ms
+                  factor: 2
+                  basedOnPreviousValue: false
+
+        - id: payment-service
+          uri: http://${PAYMENT_HOST:localhost}:8093
+          predicates:
+            - Path=/api/payments/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: payment-service
+                fallbackUri: forward:/fallback/unavailable
+                statusCodes:
+                  - BAD_GATEWAY
+                  - SERVICE_UNAVAILABLE
+                  - GATEWAY_TIMEOUT
+            - name: Retry
+              args:
+                retries: 2
+                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                methods: GET
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 500ms
+                  factor: 2
+                  basedOnPreviousValue: false
+
+        - id: order-service
+          uri: http://${ORDER_HOST:localhost}:8094
+          predicates:
+            - Path=/api/orders/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: order-service
+                fallbackUri: forward:/fallback/unavailable
+                statusCodes:
+                  - BAD_GATEWAY
+                  - SERVICE_UNAVAILABLE
+                  - GATEWAY_TIMEOUT
+            # Only idempotent GETs are auto-retried at the edge. Checkout is a POST and carries an
+            # Idempotency-Key, so the client (not the gateway) owns its retries — no double orders.
+            - name: Retry
+              args:
+                retries: 2
+                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                methods: GET
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 500ms
+                  factor: 2
+                  basedOnPreviousValue: false
+
+      globalcors:
+        corsConfigurations:
+          '[/**]':
+            allowedOrigins: ${ALLOWED_ORIGIN:http://localhost:5173}
+            allowedMethods: GET,POST,PUT,DELETE,OPTIONS
+            allowedHeaders: '*'
+            allowCredentials: true
+
+resilience4j:
+  circuitbreaker:
+    configs:
+      default:
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 50
+        slowCallRateThreshold: 80
+        slowCallDurationThreshold: 2s
+        waitDurationInOpenState: 10s
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+    instances:
+      auth-service:
+        baseConfig: default
+      catalog-service:
+        baseConfig: default
+      cart-service:
+        baseConfig: default
+      inventory-service:
+        baseConfig: default
+      payment-service:
+        baseConfig: default
+      order-service:
+        baseConfig: default
+      auth-validate:
+        slidingWindowSize: 10
+        minimumNumberOfCalls: 5
+        failureRateThreshold: 60
+        waitDurationInOpenState: 5s
+        permittedNumberOfCallsInHalfOpenState: 3
+        automaticTransitionFromOpenToHalfOpenEnabled: true
+  timelimiter:
+    configs:
+      default:
+        timeoutDuration: 3s
+        cancelRunningFuture: true
+    instances:
+      auth-service:
+        baseConfig: default
+      catalog-service:
+        baseConfig: default
+      cart-service:
+        baseConfig: default
+      inventory-service:
+        baseConfig: default
+      payment-service:
+        baseConfig: default
+      order-service:
+        baseConfig: default
+      auth-validate:
+        timeoutDuration: 2s
+  bulkhead:
+    instances:
+      auth-service:
+        maxConcurrentCalls: 50
+        maxWaitDuration: 500ms
+      catalog-service:
+        maxConcurrentCalls: 50
+        maxWaitDuration: 500ms
+      cart-service:
+        maxConcurrentCalls: 30
+        maxWaitDuration: 500ms
+      inventory-service:
+        maxConcurrentCalls: 30
+        maxWaitDuration: 500ms
+      payment-service:
+        maxConcurrentCalls: 30
+        maxWaitDuration: 500ms
+      order-service:
+        maxConcurrentCalls: 30
+        maxWaitDuration: 500ms
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when_authorized
+      show-components: when_authorized
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
+
+app:
+  auth-service-url: http://${AUTH_HOST:localhost}:8081
+  rate-limit:
+    capacity: 100
+    refill-tokens: 100
+    refill-duration-seconds: 60
+    max-tracked-ips: 20000
+    ip-expire-minutes: 10

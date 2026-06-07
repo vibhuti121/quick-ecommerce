@@ -1,0 +1,61 @@
+server:
+  port: 8094
+  shutdown: graceful
+
+spring:
+  application:
+    name: order-service
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:orderdb}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD:postgres}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 20000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      keepalive-time: 60000
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 0
+  threads:
+    virtual:
+      enabled: true
+
+app:
+  inventory-service-url: ${INVENTORY_SERVICE_URL:http://localhost:8092}
+  payment-service-url: ${PAYMENT_SERVICE_URL:http://localhost:8093}
+  outbox:
+    # how often the saga poller drains the outbox, and how many times a stuck event is retried
+    # before the order is force-failed
+    poll-interval-ms: ${OUTBOX_POLL_INTERVAL_MS:2000}
+    max-attempts: ${OUTBOX_MAX_ATTEMPTS:5}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when_authorized
+      show-components: when_authorized
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}
