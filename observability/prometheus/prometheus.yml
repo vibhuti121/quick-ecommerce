@@ -1,0 +1,30 @@
+# Prometheus scrape config for the quick-ecommerce stack. Runs inside the compose network, so it
+# reaches each service by its container name + internal port (gateway is the only one published to
+# the host). Every service exposes Micrometer metrics at /actuator/prometheus (Phase 1).
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: spring-services
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ['auth-service:8081']
+        labels: { service: auth-service }
+      - targets: ['catalog-service:8090']
+        labels: { service: catalog-service }
+      - targets: ['cart-service:8091']
+        labels: { service: cart-service }
+      - targets: ['inventory-service:8092']
+        labels: { service: inventory-service }
+      - targets: ['payment-service:8093']
+        labels: { service: payment-service }
+      - targets: ['order-service:8094']
+        labels: { service: order-service }
+      - targets: ['gateway:8080']
+        labels: { service: gateway }
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
+        labels: { service: prometheus }
