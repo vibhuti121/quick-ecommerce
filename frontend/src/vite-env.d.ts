@@ -1,8 +1,8 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  // Base URL of the API gateway. Empty = same origin (production, served behind Caddy).
-  // For local dev set this to the gateway URL, e.g. http://localhost:8088 — see frontend/.env.example.
+  // Base URL of the API gateway. Empty = same origin (production) AND recommended for local dev,
+  // where the Vite proxy forwards to the HTTPS gateway (https://localhost:8443) — see frontend/.env.example.
   readonly VITE_API_BASE?: string;
 }
 

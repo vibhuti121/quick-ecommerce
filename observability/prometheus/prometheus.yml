@@ -21,7 +21,16 @@ scrape_configs:
         labels: { service: payment-service }
       - targets: ['order-service:8094']
         labels: { service: order-service }
-      - targets: ['gateway:8080']
+
+  # The gateway terminates TLS (Pillar 4), so it's scraped over HTTPS on 8443. The cert is a dev
+  # self-signed one, so verification is skipped (in-network scrape, not a trust boundary here).
+  - job_name: gateway
+    metrics_path: /actuator/prometheus
+    scheme: https
+    tls_config:
+      insecure_skip_verify: true
+    static_configs:
+      - targets: ['gateway:8443']
         labels: { service: gateway }
 
   - job_name: prometheus

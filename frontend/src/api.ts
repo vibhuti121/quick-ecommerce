@@ -1,9 +1,9 @@
 import type { Cart, CartItem, Order, Product } from './types';
 
 // Everything goes through the API gateway (the real edge), not the individual services. In production
-// the frontend is served from the same origin as the gateway (behind Caddy), so the empty-string
-// default means "same origin". For local dev the gateway is on a separate port, so set VITE_API_BASE
-// (e.g. http://localhost:8088) — see frontend/.env.example.
+// the frontend is served from the same origin as the gateway, so the empty-string default means
+// "same origin". For local dev leave VITE_API_BASE empty too: the Vite dev server proxies /api and
+// /auth to the HTTPS gateway (https://localhost:8443, self-signed) — see frontend/.env.example.
 const BASE = (import.meta.env.VITE_API_BASE ?? '').replace(/\/$/, '');
 
 // ---- guest auth -------------------------------------------------------------

@@ -5,7 +5,10 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/api': 'http://localhost:8080',
+      // The gateway terminates TLS with a dev self-signed cert (Pillar 4), so target HTTPS on 8443
+      // and disable cert verification for the local proxy (secure: false). Auth/login routes too.
+      '/api': { target: 'https://localhost:8443', changeOrigin: true, secure: false },
+      '/auth': { target: 'https://localhost:8443', changeOrigin: true, secure: false },
     },
   },
 });
