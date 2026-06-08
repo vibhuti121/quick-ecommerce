@@ -7,7 +7,7 @@
   <parent>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-parent</artifactId>
-    <version>3.5.12</version>
+    <version>3.5.14</version>
     <relativePath/>
   </parent>
 
@@ -22,6 +22,10 @@
          validation); fix is 10.1.55, a drop-in within the 10.1.x line. Override until a Boot patch
          ships 10.1.55+. This service bundles no spring-security. -->
     <tomcat.version>10.1.55</tomcat.version>
+    <!-- Boot 3.5.14's BOM still pins pgjdbc 42.7.10, which carries CVE-2026-42198 (client-side
+         DoS); fix is 42.7.11, a drop-in within the 42.7.x line. Override until a Boot patch ships
+         42.7.11+. -->
+    <postgresql.version>42.7.11</postgresql.version>
   </properties>
 
   <dependencies>
