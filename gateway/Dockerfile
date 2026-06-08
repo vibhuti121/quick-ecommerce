@@ -14,6 +14,11 @@ WORKDIR /app
 # JRE; the SAN covers localhost + the in-network "gateway" hostname so Prometheus can scrape over HTTPS.
 COPY --from=build /app/target/*.jar app.jar
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
-RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+# Run as a non-root user (DS-0002). Unlike the other services, the entrypoint writes the generated
+# keystore into /app at runtime, so /app must be owned by appuser. Port 8443 is >1024 (non-root OK).
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
+ && useradd -r -u 10001 appuser \
+ && chown appuser /app
+USER appuser
 EXPOSE 8443
 ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
