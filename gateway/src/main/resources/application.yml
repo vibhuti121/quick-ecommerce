@@ -1,5 +1,14 @@
 server:
-  port: 8080
+  # TLS terminates here at the edge (Phase 3, Pillar 4). The container always listens on 8443;
+  # the host port is mapped in docker-compose. Inter-service traffic stays plain HTTP on the
+  # docker network (see route URIs below) — only the public edge is encrypted.
+  port: 8443
+  ssl:
+    enabled: true
+    key-store: file:/app/keystore.p12
+    key-store-type: PKCS12
+    key-store-password: ${TLS_KEYSTORE_PASSWORD:changeit}
+    key-alias: gateway
 
 spring:
   application:
@@ -163,8 +172,14 @@ spring:
           '[/**]':
             allowedOrigins: ${ALLOWED_ORIGIN:http://localhost:5173}
             allowedMethods: GET,POST,PUT,DELETE,OPTIONS
-            allowedHeaders: '*'
-            allowCredentials: true
+            # Auth is a Bearer token in the Authorization header (localStorage), NOT cookies, so the
+            # browser never makes credentialed cross-origin calls. Pillar 5: keep credentials OFF and
+            # pin the request headers to exactly what the storefront sends — a wildcard with
+            # credentials is spec-fragile and broadens the cross-origin attack surface needlessly.
+            allowedHeaders: Authorization,Content-Type,Idempotency-Key
+            allowCredentials: false
+            # Cache the preflight so the browser doesn't re-OPTIONS every cross-origin call.
+            maxAge: 3600
 
 resilience4j:
   circuitbreaker:
@@ -267,3 +282,7 @@ app:
     refill-duration-seconds: 60
     max-tracked-ips: 20000
     ip-expire-minutes: 10
+    # Pillar 5: only trust the client-supplied X-Forwarded-For when behind a trusted reverse proxy/LB
+    # that overwrites it. Default false because the gateway is the directly-exposed edge — otherwise an
+    # attacker spoofs XFF per request to mint unlimited buckets and bypass the limit. See RateLimitFilter.
+    trust-forwarded-for: ${RATE_LIMIT_TRUST_FORWARDED_FOR:false}

@@ -7,7 +7,7 @@ spring:
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:5432/${DB_NAME:authdb}
     username: ${DB_USER:postgres}
-    password: ${DB_PASSWORD:postgres}
+    password: ${DB_PASSWORD}
     hikari:
       maximum-pool-size: 5
       minimum-idle: 2
@@ -36,7 +36,8 @@ spring:
             client-id: ${GOOGLE_CLIENT_ID}
             client-secret: ${GOOGLE_CLIENT_SECRET}
             scope: openid, email, profile
-            redirect-uri: ${OAUTH_REDIRECT_URI:http://localhost:8080/login/oauth2/code/google}
+            # OAuth callback returns through the public edge, which is HTTPS at the gateway (Pillar 4).
+            redirect-uri: ${OAUTH_REDIRECT_URI:https://localhost:8443/login/oauth2/code/google}
         provider:
           google:
             issuer-uri: https://accounts.google.com
@@ -63,6 +64,12 @@ management:
 
 app:
   jwt:
-    secret: ${JWT_SECRET:varsha-secret}
+    # No default: a signing key checked into source lets anyone forge tokens (full auth bypass).
+    # JWT_SECRET MUST be supplied via env (.env in dev — run ./scripts/gen-secrets.sh); a missing
+    # value fails startup, and a value < 32 bytes makes jjwt throw WeakKeyException. Fail-closed.
+    secret: ${JWT_SECRET}
     expiration-ms: 86400000   # 24 hours
   frontend-url: ${FRONTEND_URL:http://localhost:5173}
+  # Comma-separated email allowlist promoted to the ADMIN role at login (Phase 3, Pillar 1).
+  # Empty by default → no admins, so the platform is locked-down out of the box.
+  admin-emails: ${ADMIN_EMAILS:}
