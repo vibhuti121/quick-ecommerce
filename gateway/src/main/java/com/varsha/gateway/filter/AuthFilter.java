@@ -30,6 +30,19 @@ public class AuthFilter implements GlobalFilter, Ordered {
         "/api/catalog/products"
     );
 
+    // Paths that require the ADMIN role (Phase 3, Pillar 1). These all sit OUTSIDE PUBLIC_PATHS,
+    // so a request here always reaches the validate+role-check branch below.
+    private static final List<String> ADMIN_PATHS = List.of(
+        "/api/catalog/admin",
+        "/api/inventory/admin"
+    );
+
+    // Identity headers the gateway owns. They are stripped from every inbound request and only ever
+    // re-set from a validated token, so a client cannot spoof identity/role by sending them directly.
+    private static final List<String> IDENTITY_HEADERS = List.of(
+        "X-User-Id", "X-User-Email", "X-User-Display-Name", "X-User-Role"
+    );
+
     private final WebClient webClient;
     private final ReactiveCircuitBreaker circuitBreaker;
 
@@ -46,7 +59,11 @@ public class AuthFilter implements GlobalFilter, Ordered {
         String path = exchange.getRequest().getPath().value();
 
         if (isPublic(path)) {
-            return chain.filter(exchange);
+            // Even on public routes, never let a client's own X-User-* headers reach a service.
+            ServerHttpRequest cleaned = exchange.getRequest().mutate()
+                .headers(h -> IDENTITY_HEADERS.forEach(h::remove))
+                .build();
+            return chain.filter(exchange.mutate().request(cleaned).build());
         }
 
         String authHeader = exchange.getRequest().getHeaders().getFirst("Authorization");
@@ -73,10 +90,21 @@ public class AuthFilter implements GlobalFilter, Ordered {
                 String userId      = (String) body.get("userId");
                 String email       = (String) body.get("email");
                 String displayName = (String) body.get("displayName");
+                String role        = (String) body.get("role");
+                String effectiveRole = role != null ? role : "USER";
+
+                // Authenticated but not authorized: admin route + non-admin role → 403.
+                if (requiresAdmin(path) && !"ADMIN".equals(effectiveRole)) {
+                    exchange.getResponse().setStatusCode(HttpStatus.FORBIDDEN);
+                    return exchange.getResponse().setComplete();
+                }
+
+                // .header(...) replaces any client-supplied value, so identity/role cannot be spoofed.
                 ServerHttpRequest mutated = exchange.getRequest().mutate()
                     .header("X-User-Id", userId != null ? userId : "")
                     .header("X-User-Email", email != null ? email : "")
                     .header("X-User-Display-Name", displayName != null ? displayName : "")
+                    .header("X-User-Role", effectiveRole)
                     .build();
                 return chain.filter(exchange.mutate().request(mutated).build());
             })
@@ -96,5 +124,9 @@ public class AuthFilter implements GlobalFilter, Ordered {
 
     private boolean isPublic(String path) {
         return PUBLIC_PATHS.stream().anyMatch(path::startsWith);
+    }
+
+    private boolean requiresAdmin(String path) {
+        return ADMIN_PATHS.stream().anyMatch(path::startsWith);
     }
 }

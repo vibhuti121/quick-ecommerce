@@ -26,10 +26,13 @@ public class JwtService {
         return Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
-    public String generate(String userId, String email, String displayName) {
+    public String generate(String userId, String email, String displayName, String role) {
         return Jwts.builder()
                 .setSubject(userId)
-                .addClaims(Map.of("email", email, "displayName", displayName != null ? displayName : email))
+                .addClaims(Map.of(
+                        "email", email,
+                        "displayName", displayName != null ? displayName : email,
+                        "role", role != null ? role : "USER"))
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + expirationMs))
                 .signWith(key(), SignatureAlgorithm.HS256)
@@ -37,9 +40,10 @@ public class JwtService {
     }
 
     public String generateGuest(String guestId, String displayName) {
+        // Guests are never admins — the role is pinned to USER here, not derived from any input.
         return Jwts.builder()
                 .setSubject(guestId)
-                .addClaims(Map.of("email", displayName))
+                .addClaims(Map.of("email", displayName, "role", "USER"))
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + guestExpirationMs))
                 .signWith(key(), SignatureAlgorithm.HS256)

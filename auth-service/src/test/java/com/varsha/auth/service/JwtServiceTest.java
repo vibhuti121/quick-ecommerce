@@ -22,18 +22,19 @@ class JwtServiceTest {
 
     @Test
     void generate_produces_parseable_token() {
-        String token = jwtService.generate("user123", "test@example.com", "Test User");
+        String token = jwtService.generate("user123", "test@example.com", "Test User", "ADMIN");
         assertThat(token).isNotBlank();
 
         Claims claims = jwtService.validate(token);
         assertThat(claims.getSubject()).isEqualTo("user123");
         assertThat(claims.get("email", String.class)).isEqualTo("test@example.com");
         assertThat(claims.get("displayName", String.class)).isEqualTo("Test User");
+        assertThat(claims.get("role", String.class)).isEqualTo("ADMIN");
     }
 
     @Test
     void validate_throws_on_tampered_token() {
-        String token = jwtService.generate("u1", "a@a.com", "User1");
+        String token = jwtService.generate("u1", "a@a.com", "User1", "USER");
         String tampered = token.substring(0, token.length() - 5) + "XXXXX";
         assertThatThrownBy(() -> jwtService.validate(tampered))
                 .isInstanceOf(JwtException.class);
@@ -42,7 +43,7 @@ class JwtServiceTest {
     @Test
     void validate_throws_on_expired_token() {
         ReflectionTestUtils.setField(jwtService, "expirationMs", -1000L);
-        String token = jwtService.generate("u1", "a@a.com", "User1");
+        String token = jwtService.generate("u1", "a@a.com", "User1", "USER");
         assertThatThrownBy(() -> jwtService.validate(token))
                 .isInstanceOf(JwtException.class);
     }
@@ -55,7 +56,7 @@ class JwtServiceTest {
 
     @Test
     void generate_sets_expiration() {
-        String token = jwtService.generate("u1", "a@a.com", "User1");
+        String token = jwtService.generate("u1", "a@a.com", "User1", "USER");
         Claims claims = jwtService.validate(token);
         assertThat(claims.getExpiration()).isAfter(claims.getIssuedAt());
     }
