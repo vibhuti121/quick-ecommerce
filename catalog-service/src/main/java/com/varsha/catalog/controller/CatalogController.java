@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.net.URI;
 
@@ -73,5 +74,13 @@ public class CatalogController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable Long id) {
         catalog.delete(id);
+    }
+
+    /** Upload a product image (multipart) → stored in object storage, product's imageUrl updated. */
+    @PostMapping(value = "/admin/products/{id}/image",
+            consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ProductResponse uploadImage(@PathVariable Long id,
+                                       @RequestParam("file") MultipartFile file) {
+        return catalog.uploadImage(id, file);
     }
 }

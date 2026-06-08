@@ -33,6 +33,24 @@ services:
       retries: 20
     restart: unless-stopped
 
+  # S3-compatible object storage for product images (Phase 2, Pillar 4). Two ports:
+  #  - 9000 the S3 API (catalog-service uploads here, in-network as http://minio:9000)
+  #  - 9001 the web console (http://localhost:9001, same root creds)
+  # No healthcheck binary ships in the server image, so dependents use service_started and
+  # catalog-service retries bucket bootstrap on startup.
+  minio:
+    image: minio/minio:latest
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - miniodata:/data
+    restart: unless-stopped
+
   auth-service:
     build: ./auth-service
     environment:
@@ -59,9 +77,23 @@ services:
       DB_NAME: catalogdb
       DB_USER: postgres
       DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      # Read-through cache for the catalog browse/detail path. A Redis outage degrades to DB reads.
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      # Object storage for product images. ENDPOINT is the in-network S3 API the service uploads to;
+      # PUBLIC_URL is what the browser uses to fetch the image, so it must be the host-published address.
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL:-http://localhost:9000}
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_BUCKET: ${MINIO_BUCKET:-product-images}
     depends_on:
       postgres:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
     restart: unless-stopped
 
   cart-service:
@@ -144,6 +176,40 @@ services:
       - order-service
     restart: unless-stopped
 
+  # ---- Observability (Phase 2, Pillar 2) ----
+  prometheus:
+    image: prom/prometheus:latest
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - promdata:/prometheus
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    depends_on:
+      - gateway
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafanadata:/var/lib/grafana
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
 volumes:
   pgdata:
   redisdata:
+  miniodata:
+  promdata:
+  grafanadata:

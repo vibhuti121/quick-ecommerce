@@ -18,6 +18,12 @@ spring:
       idle-timeout: 600000
       max-lifetime: 1800000
       keepalive-time: 60000
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2s
+      connect-timeout: 2s
   jpa:
     open-in-view: false
     hibernate:
@@ -30,6 +36,11 @@ spring:
   threads:
     virtual:
       enabled: true
+  servlet:
+    multipart:
+      # Product-image uploads; default 1MB is too small for real photos.
+      max-file-size: 8MB
+      max-request-size: 10MB
 
 management:
   endpoints:
@@ -50,3 +61,21 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
+
+# Redis-backed read cache TTLs (seconds). Single products are stable → long TTL;
+# browse pages shift as inventory/products change → shorter TTL.
+app:
+  cache:
+    product-ttl-seconds: ${CACHE_PRODUCT_TTL:3600}
+    browse-ttl-seconds: ${CACHE_BROWSE_TTL:600}
+  # S3-compatible object storage (MinIO) for product images.
+  #  endpoint   — in-network S3 API the service uploads to (path-style).
+  #  public-url — browser-facing base used to BUILD image URLs; differs from endpoint because the
+  #               storefront runs on the host (localhost) while the service talks to it as `minio`.
+  minio:
+    endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+    public-url: ${MINIO_PUBLIC_URL:http://localhost:9000}
+    access-key: ${MINIO_ACCESS_KEY:minioadmin}
+    secret-key: ${MINIO_SECRET_KEY:minioadmin}
+    bucket: ${MINIO_BUCKET:product-images}
+    region: ${MINIO_REGION:us-east-1}
