@@ -162,10 +162,6 @@ services:
   gateway:
     build:
       context: ./gateway
-      # Build-time keystore password for the dev self-signed TLS cert (Pillar 4). Kept in sync with
-      # the runtime env below so Spring can open the keystore. Override via TLS_KEYSTORE_PASSWORD in .env.
-      args:
-        TLS_KEYSTORE_PASSWORD: ${TLS_KEYSTORE_PASSWORD:-changeit}
     ports:
       # HTTPS edge (TLS terminates here — Pillar 4). Container listens on 8443.
       - "${GATEWAY_PORT:-8443}:8443"
@@ -177,7 +173,9 @@ services:
       PAYMENT_HOST: payment-service
       ORDER_HOST: order-service
       ALLOWED_ORIGIN: ${ALLOWED_ORIGIN:-http://localhost:5173}
-      TLS_KEYSTORE_PASSWORD: ${TLS_KEYSTORE_PASSWORD:-changeit}
+      # The entrypoint generates the dev keystore from this at start, and Spring opens it with the same
+      # value — fail closed (no default) so a missing secret stops boot rather than shipping 'changeit'.
+      TLS_KEYSTORE_PASSWORD: ${TLS_KEYSTORE_PASSWORD:?missing - run ./scripts/gen-secrets.sh to create .env}
       # Pillar 5: trust X-Forwarded-For for rate-limit keying ONLY behind a trusted proxy. Default false
       # (gateway is the exposed edge). The journey load test sets this true to simulate distinct clients.
       RATE_LIMIT_TRUST_FORWARDED_FOR: ${RATE_LIMIT_TRUST_FORWARDED_FOR:-false}

@@ -7,7 +7,8 @@ server:
     enabled: true
     key-store: file:/app/keystore.p12
     key-store-type: PKCS12
-    key-store-password: ${TLS_KEYSTORE_PASSWORD:changeit}
+    # No default: must match the password the entrypoint used to generate the keystore (from .env).
+    key-store-password: ${TLS_KEYSTORE_PASSWORD}
     key-alias: gateway
 
 spring:
