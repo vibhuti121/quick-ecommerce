@@ -1,0 +1,90 @@
+name: CI
+
+# Mirrors the local gate (the repo's source of truth for "green"):
+#   docker compose build  ->  docker compose up  ->  fullstack-smoke.sh  ->  security-scan.sh
+# Everything runs on a single runner sharing one Docker daemon, because the smoke and the Trivy
+# image scan both need the just-built service images present.
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# One in-flight run per branch/PR; newer pushes cancel the superseded run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-smoke-scan:
+    name: build · smoke · security-scan
+    runs-on: ubuntu-latest
+    # 12 containers + 7 from-source Maven image builds + a Trivy DB pull is heavy; give it room.
+    timeout-minutes: 50
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Docker-heavy job: reclaim the ~10GB of preinstalled toolchains we don't use so 7 image
+      # builds + backing images + the Trivy cache don't fill the runner disk. Non-fatal.
+      - name: Free up disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android "$AGENT_TOOLSDIRECTORY" || true
+          df -h / | tail -1
+
+      # docker-compose.yml references every secret as ${VAR:?...} (fail-closed), so even `build`
+      # fails without a populated .env. gen-secrets.sh writes one non-interactively with random
+      # values — the same path a developer uses locally. .env is gitignored; nothing leaks.
+      - name: Generate secrets (.env)
+        run: bash scripts/gen-secrets.sh
+
+      - name: Build all service images
+        run: docker compose build
+
+      - name: Start the full stack
+        run: docker compose up -d
+
+      # Gateway-UP does NOT mean catalog/order have finished booting — they cold-start ~20-30s later.
+      # fullstack-smoke.sh has no initial readiness gate (step 0 only checks the gateway), so without
+      # this wait the smoke's first seed step races the catalog cold start and flakes. Poll the actual
+      # downstream endpoints (auth + public catalog browse) before handing off to the smoke.
+      - name: Wait for the edge + downstream to be ready
+        run: |
+          GW="https://localhost:${GATEWAY_PORT:-8443}"
+          echo "waiting for gateway health..."
+          for i in $(seq 1 60); do
+            curl -fsk "$GW/actuator/health" 2>/dev/null | grep -q '"status":"UP"' && break
+            sleep 2
+          done
+          echo "waiting for auth-service (guest token)..."
+          for i in $(seq 1 45); do
+            curl -fsk -X POST "$GW/auth/guest" -H 'Content-Type: application/json' \
+              -d '{"name":"ci"}' 2>/dev/null | grep -q '"token"' && break
+            sleep 2
+          done
+          echo "waiting for catalog-service (public browse -> 200)..."
+          for i in $(seq 1 45); do
+            code=$(curl -sk -o /dev/null -w '%{http_code}' "$GW/api/catalog/products")
+            [ "$code" = "200" ] && break
+            sleep 2
+          done
+          echo "readiness OK (gateway/auth/catalog)."
+
+      # 16 assertions: routing, RBAC admin seed, anonymous browse, checkout saga, idempotency,
+      # and data-survives-restart (the smoke does its own compose down/up for the persistence test).
+      - name: Full-stack smoke
+        run: bash scripts/fullstack-smoke.sh
+
+      # Trivy: Maven deps (pom.xml) + Dockerfile/compose misconfig + secrets, plus the 7 built
+      # service images and 5 backing images. Gates on CRITICAL (FAIL_ON default); base-image HIGHs
+      # inform without making the gate perma-red. Set TRIVY_VERSION to a real tag to pin for repro.
+      - name: Security scan (Trivy — gate on CRITICAL)
+        run: bash scripts/security-scan.sh
+
+      # On any failure above, surface what the stack was doing so the run is debuggable without a re-run.
+      - name: Dump container state & logs on failure
+        if: failure()
+        run: |
+          docker compose ps
+          docker compose logs --no-color --tail=200
