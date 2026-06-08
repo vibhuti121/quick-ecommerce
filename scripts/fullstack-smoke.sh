@@ -5,10 +5,13 @@
 #   and DATA SURVIVES A FULL RESTART (compose down -> up, order still there).
 #
 # Re-runnable: each run uses a unique SKU so it never collides with prior runs' catalog rows.
-# Usage: GATEWAY_PORT=8088 bash scripts/fullstack-smoke.sh
+# Usage: GATEWAY_PORT=8443 bash scripts/fullstack-smoke.sh
+# The edge is HTTPS with a dev self-signed cert (Pillar 4), so all curls go through a -k wrapper below.
 set -uo pipefail
 
-GW="http://localhost:${GATEWAY_PORT:-8080}"
+GW="https://localhost:${GATEWAY_PORT:-8443}"
+# TLS terminates at the gateway with a self-signed dev cert; accept it for every call in this script.
+curl() { command curl -k "$@"; }
 SKU="SMOKE-$$-${RANDOM}"          # unique per run -> script is idempotent across repeated runs
 IDEM="idem-$SKU"                  # checkout idempotency key, also unique per run (else a re-run replays the old order)
 PASS=0; FAIL=0
@@ -17,6 +20,28 @@ bad() { echo "  FAIL: $1"; FAIL=$((FAIL+1)); }
 assert_eq() { [ "$1" = "$2" ] && ok "$3 (=$2)" || bad "$3 (expected '$1' got '$2')"; }
 jget() { sed -n "s/.*\"$2\":\"\\([^\"]*\\)\".*/\\1/p" <<<"$1"; }      # string field
 jnum() { sed -n "s/.*\"$2\":\\([0-9]*\\).*/\\1/p" <<<"$1"; }          # numeric field
+
+# --- admin JWT (test harness only) -------------------------------------------
+# Phase-3 Pillar-1 RBAC gates /api/*/admin/** on the ADMIN role. The only PRODUCTION
+# path to an admin token is Google OAuth with an email in ADMIN_EMAILS — not scriptable.
+# For an end-to-end smoke we mint a short-lived HS256 token signed with the SAME secret
+# the auth-service uses (read from .env), carrying role=ADMIN. /auth/validate trusts the
+# role claim, so the gateway treats it as admin and the seed steps succeed. This does NOT
+# weaken prod: the secret never leaves the host and OAuth still governs real users; it
+# just lets the smoke do what a logged-in admin would (seed catalog + stock).
+ENV_FILE="$(dirname "$0")/../.env"
+JWT_SECRET="${JWT_SECRET:-}"
+[ -z "$JWT_SECRET" ] && [ -f "$ENV_FILE" ] && JWT_SECRET="$(grep -E '^JWT_SECRET=' "$ENV_FILE" | head -1 | cut -d= -f2-)"
+b64url() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
+mint_admin_jwt() {
+  local hdr pl now exp sig
+  now=$(date +%s); exp=$((now + 3600))
+  hdr=$(printf '%s' '{"alg":"HS256","typ":"JWT"}' | b64url)
+  pl=$(printf '%s' "{\"sub\":\"smoke-admin\",\"email\":\"smoke-admin@local\",\"displayName\":\"Smoke Admin\",\"role\":\"ADMIN\",\"iat\":$now,\"exp\":$exp}" | b64url)
+  sig=$(printf '%s' "$hdr.$pl" | openssl dgst -sha256 -hmac "$JWT_SECRET" -binary | b64url)
+  printf '%s.%s.%s' "$hdr" "$pl" "$sig"
+}
+
 echo "Using SKU=$SKU"
 
 echo
@@ -29,13 +54,19 @@ TOK=$(jget "$(curl -fs -X POST $GW/auth/guest -H 'Content-Type: application/json
 [ -n "$TOK" ] && ok "guest token issued" || bad "guest token issued"
 AUTH=(-H "Authorization: Bearer $TOK")
 
+# Admin token for the seed steps (catalog + inventory admin endpoints). Guests cannot seed
+# under Pillar-1 RBAC; an admin would. See the mint_admin_jwt note above.
+[ -z "$JWT_SECRET" ] && echo "  WARN: JWT_SECRET not found (run ./scripts/gen-secrets.sh) — admin seed steps will 403"
+ADMIN_TOK=$(mint_admin_jwt)
+ADMIN=(-H "Authorization: Bearer $ADMIN_TOK")
+
 echo
 echo "== 2. protected route rejects anonymous =="
 assert_eq "401" "$(curl -fs -o /dev/null -w '%{http_code}' $GW/api/orders)" "GET /api/orders without token -> 401"
 
 echo
 echo "== 3. seed catalog (admin, needs token) =="
-PROD=$(curl -fs -X POST $GW/api/catalog/admin/products "${AUTH[@]}" -H 'Content-Type: application/json' \
+PROD=$(curl -fs -X POST $GW/api/catalog/admin/products "${ADMIN[@]}" -H 'Content-Type: application/json' \
   -d "{\"sku\":\"$SKU\",\"name\":\"Smoke Widget\",\"productType\":\"PHYSICAL\",\"basePrice\":199.00,\"currency\":\"INR\"}")
 PID=$(jnum "$PROD" id)
 echo "  created product id=$PID sku=$SKU"
@@ -48,7 +79,7 @@ curl -fs "$GW/api/catalog/products" | grep -q "$SKU" && ok "seeded product visib
 
 echo
 echo "== 5. seed inventory stock (admin, token) =="
-curl -fs -X POST $GW/api/inventory/admin/stock "${AUTH[@]}" -H 'Content-Type: application/json' \
+curl -fs -X POST $GW/api/inventory/admin/stock "${ADMIN[@]}" -H 'Content-Type: application/json' \
   -d "{\"sku\":\"$SKU\",\"quantity\":20}" >/dev/null && ok "stock seeded $SKU=20" || bad "stock seeded"
 
 echo
@@ -102,7 +133,7 @@ echo "== 9. PERSISTENCE: full stack down -> up, data survives =="
 echo "  bringing stack down (keeping volumes)..."
 docker compose down >/dev/null 2>&1
 echo "  bringing stack back up..."
-GATEWAY_PORT="${GATEWAY_PORT:-8080}" docker compose up -d >/dev/null 2>&1
+GATEWAY_PORT="${GATEWAY_PORT:-8443}" docker compose up -d >/dev/null 2>&1
 echo "  waiting for gateway..."
 for i in $(seq 1 60); do
   curl -fs $GW/actuator/health 2>/dev/null | grep -q '"status":"UP"' && break
@@ -124,7 +155,14 @@ for i in $(seq 1 30); do
   sleep 2
 done
 assert_eq "CONFIRMED" "$ST_AFTER" "order $OID still CONFIRMED after restart"
-curl -fs $GW/api/catalog/products | grep -q "$SKU" && ok "catalog product survived restart" || bad "catalog product survived restart"
+# catalog-service is a separate JPA service that can still be cold-starting (~24s) after gateway-UP,
+# so poll for readiness like the order/inventory checks do — a single shot here is a false-negative race.
+CAT_OK=""
+for i in $(seq 1 30); do
+  curl -fs $GW/api/catalog/products 2>/dev/null | grep -q "$SKU" && { CAT_OK=1; break; }
+  sleep 2
+done
+[ -n "$CAT_OK" ] && ok "catalog product survived restart" || bad "catalog product survived restart"
 STK_AFTER=""
 for i in $(seq 1 30); do
   STK_AFTER=$(jnum "$(curl -s $GW/api/inventory/stock/$SKU "${AUTH2[@]}")" availableQty)

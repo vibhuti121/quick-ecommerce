@@ -12,15 +12,16 @@
 //
 // Run inside the compose network:
 //   docker run --rm --network quick-ecommerce_default \
-//     -e BASE_URL=http://gateway:8080 -v "$PWD/loadtest:/scripts" \
+//     -e BASE_URL=https://gateway:8443 -v "$PWD/loadtest:/scripts" \
 //     grafana/k6 run /scripts/journey.js
 //
+// The edge is HTTPS with a dev self-signed cert (Pillar 4); options.insecureSkipTLSVerify accepts it.
 // Override load with -e VUS=20 -e DURATION=1m.
 import http from 'k6/http';
 import { check, sleep } from 'k6';
 import { Rate } from 'k6/metrics';
 
-const BASE = __ENV.BASE_URL || 'http://gateway:8080';
+const BASE = __ENV.BASE_URL || 'https://gateway:8443';
 const VUS = parseInt(__ENV.VUS || '15', 10);
 const DURATION = __ENV.DURATION || '45s';
 
@@ -28,6 +29,7 @@ const journeyErrors = new Rate('journey_errors');
 const ordersAccepted = new Rate('orders_accepted');
 
 export const options = {
+  insecureSkipTLSVerify: true, // edge serves a dev self-signed cert (Pillar 4)
   scenarios: {
     journey: {
       executor: 'ramping-vus',
