@@ -1,4 +1,5 @@
-import type { Cart, Order } from '../types';
+import { useState } from 'react';
+import type { Cart, DeliveryDetails, Order } from '../types';
 import { formatPrice } from '../api';
 
 interface CartDrawerProps {
@@ -9,7 +10,7 @@ interface CartDrawerProps {
   onClose: () => void;
   onChangeQuantity: (productId: number, delta: number) => void;
   onRemove: (productId: number) => void;
-  onCheckout: () => void;
+  onCheckout: (delivery: DeliveryDetails) => void;
   onDismissOrder: () => void;
 }
 
@@ -26,6 +27,15 @@ export default function CartDrawer({
 }: CartDrawerProps) {
   const items = cart?.items ?? [];
   const isEmpty = items.length === 0;
+
+  // COD pilot: capture where the order goes. Checkout is blocked until all three are filled.
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [deliveryAddress, setDeliveryAddress] = useState('');
+  const deliveryReady =
+    customerName.trim() !== '' &&
+    customerPhone.trim() !== '' &&
+    deliveryAddress.trim() !== '';
 
   return (
     <>
@@ -105,6 +115,38 @@ export default function CartDrawer({
             </div>
 
             <div className="cart-footer">
+              {!isEmpty && (
+                <div className="delivery-form">
+                  <p className="delivery-title">Delivery details (Cash on Delivery)</p>
+                  <input
+                    className="delivery-input"
+                    type="text"
+                    placeholder="Full name"
+                    value={customerName}
+                    onChange={(e) => setCustomerName(e.target.value)}
+                    disabled={busy}
+                    aria-label="Full name"
+                  />
+                  <input
+                    className="delivery-input"
+                    type="tel"
+                    placeholder="Phone number"
+                    value={customerPhone}
+                    onChange={(e) => setCustomerPhone(e.target.value)}
+                    disabled={busy}
+                    aria-label="Phone number"
+                  />
+                  <textarea
+                    className="delivery-input"
+                    placeholder="Delivery address"
+                    value={deliveryAddress}
+                    onChange={(e) => setDeliveryAddress(e.target.value)}
+                    disabled={busy}
+                    rows={3}
+                    aria-label="Delivery address"
+                  />
+                </div>
+              )}
               <div className="cart-total-row">
                 <span>Total</span>
                 <span className="cart-total">
@@ -113,10 +155,16 @@ export default function CartDrawer({
               </div>
               <button
                 className="btn btn-primary btn-block"
-                onClick={onCheckout}
-                disabled={isEmpty || busy}
+                onClick={() =>
+                  onCheckout({
+                    customerName: customerName.trim(),
+                    customerPhone: customerPhone.trim(),
+                    deliveryAddress: deliveryAddress.trim(),
+                  })
+                }
+                disabled={isEmpty || busy || !deliveryReady}
               >
-                {busy ? 'Processing…' : 'Checkout'}
+                {busy ? 'Processing…' : 'Place COD order'}
               </button>
             </div>
           </>

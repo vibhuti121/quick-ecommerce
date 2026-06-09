@@ -93,7 +93,7 @@ echo
 echo "== 7. checkout saga (token + Idempotency-Key) =="
 CO=$(curl -fs -w '\n%{http_code}' -X POST $GW/api/orders/checkout "${AUTH[@]}" \
   -H 'Content-Type: application/json' -H 'Idempotency-Key: '"$IDEM"'' \
-  -d "{\"currency\":\"INR\",\"items\":[{\"productId\":$PID,\"sku\":\"$SKU\",\"name\":\"Smoke Widget\",\"unitPrice\":199.00,\"quantity\":2}]}")
+  -d "{\"currency\":\"INR\",\"customerName\":\"Smoke Tester\",\"customerPhone\":\"9990000002\",\"deliveryAddress\":\"1 Test Lane, Bengaluru\",\"items\":[{\"productId\":$PID,\"sku\":\"$SKU\",\"name\":\"Smoke Widget\",\"unitPrice\":199.00,\"quantity\":2}]}")
 CODE=$(tail -1 <<<"$CO"); BODY=$(sed '$d' <<<"$CO")
 assert_eq "202" "$CODE" "checkout -> 202 ACCEPTED"
 OID=$(jget "$BODY" orderId)
@@ -118,7 +118,7 @@ OID2=""
 for i in $(seq 1 10); do
   RESP=$(curl -s -w '\n%{http_code}' -X POST $GW/api/orders/checkout "${AUTH[@]}" -H 'Content-Type: application/json' \
     -H "Idempotency-Key: $IDEM" \
-    -d "{\"currency\":\"INR\",\"items\":[{\"productId\":$PID,\"sku\":\"$SKU\",\"name\":\"Smoke Widget\",\"unitPrice\":199.00,\"quantity\":2}]}")
+    -d "{\"currency\":\"INR\",\"customerName\":\"Smoke Tester\",\"customerPhone\":\"9990000002\",\"deliveryAddress\":\"1 Test Lane, Bengaluru\",\"items\":[{\"productId\":$PID,\"sku\":\"$SKU\",\"name\":\"Smoke Widget\",\"unitPrice\":199.00,\"quantity\":2}]}")
   RC=$(tail -1 <<<"$RESP")
   if [ "$RC" = "202" ]; then
     OID2=$(sed '$d' <<<"$RESP" | grep -o '"orderId":"[^"]*"' | head -1 | cut -d'"' -f4)

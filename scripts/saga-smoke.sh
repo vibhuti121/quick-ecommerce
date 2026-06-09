@@ -92,7 +92,7 @@ echo
 echo "== TEST A: happy path =="
 RA=$(curl -fs -w '\n%{http_code}' -X POST "$ORD/checkout" \
   -H 'Content-Type: application/json' -H 'X-User-Id: user-1' -H 'Idempotency-Key: key-A' \
-  -d '{"currency":"INR","items":[{"productId":1,"sku":"WIDGET-A","name":"Widget A","unitPrice":100.00,"quantity":2}]}')
+  -d '{"currency":"INR","customerName":"Saga Tester","customerPhone":"9990000001","deliveryAddress":"1 Test Lane, Bengaluru","items":[{"productId":1,"sku":"WIDGET-A","name":"Widget A","unitPrice":100.00,"quantity":2}]}')
 CODE_A=$(echo "$RA" | tail -1); BODY_A=$(echo "$RA" | sed '$d')
 assert_eq "202" "$CODE_A" "checkout returns 202 ACCEPTED"
 OID_A=$(echo "$BODY_A" | sed -n 's/.*"orderId":"\([^"]*\)".*/\1/p')
@@ -110,7 +110,7 @@ echo
 echo "== TEST B: idempotent retry (same key-A) =="
 RB=$(curl -fs -X POST "$ORD/checkout" \
   -H 'Content-Type: application/json' -H 'X-User-Id: user-1' -H 'Idempotency-Key: key-A' \
-  -d '{"currency":"INR","items":[{"productId":1,"sku":"WIDGET-A","name":"Widget A","unitPrice":100.00,"quantity":2}]}')
+  -d '{"currency":"INR","customerName":"Saga Tester","customerPhone":"9990000001","deliveryAddress":"1 Test Lane, Bengaluru","items":[{"productId":1,"sku":"WIDGET-A","name":"Widget A","unitPrice":100.00,"quantity":2}]}')
 OID_B=$(echo "$RB" | sed -n 's/.*"orderId":"\([^"]*\)".*/\1/p')
 assert_eq "$OID_A" "$OID_B" "same Idempotency-Key returns the same order"
 sleep 2
@@ -122,7 +122,7 @@ echo
 echo "== TEST C: payment decline (.66 hook) =="
 RC=$(curl -fs -X POST "$ORD/checkout" \
   -H 'Content-Type: application/json' -H 'X-User-Id: user-2' -H 'Idempotency-Key: key-C' \
-  -d '{"currency":"INR","items":[{"productId":3,"sku":"WIDGET-C","name":"Widget C","unitPrice":100.66,"quantity":1}]}')
+  -d '{"currency":"INR","customerName":"Saga Tester","customerPhone":"9990000001","deliveryAddress":"1 Test Lane, Bengaluru","items":[{"productId":3,"sku":"WIDGET-C","name":"Widget C","unitPrice":100.66,"quantity":1}]}')
 OID_C=$(echo "$RC" | sed -n 's/.*"orderId":"\([^"]*\)".*/\1/p')
 echo "  orderId=$OID_C (total 100.66 -> mock decline)"
 ST_C=$(poll_status "$OID_C" FAILED)
@@ -140,7 +140,7 @@ echo
 echo "== TEST D: oversell (qty 100 > stock 5) =="
 RD=$(curl -fs -X POST "$ORD/checkout" \
   -H 'Content-Type: application/json' -H 'X-User-Id: user-3' -H 'Idempotency-Key: key-D' \
-  -d '{"currency":"INR","items":[{"productId":4,"sku":"WIDGET-D","name":"Widget D","unitPrice":10.00,"quantity":100}]}')
+  -d '{"currency":"INR","customerName":"Saga Tester","customerPhone":"9990000001","deliveryAddress":"1 Test Lane, Bengaluru","items":[{"productId":4,"sku":"WIDGET-D","name":"Widget D","unitPrice":10.00,"quantity":100}]}')
 OID_D=$(echo "$RD" | sed -n 's/.*"orderId":"\([^"]*\)".*/\1/p')
 echo "  orderId=$OID_D"
 ST_D=$(poll_status "$OID_D" FAILED)

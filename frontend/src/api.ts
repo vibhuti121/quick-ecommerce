@@ -1,4 +1,4 @@
-import type { Cart, CartItem, Order, Product } from './types';
+import type { Cart, CartItem, DeliveryDetails, Order, Product } from './types';
 
 // Everything goes through the API gateway (the real edge), not the individual services. In production
 // the frontend is served from the same origin as the gateway, so the empty-string default means
@@ -163,7 +163,7 @@ export async function removeFromCart(productId: number): Promise<Cart> {
 // Checkout reads the live cart, builds the order lines, and posts with an Idempotency-Key so a retry
 // (network blip, double-click) never creates or charges twice. The saga settles asynchronously; the
 // returned order starts PENDING and the backend confirms it shortly after via the outbox→saga.
-export async function placeOrder(): Promise<Order> {
+export async function placeOrder(delivery: DeliveryDetails): Promise<Order> {
   const server = await request<ServerCart>('/api/cart');
   const lines = Object.values(server.items ?? {});
   if (lines.length === 0) throw new Error('Your cart is empty.');
@@ -178,6 +178,9 @@ export async function placeOrder(): Promise<Order> {
     headers: { 'Idempotency-Key': idempotencyKey },
     body: JSON.stringify({
       currency: 'INR',
+      customerName: delivery.customerName.trim(),
+      customerPhone: delivery.customerPhone.trim(),
+      deliveryAddress: delivery.deliveryAddress.trim(),
       items: lines.map((l) => ({
         productId: l.productId,
         sku: l.sku,

@@ -48,6 +48,11 @@ GRAFANA_PASSWORD=$(rand_alnum)
 # Password for the gateway's dev self-signed TLS keystore (Pillar 4). Used at image build AND runtime.
 TLS_KEYSTORE_PASSWORD=$(rand_alnum)
 
+# Admin console (COD pilot) HTTP basic-auth. The isolated admin-app is bound to 127.0.0.1 and reached
+# via SSH tunnel / VPN, then gated by this credential (user defaults to 'admin').
+ADMIN_USER=admin
+ADMIN_PASSWORD=$(rand_alnum)
+
 # --- Non-secret knobs (safe defaults live in docker-compose.yml; override here if needed) ---
 # Google OAuth2 (optional locally — guest tokens cover the full journey). Fill to enable Google login.
 GOOGLE_CLIENT_ID=dummy-client-id

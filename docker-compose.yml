@@ -134,7 +134,7 @@ services:
       DB_NAME: paymentdb
       DB_USER: postgres
       DB_PASSWORD: ${DB_PASSWORD:?missing - run ./scripts/gen-secrets.sh to create .env}
-      PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-mock}
+      PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-cod}
     depends_on:
       postgres:
         condition: service_healthy
@@ -185,6 +185,24 @@ services:
       - cart-service
       - inventory-service
       - payment-service
+      - order-service
+    restart: unless-stopped
+
+  # ---- Admin console (COD pilot) — network-isolated, NOT exposed to the public internet ----
+  # Three layers keep it dark: (1) bound to 127.0.0.1 only, so it's reachable only via SSH tunnel / VPN;
+  # (2) nginx HTTP basic-auth (creds from .env, generated at container start); (3) it proxies to
+  # order-service's /admin/orders/** — a path the gateway does not route and order-service does not
+  # publish — injecting X-User-Role: ADMIN, which order-service's AdminRoleFilter also enforces.
+  admin-app:
+    build:
+      context: ./admin-app
+    environment:
+      ADMIN_USER: ${ADMIN_USER:-admin}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?missing - run ./scripts/gen-secrets.sh to create .env}
+    ports:
+      # Loopback only — never 0.0.0.0. Access via: ssh -L 5174:127.0.0.1:5174 <host>, then localhost:5174.
+      - "127.0.0.1:${ADMIN_APP_PORT:-5174}:80"
+    depends_on:
       - order-service
     restart: unless-stopped
 
