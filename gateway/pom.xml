@@ -7,7 +7,7 @@
   <parent>
     <groupId>org.springframework.boot</groupId>
     <artifactId>spring-boot-starter-parent</artifactId>
-    <version>3.2.3</version>
+    <version>3.5.14</version>
     <relativePath/>
   </parent>
 
@@ -17,8 +17,12 @@
   <name>gateway</name>
 
   <properties>
-    <java.version>17</java.version>
-    <spring-cloud.version>2023.0.0</spring-cloud.version>
+    <java.version>21</java.version>
+    <!-- 2025.0.0 shipped gateway-server-webflux 4.3.0, which carries CVE-2025-41243 (SpEL property
+         modification; fix is 4.3.1+). Pinned to the latest OSS 2025.0.x patch (2025.0.2 → gateway
+         4.3.4). Note: our gateway does NOT expose the 'gateway' actuator endpoint, so the CVE's
+         precondition is unmet here regardless — this keeps us clean by version too. -->
+    <spring-cloud.version>2025.0.2</spring-cloud.version>
   </properties>
 
   <dependencyManagement>
@@ -36,7 +40,7 @@
   <dependencies>
     <dependency>
       <groupId>org.springframework.cloud</groupId>
-      <artifactId>spring-cloud-starter-gateway</artifactId>
+      <artifactId>spring-cloud-starter-gateway-server-webflux</artifactId>
     </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>

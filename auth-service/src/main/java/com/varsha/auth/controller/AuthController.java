@@ -52,10 +52,13 @@ public class AuthController {
         try {
             Claims claims = jwtService.validate(authHeader.substring(7));
             String displayName = claims.get("displayName", String.class);
+            // Tokens minted before RBAC have no role claim → treat as USER (least privilege).
+            String role = claims.get("role", String.class);
             return ResponseEntity.ok(Map.of(
                 "userId", claims.getSubject(),
                 "email", claims.get("email", String.class),
-                "displayName", displayName != null ? displayName : ""
+                "displayName", displayName != null ? displayName : "",
+                "role", role != null ? role : "USER"
             ));
         } catch (JwtException e) {
             return ResponseEntity.status(401).body(Map.of("error", "Invalid token"));
@@ -88,7 +91,7 @@ public class AuthController {
 
         User user = userService.updateDisplayName(userId, req.displayName().trim());
         String resolved = userService.resolvedName(user);
-        String newToken = jwtService.generate(user.getId(), user.getEmail(), resolved);
+        String newToken = jwtService.generate(user.getId(), user.getEmail(), resolved, user.getRole());
         return ResponseEntity.ok(Map.of("token", newToken, "displayName", resolved));
     }
 }

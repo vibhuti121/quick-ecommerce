@@ -28,16 +28,19 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
     private final int capacity;
     private final int refillTokens;
     private final long refillSeconds;
+    private final boolean trustForwardedFor;
 
     public RateLimitFilter(
             @Value("${app.rate-limit.capacity:100}") int capacity,
             @Value("${app.rate-limit.refill-tokens:100}") int refillTokens,
             @Value("${app.rate-limit.refill-duration-seconds:60}") long refillSeconds,
             @Value("${app.rate-limit.max-tracked-ips:20000}") long maxTrackedIps,
-            @Value("${app.rate-limit.ip-expire-minutes:10}") long ipExpireMinutes) {
+            @Value("${app.rate-limit.ip-expire-minutes:10}") long ipExpireMinutes,
+            @Value("${app.rate-limit.trust-forwarded-for:false}") boolean trustForwardedFor) {
         this.capacity = capacity;
         this.refillTokens = refillTokens;
         this.refillSeconds = refillSeconds;
+        this.trustForwardedFor = trustForwardedFor;
         this.buckets = Caffeine.newBuilder()
                 .expireAfterAccess(ipExpireMinutes, TimeUnit.MINUTES)
                 .maximumSize(maxTrackedIps)
@@ -89,10 +92,17 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
     }
 
     private String extractClientIp(ServerWebExchange exchange) {
-        // Caddy sets X-Forwarded-For; take the first (client) address
-        String xff = exchange.getRequest().getHeaders().getFirst("X-Forwarded-For");
-        if (xff != null && !xff.isBlank()) {
-            return xff.split(",")[0].trim();
+        // SECURITY (Phase 3, Pillar 5): X-Forwarded-For is client-controlled. Since TLS now terminates
+        // directly here (Pillar 4) the gateway is the internet-facing edge with NO trusted proxy in
+        // front, so honouring XFF unconditionally would let an attacker rotate the header per request
+        // to get a fresh bucket and bypass the limit entirely. We therefore key on the real TCP peer
+        // by default, and only trust the forwarded first-hop when explicitly deployed behind a trusted
+        // L7 proxy/LB that overwrites XFF (app.rate-limit.trust-forwarded-for=true).
+        if (trustForwardedFor) {
+            String xff = exchange.getRequest().getHeaders().getFirst("X-Forwarded-For");
+            if (xff != null && !xff.isBlank()) {
+                return xff.split(",")[0].trim();
+            }
         }
         InetSocketAddress remote = exchange.getRequest().getRemoteAddress();
         return remote != null ? remote.getAddress().getHostAddress() : "unknown";

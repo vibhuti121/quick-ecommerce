@@ -8,5 +8,9 @@ RUN mvn package -DskipTests -q
 FROM eclipse-temurin:21-jre
 WORKDIR /app
 COPY --from=builder /app/target/*.jar app.jar
+# Run as a non-root user (DS-0002): the service only reads its immutable jar. Port is >1024 so a
+# non-root process can bind it.
+RUN useradd -r -u 10001 appuser
+USER appuser
 EXPOSE 8093
 ENTRYPOINT ["java", "-jar", "app.jar"]

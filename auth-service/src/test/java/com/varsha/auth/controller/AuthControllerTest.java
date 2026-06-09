@@ -46,7 +46,9 @@ class AuthControllerTest {
                         .header("Authorization", "Bearer good-token"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.userId").value("user123"))
-                .andExpect(jsonPath("$.email").value("test@example.com"));
+                .andExpect(jsonPath("$.email").value("test@example.com"))
+                // role-less (pre-RBAC) claims default to USER
+                .andExpect(jsonPath("$.role").value("USER"));
     }
 
     @Test

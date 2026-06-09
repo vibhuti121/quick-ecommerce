@@ -21,8 +21,8 @@ Catalog seed data is 9 products (ids 1–9).
 | Script | Target | What it proves |
 |--------|--------|----------------|
 | `browse.js` | **catalog-service direct** (`:8090`) | Read throughput/latency + Redis cache hit-ratio climb |
-| `journey.js` | **gateway** (`:8080`) | Full purchase path across auth, catalog, cart (Redis), order (outbox → inventory + payment) |
-| `ratelimit.js` | **gateway** (`:8080`) | The per-client-IP rate limiter engages (429 + problem+json) |
+| `journey.js` | **gateway** (`:8443`, HTTPS) | Full purchase path across auth, catalog, cart (Redis), order (outbox → inventory + payment) |
+| `ratelimit.js` | **gateway** (`:8443`, HTTPS) | The per-client-IP rate limiter engages (429 + problem+json) |
 
 ### Why browse.js hits the service directly
 
@@ -41,16 +41,27 @@ docker run --rm --network quick-ecommerce_default \
   -e BASE_URL=http://catalog-service:8090 \
   -v "$PWD/loadtest:/scripts" grafana/k6 run /scripts/browse.js
 
-# 2) Full guest journey through the gateway (15 VUs, 45s)
+# 2) Full guest journey through the gateway (15 VUs, 45s) — HTTPS edge, dev self-signed cert
+#    journey.js gives each VU its own X-Forwarded-For to simulate distinct clients, so the gateway
+#    must be brought up trusting that header (Pillar 5 default is OFF — see note below):
+#      RATE_LIMIT_TRUST_FORWARDED_FOR=true docker compose up -d gateway
 docker run --rm --network quick-ecommerce_default \
-  -e BASE_URL=http://gateway:8080 \
+  -e BASE_URL=https://gateway:8443 \
   -v "$PWD/loadtest:/scripts" grafana/k6 run /scripts/journey.js
 
-# 3) Edge rate-limit guard verification
+# 3) Edge rate-limit guard verification — HTTPS edge (works under the default; one real client = one bucket)
 docker run --rm --network quick-ecommerce_default \
-  -e BASE_URL=http://gateway:8080 \
+  -e BASE_URL=https://gateway:8443 \
   -v "$PWD/loadtest:/scripts" grafana/k6 run /scripts/ratelimit.js
 ```
+> The k6 scripts set `insecureSkipTLSVerify` so the gateway's dev self-signed cert is accepted.
+>
+> **Pillar 5 — X-Forwarded-For trust.** The rate limiter keys on the real TCP peer by default and
+> ignores the client-supplied `X-Forwarded-For` (otherwise a single client spoofs the header to mint
+> unlimited buckets and bypass the limit). `journey.js` *relies* on per-VU XFF to look like many
+> clients, so start the gateway with `RATE_LIMIT_TRUST_FORWARDED_FOR=true` before running it. Don't
+> leave that on in a real deployment unless a trusted proxy/LB overwrites XFF. `ratelimit.js` is a
+> single real client (one k6 container), so it fires the guard under the default — no flag needed.
 
 Tune load with `-e VUS=80 -e DURATION=2m` (browse/journey) or `-e BURST=300` (ratelimit).
 

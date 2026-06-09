@@ -28,8 +28,9 @@ import java.net.URI;
  * Catalog API.
  * <ul>
  *   <li>{@code GET /api/catalog/**} — public browse/read (added to gateway PUBLIC_PATHS).</li>
- *   <li>{@code POST/PUT/DELETE /api/catalog/admin/**} — admin writes (gateway requires auth +
- *       eventually an admin role check).</li>
+ *   <li>{@code POST/PUT/DELETE /api/catalog/admin/**} — admin writes. The gateway enforces the
+ *       ADMIN role (Phase 3, Pillar 1); {@code AdminRoleFilter} re-checks {@code X-User-Role} here
+ *       as defense-in-depth.</li>
  * </ul>
  */
 @RestController

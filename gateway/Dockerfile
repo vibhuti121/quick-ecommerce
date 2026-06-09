@@ -7,6 +7,18 @@ RUN mvn package -DskipTests -q
 
 FROM eclipse-temurin:21-jre
 WORKDIR /app
+# Dev-only self-signed TLS cert for HTTPS termination at the edge (Phase 3, Pillar 4). The keystore is
+# generated at CONTAINER START by docker-entrypoint.sh from the runtime ${TLS_KEYSTORE_PASSWORD}, so the
+# password is NEVER baked into a build ARG or image layer / `docker history` (remediates DS-0031). A real
+# deployment mounts a CA-signed PKCS12 over /app/keystore.p12 (see the entrypoint). keytool ships in the
+# JRE; the SAN covers localhost + the in-network "gateway" hostname so Prometheus can scrape over HTTPS.
 COPY --from=build /app/target/*.jar app.jar
-EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+# Run as a non-root user (DS-0002). Unlike the other services, the entrypoint writes the generated
+# keystore into /app at runtime, so /app must be owned by appuser. Port 8443 is >1024 (non-root OK).
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh \
+ && useradd -r -u 10001 appuser \
+ && chown appuser /app
+USER appuser
+EXPOSE 8443
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

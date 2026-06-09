@@ -33,7 +33,7 @@ public class OAuth2SuccessHandler implements AuthenticationSuccessHandler {
                                         Authentication authentication) throws IOException {
         OAuth2User oauth2User = (OAuth2User) authentication.getPrincipal();
         User user = userService.upsert(oauth2User);
-        String token = jwtService.generate(user.getId(), user.getEmail(), userService.resolvedName(user));
+        String token = jwtService.generate(user.getId(), user.getEmail(), userService.resolvedName(user), user.getRole());
         // Send token to frontend via redirect — frontend stores it in localStorage
         response.sendRedirect(frontendUrl + "/auth/callback?token=" + token);
     }

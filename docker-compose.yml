@@ -2,14 +2,15 @@
 # all five commerce services, and their backing stores. Each service owns its own Postgres database;
 # cart lives in Redis. Data persists in named volumes, so the whole journey survives a restart.
 #
-# Edge entrypoint: http://localhost:8080 (gateway). Everything else is reachable through it.
+# Edge entrypoint: https://localhost:8443 (gateway, TLS-terminated — Pillar 4). It uses a dev
+# self-signed cert, so clients need -k/--insecure. Everything else is reachable through it.
 
 services:
   postgres:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?missing - run ./scripts/gen-secrets.sh to create .env}
       POSTGRES_DB: postgres
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -42,8 +43,8 @@ services:
     image: minio/minio:latest
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?missing - run ./scripts/gen-secrets.sh to create .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?missing - run ./scripts/gen-secrets.sh to create .env}
     ports:
       - "${MINIO_API_PORT:-9000}:9000"
       - "${MINIO_CONSOLE_PORT:-9001}:9001"
@@ -57,14 +58,17 @@ services:
       DB_HOST: postgres
       DB_NAME: authdb
       DB_USER: postgres
-      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:?missing - run ./scripts/gen-secrets.sh to create .env}
       # HS256 requires a key >= 256 bits (32 bytes); a shorter secret makes jjwt throw WeakKeyException.
-      JWT_SECRET: ${JWT_SECRET:-varsha-dev-jwt-secret-min-256-bits-change-me}
+      # No default on purpose: a signing key in source = anyone can forge tokens. Generated into .env.
+      JWT_SECRET: ${JWT_SECRET:?missing - run ./scripts/gen-secrets.sh to create .env}
       # Google OAuth2 is optional for local dev (guest tokens cover the journey). Real values enable
       # Google login; dummies let the service boot — the discovery URL itself is public.
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-dummy-client-id}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-dummy-client-secret}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      # RBAC admin allowlist (Phase 3, Pillar 1). Comma-separated emails; empty → no admins.
+      ADMIN_EMAILS: ${ADMIN_EMAILS:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -76,7 +80,7 @@ services:
       DB_HOST: postgres
       DB_NAME: catalogdb
       DB_USER: postgres
-      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:?missing - run ./scripts/gen-secrets.sh to create .env}
       # Read-through cache for the catalog browse/detail path. A Redis outage degrades to DB reads.
       REDIS_HOST: redis
       REDIS_PORT: 6379
@@ -84,8 +88,8 @@ services:
       # PUBLIC_URL is what the browser uses to fetch the image, so it must be the host-published address.
       MINIO_ENDPOINT: http://minio:9000
       MINIO_PUBLIC_URL: ${MINIO_PUBLIC_URL:-http://localhost:9000}
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:?missing - run ./scripts/gen-secrets.sh to create .env}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?missing - run ./scripts/gen-secrets.sh to create .env}
       MINIO_BUCKET: ${MINIO_BUCKET:-product-images}
     depends_on:
       postgres:
@@ -117,7 +121,7 @@ services:
       DB_HOST: postgres
       DB_NAME: inventorydb
       DB_USER: postgres
-      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:?missing - run ./scripts/gen-secrets.sh to create .env}
     depends_on:
       postgres:
         condition: service_healthy
@@ -129,7 +133,7 @@ services:
       DB_HOST: postgres
       DB_NAME: paymentdb
       DB_USER: postgres
-      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:?missing - run ./scripts/gen-secrets.sh to create .env}
       PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-mock}
     depends_on:
       postgres:
@@ -142,7 +146,7 @@ services:
       DB_HOST: postgres
       DB_NAME: orderdb
       DB_USER: postgres
-      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:?missing - run ./scripts/gen-secrets.sh to create .env}
       INVENTORY_SERVICE_URL: http://inventory-service:8092
       PAYMENT_SERVICE_URL: http://payment-service:8093
       OUTBOX_POLL_INTERVAL_MS: ${OUTBOX_POLL_INTERVAL_MS:-2000}
@@ -156,9 +160,11 @@ services:
     restart: unless-stopped
 
   gateway:
-    build: ./gateway
+    build:
+      context: ./gateway
     ports:
-      - "${GATEWAY_PORT:-8080}:8080"
+      # HTTPS edge (TLS terminates here — Pillar 4). Container listens on 8443.
+      - "${GATEWAY_PORT:-8443}:8443"
     environment:
       AUTH_HOST: auth-service
       CATALOG_HOST: catalog-service
@@ -167,6 +173,12 @@ services:
       PAYMENT_HOST: payment-service
       ORDER_HOST: order-service
       ALLOWED_ORIGIN: ${ALLOWED_ORIGIN:-http://localhost:5173}
+      # The entrypoint generates the dev keystore from this at start, and Spring opens it with the same
+      # value — fail closed (no default) so a missing secret stops boot rather than shipping 'changeit'.
+      TLS_KEYSTORE_PASSWORD: ${TLS_KEYSTORE_PASSWORD:?missing - run ./scripts/gen-secrets.sh to create .env}
+      # Pillar 5: trust X-Forwarded-For for rate-limit keying ONLY behind a trusted proxy. Default false
+      # (gateway is the exposed edge). The journey load test sets this true to simulate distinct clients.
+      RATE_LIMIT_TRUST_FORWARDED_FOR: ${RATE_LIMIT_TRUST_FORWARDED_FOR:-false}
     depends_on:
       - auth-service
       - catalog-service
@@ -195,7 +207,7 @@ services:
     image: grafana/grafana:latest
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:?missing - run ./scripts/gen-secrets.sh to create .env}
       GF_USERS_ALLOW_SIGN_UP: "false"
     volumes:
       - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro

@@ -7,19 +7,22 @@
 //
 // Run inside the compose network:
 //   docker run --rm --network quick-ecommerce_default \
-//     -e BASE_URL=http://gateway:8080 -v "$PWD/loadtest:/scripts" \
+//     -e BASE_URL=https://gateway:8443 -v "$PWD/loadtest:/scripts" \
 //     grafana/k6 run /scripts/ratelimit.js
+//
+// The edge is HTTPS with a dev self-signed cert (Pillar 4); options.insecureSkipTLSVerify accepts it.
 import http from 'k6/http';
 import { check } from 'k6';
 import { Counter } from 'k6/metrics';
 
-const BASE = __ENV.BASE_URL || 'http://gateway:8080';
+const BASE = __ENV.BASE_URL || 'https://gateway:8443';
 const BURST = parseInt(__ENV.BURST || '150', 10); // > capacity (100) so we must hit the limit
 
 const got200 = new Counter('rl_200');
 const got429 = new Counter('rl_429');
 
 export const options = {
+  insecureSkipTLSVerify: true, // edge serves a dev self-signed cert (Pillar 4)
   scenarios: {
     burst: { executor: 'shared-iterations', vus: 10, iterations: BURST, maxDuration: '30s' },
   },

@@ -1,0 +1,23 @@
+# .trivyignore — accepted / deferred findings for scripts/security-scan.sh
+#
+# The scan GATES on CRITICAL only (HIGH is printed but does not fail the build). Add a line ONLY
+# for a finding you have consciously accepted, ALWAYS with a justification + a review date so it
+# can't silently rot. Format: `CVE-ID exp:YYYY-MM-DD  # why`. After the exp date it re-surfaces.
+#
+# State of our own service images (after the Spring Boot 3.2.3 → 3.5.12 baseline upgrade):
+#   • CVE-2026-22732 (spring-security-web) is FIXED — Boot 3.5.12 manages spring-security 6.5.9. The
+#     former <spring-security.version> override AND the deferral line that used to sit here are gone.
+#   • Tomcat CRITICALs (CVE-2025-24813, CVE-2026-41293) are FIXED in all 6 web services via the
+#     <tomcat.version>10.1.55</tomcat.version> override — Boot 3.5.12's BOM still pins 10.1.52, so
+#     the override stays (10.1.55 is a drop-in within the 10.1.x line) — not ignored here.
+#   • gateway CVE-2025-41243 (SpEL via gateway-server-webflux) is FIXED — Spring Cloud pinned to
+#     2025.0.2 (gateway 4.3.4); not ignored here.
+#   • Nothing of ours requires a CRITICAL suppression anymore.
+#
+# --- upstream CVEs in third-party backing images we don't build ----------------------------------
+# Go-toolchain / minio-internal issues — cannot appear in our Java (eclipse-temurin) images;
+# remediation is "wait for the upstream image to rebuild" or accept the residual local-dev risk.
+CVE-2025-68121 exp:2026-09-30  # Go stdlib crypto/tls in postgres:16-alpine & minio; clears on upstream rebuild; N/A to our Java images
+CVE-2026-33186 exp:2026-09-30  # grpc-go in minio:latest; fix not yet in upstream image; N/A to our Java images
+CVE-2026-33322 exp:2026-09-30  # minio OIDC JWT alg-confusion; we use root creds only (no OIDC), minio not publicly exposed in this stack
+CVE-2026-33419 exp:2026-09-30  # minio LDAP issue; no upstream fix yet, we use root creds (no LDAP/IdP), minio not publicly exposed in this stack
