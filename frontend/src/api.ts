@@ -140,6 +140,15 @@ export async function getProducts(): Promise<Product[]> {
   return (page.content ?? []).map(toProduct);
 }
 
+// Full-text search (OpenSearch-backed, typo-tolerant; degrades to a Postgres scan if search is down).
+// Same Page<ProductResponse> shape as browse, so the result maps through the same toProduct.
+export async function searchProducts(q: string): Promise<Product[]> {
+  const page = await request<CatalogPage>(
+    `/api/catalog/products/search?q=${encodeURIComponent(q)}&size=50`,
+  );
+  return (page.content ?? []).map(toProduct);
+}
+
 export async function getCart(): Promise<Cart> {
   return toCart(await request<ServerCart>('/api/cart'));
 }

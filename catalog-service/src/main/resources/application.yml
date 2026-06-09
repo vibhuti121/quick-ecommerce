@@ -68,6 +68,20 @@ app:
   cache:
     product-ttl-seconds: ${CACHE_PRODUCT_TTL:3600}
     browse-ttl-seconds: ${CACHE_BROWSE_TTL:600}
+  # OpenSearch product search (secondary index; Postgres stays source of truth). enabled=false leaves
+  # the client bean absent and the search endpoint degrades to a Postgres ILIKE fallback. Short timeouts
+  # so a dead/slow OpenSearch fails fast into that fallback instead of stalling a request thread.
+  search:
+    enabled: ${SEARCH_ENABLED:true}
+    host: ${OPENSEARCH_HOST:localhost}
+    port: ${OPENSEARCH_PORT:9200}
+    scheme: ${OPENSEARCH_SCHEME:http}
+    index: ${OPENSEARCH_INDEX:products}
+    connect-timeout-ms: ${OPENSEARCH_CONNECT_TIMEOUT_MS:2000}
+    response-timeout-ms: ${OPENSEARCH_RESPONSE_TIMEOUT_MS:2000}
+    backfill:
+      # How long startup waits for OpenSearch before skipping backfill (it boots a bit behind catalog).
+      readiness-timeout-ms: ${SEARCH_BACKFILL_READINESS_TIMEOUT_MS:30000}
   # S3-compatible object storage (MinIO) for product images.
   #  endpoint   — in-network S3 API the service uploads to (path-style).
   #  public-url — browser-facing base used to BUILD image URLs; differs from endpoint because the

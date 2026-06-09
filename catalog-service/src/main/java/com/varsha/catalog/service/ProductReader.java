@@ -32,6 +32,22 @@ public class ProductReader {
                 .orElseThrow(() -> new NotFoundException("Product not found: " + id)));
     }
 
+    /**
+     * Every product (active or not), as response DTOs, for the search backfill. Inactive products are
+     * indexed too so a later reactivation is searchable immediately; the search query filters on
+     * {@code active=true} regardless. Runs in a read tx so the lazy {@code variants} materialize here.
+     */
+    @Transactional(readOnly = true)
+    public Page<ProductResponse> findAllForIndex(Pageable pageable) {
+        return products.findAll(pageable).map(ProductResponse::from);
+    }
+
+    /** Postgres fallback for the search endpoint when OpenSearch is down. Maps in-tx (lazy variants). */
+    @Transactional(readOnly = true)
+    public Page<ProductResponse> searchFallback(String q, Pageable pageable) {
+        return products.searchFallback(q, pageable).map(ProductResponse::from);
+    }
+
     @Transactional(readOnly = true)
     public CachedPage<ProductResponse> findBrowse(String category, ProductType type, Pageable pageable) {
         Page<Product> page;

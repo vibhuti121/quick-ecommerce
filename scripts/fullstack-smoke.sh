@@ -129,6 +129,26 @@ done
 assert_eq "$OID" "$OID2" "same Idempotency-Key -> same order (no double charge)"
 
 echo
+echo "== 8b. search (OpenSearch secondary index; falls back to Postgres ILIKE if down) =="
+# Public, like browse — no token (the /api/catalog/products prefix is in AuthFilter PUBLIC_PATHS).
+assert_eq "200" "$(curl -fs -o /dev/null -w '%{http_code}' "$GW/api/catalog/products/search?q=shirt")" "GET /products/search without token -> 200"
+# Backfill indexed the Flyway seed: a generic term hits the seeded catalog (proves startup backfill ran).
+curl -fs "$GW/api/catalog/products/search?q=shirt" | grep -q "Cotton Round-Neck T-Shirt" \
+  && ok "search finds backfilled seed (q=shirt)" || bad "search finds backfilled seed (q=shirt)"
+# Fuzziness/typo tolerance (AUTO): a misspelling still matches. NOTE: only OpenSearch is fuzzy — the
+# Postgres ILIKE fallback is substring-only, so this asserts the OpenSearch path specifically.
+curl -fs "$GW/api/catalog/products/search?q=shrt" | grep -q "Cotton Round-Neck T-Shirt" \
+  && ok "search is typo-tolerant (q=shrt -> shirt)" || bad "search is typo-tolerant (q=shrt -> shirt)"
+# Dual-write + cache-bypass: the per-run SKU created in step 3 is findable. Poll to absorb the
+# OpenSearch refresh interval (~1s) — search is deliberately NOT cached, so no eviction lag.
+SRCH_OK=""
+for i in $(seq 1 10); do
+  curl -fs "$GW/api/catalog/products/search?q=Smoke" | grep -q "$SKU" && { SRCH_OK=1; break; }
+  sleep 1
+done
+[ -n "$SRCH_OK" ] && ok "just-created SKU findable via search (dual-write, q=Smoke)" || bad "just-created SKU findable via search (dual-write, q=Smoke)"
+
+echo
 echo "== 9. PERSISTENCE: full stack down -> up, data survives =="
 echo "  bringing stack down (keeping volumes)..."
 docker compose down >/dev/null 2>&1

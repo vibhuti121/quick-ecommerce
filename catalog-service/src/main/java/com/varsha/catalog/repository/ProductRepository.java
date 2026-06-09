@@ -24,6 +24,20 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
 
     Page<Product> findByActiveTrueAndProductType(ProductType productType, Pageable pageable);
 
+    /**
+     * Degraded search path when OpenSearch is unreachable: a case-insensitive substring match over
+     * name/description/sku on active products. No fuzziness, no attribute search, no relevance ranking
+     * — just enough that the search endpoint never 503s during an OpenSearch outage.
+     */
+    @Query("""
+            select p from Product p
+            where p.active = true and (
+                lower(p.name)        like lower(concat('%', :q, '%')) or
+                lower(p.description) like lower(concat('%', :q, '%')) or
+                lower(p.sku)         like lower(concat('%', :q, '%')))
+            """)
+    Page<Product> searchFallback(@Param("q") String q, Pageable pageable);
+
     /** Targeted image-URL update — used by the MinIO seeder so it never touches variants/other fields. */
     @Modifying
     @Transactional

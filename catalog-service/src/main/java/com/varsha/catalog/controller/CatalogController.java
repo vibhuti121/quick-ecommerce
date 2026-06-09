@@ -53,6 +53,20 @@ public class CatalogController {
         return catalog.browse(category, type, pageable);
     }
 
+    /**
+     * Full-text product search (public, like browse). {@code q} is the search term; {@code category}
+     * /{@code type} optionally narrow it. Same {@code Page<ProductResponse>} shape as browse, so the
+     * storefront renders results with its existing grid. A blank {@code q} returns a normal browse page.
+     */
+    @GetMapping("/products/search")
+    public Page<ProductResponse> search(
+            @RequestParam(required = false, defaultValue = "") String q,
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) ProductType type,
+            @PageableDefault(size = 20) Pageable pageable) {
+        return catalog.search(q, category, type, pageable);
+    }
+
     @GetMapping("/products/{id}")
     public ProductResponse get(@PathVariable Long id) {
         return catalog.get(id);
