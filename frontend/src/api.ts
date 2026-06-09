@@ -1,4 +1,4 @@
-import type { Cart, CartItem, Order, Product } from './types';
+import type { Cart, CartItem, Order, Product, ProductType } from './types';
 
 // Everything goes through the API gateway (the real edge), not the individual services. In production
 // the frontend is served from the same origin as the gateway (behind Caddy), so the empty-string
@@ -67,6 +67,7 @@ interface CatalogProduct {
   basePrice: number;
   imageUrl: string | null;
   category: string | null;
+  productType: ProductType;
 }
 interface CartLine {
   productId: number;
@@ -108,6 +109,7 @@ function toProduct(p: CatalogProduct): Product {
     price: p.basePrice,
     imageUrl: p.imageUrl ?? PLACEHOLDER_IMG,
     category: p.category ?? 'General',
+    productType: p.productType,
   };
 }
 
@@ -120,6 +122,9 @@ function lineToCartItem(line: CartLine | OrderItem): CartItem {
       price: line.unitPrice,
       imageUrl: ('imageUrl' in line ? line.imageUrl : null) ?? PLACEHOLDER_IMG,
       category: '',
+      // Cart/order lines don't carry the product type (the catalog does); this view of the
+      // product is only used by the cart UI, which never reads productType. Placeholder only.
+      productType: 'PHYSICAL',
     },
     quantity: line.quantity,
   };

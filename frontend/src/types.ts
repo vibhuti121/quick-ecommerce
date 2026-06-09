@@ -1,3 +1,10 @@
+export type ProductType =
+  | 'PHYSICAL'
+  | 'DIGITAL'
+  | 'SERVICE'
+  | 'SUBSCRIPTION'
+  | 'RENTAL';
+
 export interface Product {
   id: number;
   name: string;
@@ -5,6 +12,7 @@ export interface Product {
   price: number;
   imageUrl: string;
   category: string;
+  productType: ProductType;
 }
 
 export interface CartItem {

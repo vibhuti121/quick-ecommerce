@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Header from './components/Header';
 import ProductGrid from './components/ProductGrid';
 import CartDrawer from './components/CartDrawer';
+import NavRibbon, { TYPE_META, TYPE_ORDER } from './components/NavRibbon';
+import type { Tab, TabKey } from './components/NavRibbon';
 import {
   addToCart,
   getCart,
@@ -9,7 +11,7 @@ import {
   placeOrder,
   removeFromCart,
 } from './api';
-import type { Cart, Order, Product } from './types';
+import type { Cart, Order, Product, ProductType } from './types';
 
 export default function App() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -21,6 +23,9 @@ export default function App() {
   const [addingId, setAddingId] = useState<number | null>(null);
   const [busy, setBusy] = useState<boolean>(false);
   const [order, setOrder] = useState<Order | null>(null);
+
+  // Which ribbon tab is active. 'ALL' (default) shows everything; a type key filters the grid.
+  const [activeType, setActiveType] = useState<TabKey>('ALL');
 
   useEffect(() => {
     let active = true;
@@ -47,6 +52,29 @@ export default function App() {
   const itemCount = useMemo(
     () => (cart?.items ?? []).reduce((sum, item) => sum + item.quantity, 0),
     [cart]
+  );
+
+  // Ribbon tabs: an "All" pill (total count) followed by one pill per product type actually present,
+  // in canonical order, each with its own count. Types with zero products never show a dead tab.
+  const tabs = useMemo<Tab[]>(() => {
+    const counts = new Map<ProductType, number>();
+    for (const p of products) {
+      counts.set(p.productType, (counts.get(p.productType) ?? 0) + 1);
+    }
+    const typeTabs: Tab[] = TYPE_ORDER.filter((t) => counts.has(t)).map((t) => ({
+      key: t,
+      label: `${TYPE_META[t].icon} ${TYPE_META[t].label}`,
+      count: counts.get(t) ?? 0,
+    }));
+    return [{ key: 'ALL', label: '✦ All', count: products.length }, ...typeTabs];
+  }, [products]);
+
+  const visibleProducts = useMemo(
+    () =>
+      activeType === 'ALL'
+        ? products
+        : products.filter((p) => p.productType === activeType),
+    [products, activeType]
   );
 
   const handleAdd = useCallback(async (product: Product) => {
@@ -136,11 +164,20 @@ export default function App() {
             <p>No products available right now.</p>
           </div>
         ) : (
-          <ProductGrid
-            products={products}
-            onAdd={handleAdd}
-            addingId={addingId}
-          />
+          <>
+            <NavRibbon tabs={tabs} active={activeType} onSelect={setActiveType} />
+            {visibleProducts.length === 0 ? (
+              <div className="state-message">
+                <p>No products in this category yet.</p>
+              </div>
+            ) : (
+              <ProductGrid
+                products={visibleProducts}
+                onAdd={handleAdd}
+                addingId={addingId}
+              />
+            )}
+          </>
         )}
       </main>
 

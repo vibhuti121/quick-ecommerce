@@ -1,8 +1,14 @@
 :root {
   --accent: #4f46e5;
   --accent-dark: #4338ca;
-  --bg: #f5f6fa;
+  --accent-2: #ec4899;
+  /* Vivid brand gradient used on the ribbon, buttons, brand mark and price. */
+  --accent-gradient: linear-gradient(135deg, #4f46e5 0%, #7c3aed 45%, #ec4899 100%);
+  --bg: #eef1f8;
   --surface: #ffffff;
+  /* Frosted-glass surface for the header, cards and ribbon pills (sits over the mesh). */
+  --glass: rgba(255, 255, 255, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.6);
   --text: #1f2430;
   --muted: #6b7280;
   --border: #e5e7eb;
@@ -11,6 +17,7 @@
   --radius: 14px;
   --shadow: 0 4px 16px rgba(17, 24, 39, 0.08);
   --shadow-lg: 0 12px 40px rgba(17, 24, 39, 0.18);
+  --glow: 0 8px 24px rgba(79, 70, 229, 0.35);
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial,
     sans-serif;
 }
@@ -26,7 +33,13 @@ body {
 }
 
 body {
-  background: var(--bg);
+  /* Light base with fixed radial "mesh" blobs (violet / pink / cyan) behind all content. */
+  background:
+    radial-gradient(40rem 40rem at 12% -5%, rgba(124, 58, 237, 0.22), transparent 60%),
+    radial-gradient(38rem 38rem at 95% 0%, rgba(236, 72, 153, 0.18), transparent 60%),
+    radial-gradient(46rem 46rem at 50% 115%, rgba(56, 189, 248, 0.16), transparent 60%),
+    var(--bg);
+  background-attachment: fixed;
   color: var(--text);
   -webkit-font-smoothing: antialiased;
 }
@@ -40,9 +53,11 @@ body {
   position: sticky;
   top: 0;
   z-index: 20;
-  background: var(--surface);
-  border-bottom: 1px solid var(--border);
-  box-shadow: var(--shadow);
+  background: var(--glass);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
+  border-bottom: 1px solid var(--glass-border);
+  box-shadow: 0 4px 24px rgba(17, 24, 39, 0.06);
 }
 
 .header-inner {
@@ -68,6 +83,10 @@ body {
 
 .brand-name {
   letter-spacing: -0.02em;
+  background: var(--accent-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .cart-button {
@@ -75,7 +94,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background: var(--accent);
+  background: var(--accent-gradient);
   color: #fff;
   border: none;
   padding: 10px 18px;
@@ -83,11 +102,14 @@ body {
   font-size: 0.95rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s ease, transform 0.1s ease;
+  box-shadow: var(--glow);
+  transition: filter 0.15s ease, transform 0.1s ease, box-shadow 0.15s ease;
 }
 
 .cart-button:hover {
-  background: var(--accent-dark);
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 28px rgba(124, 58, 237, 0.45);
 }
 
 .cart-button:active {
@@ -121,14 +143,83 @@ body {
 
 .hero h1 {
   margin: 0 0 8px;
-  font-size: 2rem;
+  font-size: 2.25rem;
   letter-spacing: -0.03em;
+  background: linear-gradient(120deg, #1f2430 0%, #4f46e5 55%, #ec4899 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .hero p {
   margin: 0;
   color: var(--muted);
   font-size: 1.05rem;
+}
+
+/* Nav ribbon — horizontal type filter pills (scrolls sideways on small screens) */
+.nav-ribbon {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 24px;
+  padding-bottom: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.nav-ribbon::-webkit-scrollbar {
+  display: none;
+}
+
+.ribbon-pill {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--glass-border);
+  background: var(--glass);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: var(--text);
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease,
+    color 0.2s ease, border-color 0.2s ease;
+}
+
+.ribbon-pill:hover {
+  border-color: rgba(79, 70, 229, 0.4);
+  transform: translateY(-1px);
+}
+
+.ribbon-pill.active {
+  background: var(--accent-gradient);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: var(--glow);
+}
+
+.ribbon-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: rgba(17, 24, 39, 0.08);
+  color: var(--muted);
+}
+
+.ribbon-pill.active .ribbon-count {
+  background: rgba(255, 255, 255, 0.28);
+  color: #fff;
 }
 
 /* Banner */
@@ -157,18 +248,22 @@ body {
 }
 
 .product-card {
-  background: var(--surface);
+  background: var(--glass);
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+  border: 1px solid var(--glass-border);
   border-radius: var(--radius);
-  box-shadow: var(--shadow);
+  box-shadow: 0 6px 24px rgba(17, 24, 39, 0.08);
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
 }
 
 .product-card:hover {
-  transform: translateY(-4px);
-  box-shadow: var(--shadow-lg);
+  transform: translateY(-6px);
+  box-shadow: 0 18px 44px rgba(124, 58, 237, 0.22);
+  border-color: rgba(124, 58, 237, 0.35);
 }
 
 .product-image {
@@ -233,6 +328,10 @@ body {
 .product-price {
   font-size: 1.15rem;
   font-weight: 700;
+  background: var(--accent-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 /* Buttons */
@@ -247,12 +346,14 @@ body {
 }
 
 .btn-primary {
-  background: var(--accent);
+  background: var(--accent-gradient);
   color: #fff;
+  box-shadow: 0 4px 14px rgba(79, 70, 229, 0.3);
 }
 
 .btn-primary:hover:not(:disabled) {
-  background: var(--accent-dark);
+  filter: brightness(1.06);
+  box-shadow: 0 8px 22px rgba(124, 58, 237, 0.4);
 }
 
 .btn:disabled {
@@ -512,5 +613,22 @@ body {
 @media (max-width: 600px) {
   .hero h1 {
     font-size: 1.55rem;
+  }
+}
+
+/* Respect users who prefer reduced motion: drop the lift/transform animations. */
+@media (prefers-reduced-motion: reduce) {
+  .product-card,
+  .product-card:hover,
+  .ribbon-pill,
+  .ribbon-pill:hover,
+  .cart-button,
+  .cart-button:hover {
+    transition: none;
+    transform: none;
+  }
+
+  .spinner {
+    animation: none;
   }
 }
