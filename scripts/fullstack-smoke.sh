@@ -49,6 +49,14 @@ echo "== 0. edge health =="
 assert_eq "UP" "$(curl -fs $GW/actuator/health | grep -o '\"status\":\"UP\"' | head -1 | cut -d'"' -f4)" "gateway health UP"
 
 echo
+echo "== 0b. storefront served at the edge (B1) =="
+# GET / falls through the catch-all (Path=/**, order:1) to the frontend nginx container. Proves the
+# SPA ships same-origin AND that the catch-all did NOT shadow /actuator (UP above) or /api (steps below).
+ROOT=$(curl -fs -w '\n%{http_code}' "$GW/")
+assert_eq "200" "$(tail -1 <<<"$ROOT")" "GET / serves the storefront -> 200"
+grep -q '<div id="root"' <<<"$ROOT" && ok "response is the SPA shell (#root)" || bad "response is the SPA shell (#root)"
+
+echo
 echo "== 1. guest auth (issues JWT) =="
 TOK=$(jget "$(curl -fs -X POST $GW/auth/guest -H 'Content-Type: application/json' -d '{"name":"Smoke Shopper"}')" token)
 [ -n "$TOK" ] && ok "guest token issued" || bad "guest token issued"

@@ -1,0 +1,7 @@
+# Keep the build context lean and never ship local artifacts/secrets into the image.
+node_modules
+dist
+.env
+.env.*
+*.log
+capture.mjs

@@ -215,15 +215,26 @@ shop immediately with no admin setup.
 
 **Smoke the whole journey in one command:**
 ```bash
-bash scripts/fullstack-smoke.sh                # expect: 16 passed, 0 failed
+bash scripts/fullstack-smoke.sh                # expect: 18 passed, 0 failed
 ```
 
-**Frontend (optional, hot-reload):**
+**Storefront — two ways to run it:**
+
+*Containerized, same-origin (the go-live artifact).* `docker compose up` already builds and starts the
+`frontend` nginx container; the gateway serves it on its own TLS edge via a catch-all route, so the SPA
+and the API share one origin (no CORS):
+```bash
+open https://localhost:8443/           # the storefront, served through the gateway (-k / "proceed" for the dev cert)
+```
+
+*Vite dev server (optional, hot-reload) for fast local iteration:*
 ```bash
 cd frontend
 cp .env.example .env.local            # leave VITE_API_BASE empty — Vite proxies to the HTTPS gateway
 npm install && npm run dev            # http://localhost:5173
 ```
+Both leave `VITE_API_BASE` **empty**: the container is same-origin behind the gateway, and the dev server
+proxies `/api`,`/auth` to the HTTPS gateway.
 
 **Tear down:**
 ```bash
@@ -234,14 +245,15 @@ docker compose down -v                # wipe data too (fresh DBs + re-seed next 
 ### Verify your setup
 Tick all of these and your environment is good to go:
 
-- [ ] `docker compose ps` shows **12 containers** (`gateway`, `auth-service`, `catalog-service`,
-      `cart-service`, `inventory-service`, `payment-service`, `order-service`, `postgres`, `redis`,
-      `minio`, `prometheus`, `grafana`) — all `running`.
+- [ ] `docker compose ps` shows **14 containers** (`gateway`, `auth-service`, `catalog-service`,
+      `cart-service`, `inventory-service`, `payment-service`, `order-service`, `frontend`, `admin-app`,
+      `postgres`, `redis`, `minio`, `prometheus`, `grafana`) — all `running`.
 - [ ] `curl -k https://localhost:8443/actuator/health` → `{"status":"UP"}`.
+- [ ] `curl -k https://localhost:8443/` → the storefront HTML (`<div id="root">`), served same-origin.
 - [ ] `curl -k https://localhost:8443/api/catalog/products` → JSON with **5 seeded products**.
-- [ ] `bash scripts/fullstack-smoke.sh` → **16 passed, 0 failed**.
+- [ ] `bash scripts/fullstack-smoke.sh` → **18 passed, 0 failed**.
 - [ ] http://localhost:3000 opens **Grafana** (log in `admin` / `GRAFANA_PASSWORD`); http://localhost:9090 opens **Prometheus**.
-- [ ] (frontend, if used) http://localhost:5173 shows the product grid.
+- [ ] http://localhost:5173 (Vite dev, optional) shows the product grid.
 
 If any fail, see [Troubleshooting](#troubleshooting).
 

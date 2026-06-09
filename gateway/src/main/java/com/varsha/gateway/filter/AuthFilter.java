@@ -123,7 +123,16 @@ public class AuthFilter implements GlobalFilter, Ordered {
     }
 
     private boolean isPublic(String path) {
-        return PUBLIC_PATHS.stream().anyMatch(path::startsWith);
+        if (PUBLIC_PATHS.stream().anyMatch(path::startsWith)) {
+            return true;
+        }
+        // Storefront (B1): the gateway's ONLY protected surfaces are the service APIs under /api/**
+        // and /auth/** (their public sub-paths — /auth/guest, /api/catalog/products — are whitelisted
+        // above and checked first). Everything the specific routes don't claim falls through to the
+        // storefront catch-all and is static SPA content (index.html + hashed /assets) served
+        // same-origin — public by nature. This branch must NEVER match /api/ or /auth/, or it would
+        // open a protected API; the trailing slash keeps the boundary exact (bare /api has no handler).
+        return !path.startsWith("/api/") && !path.startsWith("/auth/");
     }
 
     private boolean requiresAdmin(String path) {
