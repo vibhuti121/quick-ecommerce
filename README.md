@@ -215,7 +215,7 @@ shop immediately with no admin setup.
 
 **Smoke the whole journey in one command:**
 ```bash
-bash scripts/fullstack-smoke.sh                # expect: 18 passed, 0 failed
+bash scripts/fullstack-smoke.sh                # expect: 22 passed, 0 failed
 ```
 
 **Storefront — two ways to run it:**
@@ -250,8 +250,8 @@ Tick all of these and your environment is good to go:
       `postgres`, `redis`, `minio`, `prometheus`, `grafana`) — all `running`.
 - [ ] `curl -k https://localhost:8443/actuator/health` → `{"status":"UP"}`.
 - [ ] `curl -k https://localhost:8443/` → the storefront HTML (`<div id="root">`), served same-origin.
-- [ ] `curl -k https://localhost:8443/api/catalog/products` → JSON with **5 seeded products**.
-- [ ] `bash scripts/fullstack-smoke.sh` → **18 passed, 0 failed**.
+- [ ] `curl -k https://localhost:8443/api/catalog/products` → JSON with **11 seeded products** (5 demo + 6 MaLLADE).
+- [ ] `bash scripts/fullstack-smoke.sh` → **22 passed, 0 failed**.
 - [ ] http://localhost:3000 opens **Grafana** (log in `admin` / `GRAFANA_PASSWORD`); http://localhost:9090 opens **Prometheus**.
 - [ ] http://localhost:5173 (Vite dev, optional) shows the product grid.
 
@@ -396,6 +396,33 @@ On a **fresh** volume, Flyway seeds the catalog and matching stock — one produ
 Seeds are **idempotent** (skip if the SKU exists) and only run on a fresh DB. `docker compose down -v`
 wipes volumes and re-seeds on next boot.
 
+### MaLLADE catalog & provenance (V3 seed)
+
+The brand this platform powers — **MaLLADE** — sells **traceable** GI-tagged fruits and honey. A second
+Flyway seed (`V3__seed_mallade_provenance.sql`) adds real-shaped products, each carrying its provenance
+under the JSONB `attributes.provenance` (no schema change — `attributes` was always JSONB):
+
+| SKU | Category | Price (INR) | GI status |
+|---|---|---|---|
+| `MAL-HONEY-COORG-500` / `-1000` | honey | 549 / 999 | none (lab-tested purity) |
+| `MAL-HONEY-JUNGLE-500` | honey | 599 | none (lab-tested purity) |
+| `MAL-MANGO-ALPHONSO-BOX` | fruit | 1299 | **pending** |
+| `MAL-MANGO-GI-BOX` | fruit | 1099 | **authorized** ✓ |
+| `MAL-LITCHI-SHAHI-BOX` | fruit | 899 | **authorized** ✓ |
+
+`attributes.provenance` = `{ farm, origin, harvest, batch, labCert{ ref, test, status }, gi{ status, name, authNo? } }`.
+The storefront's **product-detail overlay** (click any card — no router; it mirrors the cart slide-over and
+fetches `GET /api/catalog/products/{id}`) surfaces this panel.
+
+**Compliance rule (enforced in the UI):** the "GI-tagged ✓" badge renders **only** when
+`gi.status === "authorized"`; `pending`/`none` show as plain text — never an unearned GI claim. The seed
+mixes all three to exercise the distinction.
+
+**Per-SKU, not variant-aware:** each buyable unit (honey 500g vs 1kg) is its **own product**, so the
+cart/order/checkout contract (lines keyed by `productId`) is untouched. Variants are seeded only as
+*informational* "available grades" for display. These MaLLADE rows are **catalog-only — no stock is
+seeded**; add inventory via `POST /api/inventory/admin/stock` to make one buyable.
+
 ---
 
 ## Developer workflow
@@ -430,10 +457,10 @@ pre-seeded, so no setup needed.
 ### 1. Automated smoke tests
 | Script | Proves | Run |
 |---|---|---|
-| `scripts/fullstack-smoke.sh` | 16 assertions: edge health, guest auth, 401 on anon, admin seed, public browse, cart snapshot, **checkout saga → CONFIRMED + payment SUCCESS + stock decrement**, **idempotent replay**, **restart-survives-data** | `bash scripts/fullstack-smoke.sh` |
+| `scripts/fullstack-smoke.sh` | 22 assertions: edge health, guest auth, 401 on anon, admin seed, public browse, **MaLLADE provenance round-trips (V3 seed applied)**, cart snapshot, **checkout saga → CONFIRMED + payment SUCCESS + stock decrement**, **idempotent replay**, **restart-survives-data** | `bash scripts/fullstack-smoke.sh` |
 | `scripts/saga-smoke.sh` | The order saga happy path in isolation | `bash scripts/saga-smoke.sh` |
 
-Both are **re-runnable** (unique SKU + idempotency key per run). Expected: `16 passed, 0 failed`.
+Both are **re-runnable** (unique SKU + idempotency key per run). Expected: `22 passed, 0 failed`.
 
 ### 1b. Supply-chain & image security scan (Trivy)
 `scripts/security-scan.sh` runs [Trivy](https://github.com/aquasecurity/trivy) **fully dockerized**

@@ -86,6 +86,17 @@ assert_eq "200" "$(curl -fs -o /dev/null -w '%{http_code}' $GW/api/catalog/produ
 curl -fs "$GW/api/catalog/products" | grep -q "$SKU" && ok "seeded product visible in public browse" || bad "seeded product visible in public browse"
 
 echo
+echo "== 4b. MaLLADE provenance seeded (B3 — proves V3 migration ran at startup) =="
+# The V3 Flyway seed adds MAL-* products carrying attributes.provenance. The build gate never runs
+# Flyway, so this is the ONLY check that the migration applied AND that provenance round-trips through
+# the catalog API + Redis cache. (size=200 so the seeded rows aren't past the default page.)
+MAL=$(curl -fs "$GW/api/catalog/products?size=200")
+echo "$MAL" | grep -q "MAL-HONEY-COORG-500" && ok "MaLLADE product MAL-HONEY-COORG-500 present (V3 seed applied)" || bad "MaLLADE product MAL-HONEY-COORG-500 present (V3 seed applied)"
+echo "$MAL" | grep -q '"provenance"' && ok "product carries attributes.provenance" || bad "product carries attributes.provenance"
+echo "$MAL" | grep -q 'Coorg (Kodagu), Karnataka' && ok "provenance.origin round-trips through the API" || bad "provenance.origin round-trips through the API"
+echo "$MAL" | grep -q '"status":"authorized"' && ok "GI-authorized example present (badge-eligible)" || bad "GI-authorized example present (badge-eligible)"
+
+echo
 echo "== 5. seed inventory stock (admin, token) =="
 curl -fs -X POST $GW/api/inventory/admin/stock "${ADMIN[@]}" -H 'Content-Type: application/json' \
   -d "{\"sku\":\"$SKU\",\"quantity\":20}" >/dev/null && ok "stock seeded $SKU=20" || bad "stock seeded"
