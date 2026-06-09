@@ -7,7 +7,7 @@ ALTER TABLE orders
     ADD COLUMN customer_name    VARCHAR(256)  NOT NULL DEFAULT '',
     ADD COLUMN customer_phone   VARCHAR(32)   NOT NULL DEFAULT '',
     ADD COLUMN delivery_address VARCHAR(1024) NOT NULL DEFAULT '',
-    ADD COLUMN delivery_status  VARCHAR(16)   NOT NULL DEFAULT 'AWAITING_DELIVERY'
+    ADD COLUMN delivery_status  VARCHAR(20)   NOT NULL DEFAULT 'AWAITING_DELIVERY'
         CHECK (delivery_status IN ('AWAITING_DELIVERY', 'DELIVERED', 'CANCELLED'));
 
 CREATE INDEX idx_orders_delivery_status ON orders (delivery_status);

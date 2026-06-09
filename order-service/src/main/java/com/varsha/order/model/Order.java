@@ -59,7 +59,7 @@ public class Order {
     private String deliveryAddress;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "delivery_status", nullable = false, length = 16)
+    @Column(name = "delivery_status", nullable = false, length = 20)
     private DeliveryStatus deliveryStatus;
 
     @Column(name = "created_at", nullable = false)
