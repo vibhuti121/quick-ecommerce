@@ -365,7 +365,7 @@ Base URL = the gateway, e.g. `https://localhost:8443` (HTTPS, dev self-signed �
 | 🔒 GET | `/api/orders/{orderId}` | — | Poll `status`: PENDING → CONFIRMED \| FAILED |
 | 🔒 GET | `/api/orders` | — | Current user's orders |
 
-`CheckoutRequest` = `{ currency, items:[{ productId, sku, name, unitPrice, quantity }] }`
+`CheckoutRequest` = `{ currency, customerName, customerPhone, deliveryAddress, items:[{ productId, sku, name, unitPrice, quantity }] }` — the three delivery fields are required (COD pilot: goods are delivered to the address and paid on delivery).
 
 ---
 

@@ -23,3 +23,10 @@ export interface Order {
   total: number;
   placedAt: string;
 }
+
+// Cash-on-Delivery pilot: where the order goes. Collected at checkout and required before placing.
+export interface DeliveryDetails {
+  customerName: string;
+  customerPhone: string;
+  deliveryAddress: string;
+}

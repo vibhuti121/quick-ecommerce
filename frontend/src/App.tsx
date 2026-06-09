@@ -9,7 +9,7 @@ import {
   placeOrder,
   removeFromCart,
 } from './api';
-import type { Cart, Order, Product } from './types';
+import type { Cart, DeliveryDetails, Order, Product } from './types';
 
 export default function App() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -89,10 +89,10 @@ export default function App() {
     }
   }, []);
 
-  const handleCheckout = useCallback(async () => {
+  const handleCheckout = useCallback(async (delivery: DeliveryDetails) => {
     setBusy(true);
     try {
-      const placed = await placeOrder();
+      const placed = await placeOrder(delivery);
       setOrder(placed);
       setCart({ items: [], total: 0 });
     } catch (err: unknown) {

@@ -49,6 +49,19 @@ public class Order {
     @Column(name = "failure_reason", length = 512)
     private String failureReason;
 
+    @Column(name = "customer_name", nullable = false, length = 256)
+    private String customerName;
+
+    @Column(name = "customer_phone", nullable = false, length = 32)
+    private String customerPhone;
+
+    @Column(name = "delivery_address", nullable = false, length = 1024)
+    private String deliveryAddress;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "delivery_status", nullable = false, length = 16)
+    private DeliveryStatus deliveryStatus;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -95,6 +108,18 @@ public class Order {
 
     public String getFailureReason() { return failureReason; }
     public void setFailureReason(String failureReason) { this.failureReason = failureReason; }
+
+    public String getCustomerName() { return customerName; }
+    public void setCustomerName(String customerName) { this.customerName = customerName; }
+
+    public String getCustomerPhone() { return customerPhone; }
+    public void setCustomerPhone(String customerPhone) { this.customerPhone = customerPhone; }
+
+    public String getDeliveryAddress() { return deliveryAddress; }
+    public void setDeliveryAddress(String deliveryAddress) { this.deliveryAddress = deliveryAddress; }
+
+    public DeliveryStatus getDeliveryStatus() { return deliveryStatus; }
+    public void setDeliveryStatus(DeliveryStatus deliveryStatus) { this.deliveryStatus = deliveryStatus; }
 
     public Instant getCreatedAt() { return createdAt; }
 

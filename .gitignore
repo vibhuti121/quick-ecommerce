@@ -7,6 +7,9 @@ target/
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
+admin-app/node_modules/
+admin-app/dist/
+admin-app/.vite/
 
 # Misc
 .DS_Store

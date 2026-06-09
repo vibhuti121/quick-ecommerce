@@ -1,5 +1,6 @@
 package com.varsha.order.dto;
 
+import com.varsha.order.model.DeliveryStatus;
 import com.varsha.order.model.Order;
 import com.varsha.order.model.OrderStatus;
 import jakarta.validation.Valid;
@@ -29,6 +30,9 @@ public final class Dtos {
 
     public record CheckoutRequest(
             @NotBlank String currency,
+            @NotBlank String customerName,
+            @NotBlank String customerPhone,
+            @NotBlank String deliveryAddress,
             @NotEmpty @Valid List<CheckoutItem> items
     ) {}
 
@@ -42,6 +46,10 @@ public final class Dtos {
             BigDecimal totalAmount,
             String currency,
             String failureReason,
+            String customerName,
+            String customerPhone,
+            String deliveryAddress,
+            DeliveryStatus deliveryStatus,
             List<OrderItemResponse> items,
             Instant createdAt,
             Instant updatedAt
@@ -52,7 +60,9 @@ public final class Dtos {
                             i.getUnitPrice(), i.getQuantity(), i.getLineTotal()))
                     .toList();
             return new OrderResponse(o.getOrderId(), o.getUserId(), o.getStatus(), o.getTotalAmount(),
-                    o.getCurrency(), o.getFailureReason(), items, o.getCreatedAt(), o.getUpdatedAt());
+                    o.getCurrency(), o.getFailureReason(),
+                    o.getCustomerName(), o.getCustomerPhone(), o.getDeliveryAddress(), o.getDeliveryStatus(),
+                    items, o.getCreatedAt(), o.getUpdatedAt());
         }
     }
 }

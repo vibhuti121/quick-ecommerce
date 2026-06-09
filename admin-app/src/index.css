@@ -1,0 +1,164 @@
+:root {
+  --ink: #1a1a2e;
+  --muted: #6b6b85;
+  --line: #e4e4ef;
+  --brand: #5319e7;
+  --ok: #0e8a16;
+  --bad: #b60205;
+  --amber: #b86e00;
+  --bg: #faf9ff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+  font-size: 14px;
+}
+
+.app {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 24px 20px 60px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.topbar h1 {
+  font-size: 1.4rem;
+  margin: 0;
+  color: var(--brand);
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.chip {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 20px;
+  padding: 5px 14px;
+  font: inherit;
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.chip-active {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+}
+
+.btn {
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 8px;
+  padding: 6px 14px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+}
+
+.orders {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.orders th,
+.orders td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.orders th {
+  background: var(--bg);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--muted);
+}
+
+.orders td.num,
+.orders th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.addr {
+  max-width: 220px;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.small {
+  font-size: 0.82rem;
+}
+
+.badge {
+  display: inline-block;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge-green {
+  background: #e6f4ea;
+  color: var(--ok);
+}
+
+.badge-red {
+  background: #fde7e7;
+  color: var(--bad);
+}
+
+.badge-amber {
+  background: #fbeed4;
+  color: var(--amber);
+}
+
+.banner-error {
+  background: #fde7e7;
+  color: var(--bad);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+}

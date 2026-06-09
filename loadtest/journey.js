@@ -120,6 +120,9 @@ export default function () {
   const idempotencyKey = `${__VU}-${__ITER}-${Date.now()}`;
   const checkoutBody = JSON.stringify({
     currency: product.currency || 'INR',
+    customerName: `Load Tester ${__VU}`,
+    customerPhone: '9990000003',
+    deliveryAddress: '1 Test Lane, Bengaluru',
     items: [{
       productId: product.id,
       sku: product.sku,

@@ -4,6 +4,7 @@ import com.varsha.order.dto.Dtos.CheckoutItem;
 import com.varsha.order.dto.Dtos.CheckoutRequest;
 import com.varsha.order.dto.Dtos.OrderResponse;
 import com.varsha.order.exception.OrderExceptions.NotFoundException;
+import com.varsha.order.model.DeliveryStatus;
 import com.varsha.order.model.Order;
 import com.varsha.order.model.OrderItem;
 import com.varsha.order.model.OrderStatus;
@@ -50,6 +51,10 @@ public class CheckoutService {
         order.setIdempotencyKey(idempotencyKey);
         order.setStatus(OrderStatus.PENDING);
         order.setCurrency(req.currency());
+        order.setCustomerName(req.customerName());
+        order.setCustomerPhone(req.customerPhone());
+        order.setDeliveryAddress(req.deliveryAddress());
+        order.setDeliveryStatus(DeliveryStatus.AWAITING_DELIVERY);
 
         BigDecimal total = BigDecimal.ZERO;
         for (CheckoutItem i : req.items()) {
@@ -86,5 +91,38 @@ public class CheckoutService {
         return orders.findByUserIdOrderByIdDesc(userId).stream()
                 .map(OrderResponse::from)
                 .toList();
+    }
+
+    /**
+     * Admin view (newest-first), optionally filtered by saga status or delivery status. Used by the
+     * network-isolated admin platform to triage which COD orders are ready to hand over.
+     */
+    @Transactional(readOnly = true)
+    public List<OrderResponse> listForAdmin(OrderStatus status, DeliveryStatus deliveryStatus) {
+        List<Order> rows;
+        if (status != null) {
+            rows = orders.findByStatusOrderByIdDesc(status);
+        } else if (deliveryStatus != null) {
+            rows = orders.findByDeliveryStatusOrderByIdDesc(deliveryStatus);
+        } else {
+            rows = orders.findAllByOrderByIdDesc();
+        }
+        return rows.stream().map(OrderResponse::from).toList();
+    }
+
+    /**
+     * Founder marks a COD order delivered after handing the goods over (and collecting cash). Only an
+     * orthogonal fulfillment flip — it does NOT touch the saga {@link OrderStatus}. Idempotent: a repeat
+     * call on an already-DELIVERED order is a no-op and returns the current state.
+     */
+    @Transactional
+    public OrderResponse markDelivered(String orderId) {
+        Order order = orders.findByOrderId(orderId)
+                .orElseThrow(() -> new NotFoundException("No order: " + orderId));
+        if (order.getDeliveryStatus() != DeliveryStatus.DELIVERED) {
+            order.setDeliveryStatus(DeliveryStatus.DELIVERED);
+            orders.save(order);
+        }
+        return OrderResponse.from(order);
     }
 }
