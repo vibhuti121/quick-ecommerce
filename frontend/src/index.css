@@ -610,6 +610,182 @@ body {
   margin-bottom: 12px !important;
 }
 
+/* Clickable card image/title → product-detail overlay. The image is a <button>, reset to
+   look identical to the old <div> while staying keyboard-focusable. */
+.product-view {
+  border: none;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  display: block;
+  cursor: pointer;
+  font: inherit;
+}
+
+.product-view-text {
+  cursor: pointer;
+}
+
+.product-view-text:hover {
+  color: var(--accent);
+}
+
+.product-origin {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+/* GI badge — only rendered for gi.status === "authorized" (compliance-honest). */
+.gi-badge {
+  display: inline-flex;
+  align-items: center;
+  background: var(--success);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.gi-badge-card {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+}
+
+/* Product-detail overlay — slide-over mirroring .cart-drawer, a touch wider for content. */
+.detail-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  width: 100%;
+  max-width: 480px;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  transform: translateX(100%);
+  transition: transform 0.25s ease;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+}
+
+.detail-drawer-open {
+  transform: translateX(0);
+}
+
+.detail-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+}
+
+.detail-image {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  background: #eef0f5;
+  border-radius: var(--radius);
+  overflow: hidden;
+  margin-bottom: 14px;
+}
+
+.detail-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.detail-name {
+  margin: 0 0 6px;
+  font-size: 1.35rem;
+  letter-spacing: -0.01em;
+}
+
+.detail-price {
+  font-size: 1.3rem;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.detail-sku {
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+
+.detail-description {
+  margin: 0 0 18px;
+  color: var(--muted);
+  line-height: 1.55;
+  font-size: 0.92rem;
+}
+
+/* Provenance + variant panels */
+.prov-panel,
+.variant-panel {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  margin-bottom: 16px;
+}
+
+.prov-title {
+  margin: 0 0 10px;
+  font-size: 0.95rem;
+  font-weight: 700;
+}
+
+.prov-row {
+  display: flex;
+  gap: 12px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 0.88rem;
+}
+
+.prov-row:last-child {
+  border-bottom: none;
+}
+
+.prov-label {
+  flex: 0 0 92px;
+  color: var(--muted);
+  font-weight: 600;
+}
+
+.prov-value {
+  flex: 1;
+}
+
+.variant-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.variant-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.88rem;
+  padding: 4px 0;
+}
+
+.variant-delta {
+  color: var(--muted);
+}
+
+.variant-note {
+  margin: 10px 0 0;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+
 @media (max-width: 600px) {
   .hero h1 {
     font-size: 1.55rem;

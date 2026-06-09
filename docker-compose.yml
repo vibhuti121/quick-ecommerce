@@ -216,6 +216,9 @@ services:
       INVENTORY_HOST: inventory-service
       PAYMENT_HOST: payment-service
       ORDER_HOST: order-service
+      # Storefront catch-all target (B1). The frontend nginx container publishes no host port, so the
+      # gateway reaching it in-network is the only way the SPA is served — same-origin with /api.
+      FRONTEND_HOST: frontend
       ALLOWED_ORIGIN: ${ALLOWED_ORIGIN:-http://localhost:5173}
       # The entrypoint generates the dev keystore from this at start, and Spring opens it with the same
       # value — fail closed (no default) so a missing secret stops boot rather than shipping 'changeit'.
@@ -230,6 +233,17 @@ services:
       - inventory-service
       - payment-service
       - order-service
+      - frontend
+    restart: unless-stopped
+
+  # ---- Storefront SPA (B1) — the public React/Vite app, containerized ----
+  # Static nginx serving the built bundle. Deliberately NO host port: the only way in is the gateway's
+  # catch-all route (storefront, order:1), so the browser loads the SPA and calls /api from one origin
+  # (https://localhost:8443/) — CORS never engages. For fast local iteration, `npm run dev` on :5173
+  # (with its Vite proxy) still works; this service is the go-live artifact.
+  frontend:
+    build:
+      context: ./frontend
     restart: unless-stopped
 
   # ---- Admin console (COD pilot) — network-isolated, NOT exposed to the public internet ----

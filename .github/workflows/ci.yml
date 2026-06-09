@@ -80,7 +80,7 @@ jobs:
           done
           echo "readiness OK (gateway/auth/catalog/search)."
 
-      # 27 assertions: routing, RBAC admin seed, anonymous browse, checkout saga, idempotency,
+      # 33 assertions: routing, RBAC admin seed, anonymous browse, checkout saga, idempotency,
       # OpenSearch search (public/backfill/fuzzy/dual-write), hybrid recommendations (public 200,
       # co-purchase partner present, anchor excluded, 200 with order-service down), and
       # data-survives-restart (the smoke does its own compose down/up for the persistence test).
