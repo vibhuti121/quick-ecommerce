@@ -168,6 +168,31 @@ spring:
                   factor: 2
                   basedOnPreviousValue: false
 
+        # Storefront SPA (B1) — the catch-all. Path=/** matches EVERYTHING, including /api/**, so it
+        # MUST be lowest priority: order:1 puts it behind every route above (implicit order:0), which
+        # means the specific /api,/auth,/oauth2,/login routes win and this only serves what's left over
+        # (the SPA shell + its static assets). Gateway actuator endpoints have higher handler-mapping
+        # precedence than routes, so /actuator/health is unaffected. Served from the frontend nginx
+        # container in-network; no host port — the gateway is its only ingress (same-origin with /api).
+        - id: storefront
+          uri: http://${FRONTEND_HOST:localhost}:80
+          order: 1
+          predicates:
+            - Path=/**
+          filters:
+            # Static GETs only; a short retry rides out a cold-start blip. No CircuitBreaker (would need
+            # a new resilience4j instance) — serving files is cheap and has no downstream to protect.
+            - name: Retry
+              args:
+                retries: 2
+                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                methods: GET
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 500ms
+                  factor: 2
+                  basedOnPreviousValue: false
+
       globalcors:
         corsConfigurations:
           '[/**]':

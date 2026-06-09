@@ -2,9 +2,11 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Header from './components/Header';
 import ProductGrid from './components/ProductGrid';
 import CartDrawer from './components/CartDrawer';
+import ProductDetail from './components/ProductDetail';
 import {
   addToCart,
   getCart,
+  getProductById,
   getProducts,
   placeOrder,
   removeFromCart,
@@ -21,6 +23,11 @@ export default function App() {
   const [addingId, setAddingId] = useState<number | null>(null);
   const [busy, setBusy] = useState<boolean>(false);
   const [order, setOrder] = useState<Order | null>(null);
+
+  // Product-detail overlay (no router — mirrors the CartDrawer slide-over).
+  const [detailProduct, setDetailProduct] = useState<Product | null>(null);
+  const [detailOpen, setDetailOpen] = useState<boolean>(false);
+  const [detailLoading, setDetailLoading] = useState<boolean>(false);
 
   useEffect(() => {
     let active = true;
@@ -60,6 +67,26 @@ export default function App() {
     } finally {
       setAddingId(null);
     }
+  }, []);
+
+  // Open the overlay immediately with the card's product (it already carries provenance from
+  // the browse fetch), then refresh from getProductById for the authoritative full record.
+  const handleView = useCallback(async (product: Product) => {
+    setDetailProduct(product);
+    setDetailOpen(true);
+    setDetailLoading(true);
+    try {
+      const full = await getProductById(product.id);
+      setDetailProduct(full);
+    } catch {
+      // Keep the browse product already shown; surface nothing fatal for a detail refresh.
+    } finally {
+      setDetailLoading(false);
+    }
+  }, []);
+
+  const handleCloseDetail = useCallback(() => {
+    setDetailOpen(false);
   }, []);
 
   const handleChangeQuantity = useCallback(
@@ -139,10 +166,20 @@ export default function App() {
           <ProductGrid
             products={products}
             onAdd={handleAdd}
+            onView={handleView}
             addingId={addingId}
           />
         )}
       </main>
+
+      <ProductDetail
+        open={detailOpen}
+        product={detailProduct}
+        loading={detailLoading}
+        adding={detailProduct != null && addingId === detailProduct.id}
+        onClose={handleCloseDetail}
+        onAdd={handleAdd}
+      />
 
       <CartDrawer
         open={cartOpen}

@@ -49,6 +49,14 @@ echo "== 0. edge health =="
 assert_eq "UP" "$(curl -fs $GW/actuator/health | grep -o '\"status\":\"UP\"' | head -1 | cut -d'"' -f4)" "gateway health UP"
 
 echo
+echo "== 0b. storefront served at the edge (B1) =="
+# GET / falls through the catch-all (Path=/**, order:1) to the frontend nginx container. Proves the
+# SPA ships same-origin AND that the catch-all did NOT shadow /actuator (UP above) or /api (steps below).
+ROOT=$(curl -fs -w '\n%{http_code}' "$GW/")
+assert_eq "200" "$(tail -1 <<<"$ROOT")" "GET / serves the storefront -> 200"
+grep -q '<div id="root"' <<<"$ROOT" && ok "response is the SPA shell (#root)" || bad "response is the SPA shell (#root)"
+
+echo
 echo "== 1. guest auth (issues JWT) =="
 TOK=$(jget "$(curl -fs -X POST $GW/auth/guest -H 'Content-Type: application/json' -d '{"name":"Smoke Shopper"}')" token)
 [ -n "$TOK" ] && ok "guest token issued" || bad "guest token issued"
@@ -76,6 +84,17 @@ echo
 echo "== 4. anonymous catalog browse (PUBLIC, no token) =="
 assert_eq "200" "$(curl -fs -o /dev/null -w '%{http_code}' $GW/api/catalog/products)" "GET /api/catalog/products without token -> 200"
 curl -fs "$GW/api/catalog/products" | grep -q "$SKU" && ok "seeded product visible in public browse" || bad "seeded product visible in public browse"
+
+echo
+echo "== 4b. MaLLADE provenance seeded (B3 — proves V3 migration ran at startup) =="
+# The V3 Flyway seed adds MAL-* products carrying attributes.provenance. The build gate never runs
+# Flyway, so this is the ONLY check that the migration applied AND that provenance round-trips through
+# the catalog API + Redis cache. (size=200 so the seeded rows aren't past the default page.)
+MAL=$(curl -fs "$GW/api/catalog/products?size=200")
+echo "$MAL" | grep -q "MAL-HONEY-COORG-500" && ok "MaLLADE product MAL-HONEY-COORG-500 present (V3 seed applied)" || bad "MaLLADE product MAL-HONEY-COORG-500 present (V3 seed applied)"
+echo "$MAL" | grep -q '"provenance"' && ok "product carries attributes.provenance" || bad "product carries attributes.provenance"
+echo "$MAL" | grep -q 'Coorg (Kodagu), Karnataka' && ok "provenance.origin round-trips through the API" || bad "provenance.origin round-trips through the API"
+echo "$MAL" | grep -q '"status":"authorized"' && ok "GI-authorized example present (badge-eligible)" || bad "GI-authorized example present (badge-eligible)"
 
 echo
 echo "== 5. seed inventory stock (admin, token) =="

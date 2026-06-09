@@ -4,10 +4,11 @@ import ProductCard from './ProductCard';
 interface ProductGridProps {
   products: Product[];
   onAdd: (product: Product) => void;
+  onView: (product: Product) => void;
   addingId: number | null;
 }
 
-export default function ProductGrid({ products, onAdd, addingId }: ProductGridProps) {
+export default function ProductGrid({ products, onAdd, onView, addingId }: ProductGridProps) {
   return (
     <div className="product-grid">
       {products.map((product) => (
@@ -15,6 +16,7 @@ export default function ProductGrid({ products, onAdd, addingId }: ProductGridPr
           key={product.id}
           product={product}
           onAdd={onAdd}
+          onView={onView}
           adding={addingId === product.id}
         />
       ))}
