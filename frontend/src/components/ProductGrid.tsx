@@ -5,9 +5,10 @@ interface ProductGridProps {
   products: Product[];
   onAdd: (product: Product) => void;
   addingId: number | null;
+  onSelect: (product: Product) => void;
 }
 
-export default function ProductGrid({ products, onAdd, addingId }: ProductGridProps) {
+export default function ProductGrid({ products, onAdd, addingId, onSelect }: ProductGridProps) {
   return (
     <div className="product-grid">
       {products.map((product) => (
@@ -16,6 +17,7 @@ export default function ProductGrid({ products, onAdd, addingId }: ProductGridPr
           product={product}
           onAdd={onAdd}
           adding={addingId === product.id}
+          onSelect={onSelect}
         />
       ))}
     </div>

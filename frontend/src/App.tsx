@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Header from './components/Header';
 import ProductGrid from './components/ProductGrid';
+import ProductDetailModal from './components/ProductDetailModal';
 import CartDrawer from './components/CartDrawer';
 import {
   addToCart,
@@ -22,6 +23,9 @@ export default function App() {
   const [query, setQuery] = useState<string>('');
   const [searchResults, setSearchResults] = useState<Product[]>([]);
   const [searching, setSearching] = useState<boolean>(false);
+
+  // Product detail modal (overlay, no routing): the clicked/anchored product, or null when closed.
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
   const [cart, setCart] = useState<Cart | null>(null);
   const [cartOpen, setCartOpen] = useState<boolean>(false);
@@ -195,9 +199,20 @@ export default function App() {
             products={displayed}
             onAdd={handleAdd}
             addingId={addingId}
+            onSelect={setSelectedProduct}
           />
         )}
       </main>
+
+      {selectedProduct && (
+        <ProductDetailModal
+          product={selectedProduct}
+          onClose={() => setSelectedProduct(null)}
+          onAdd={handleAdd}
+          addingId={addingId}
+          onSelect={setSelectedProduct}
+        />
+      )}
 
       <CartDrawer
         open={cartOpen}

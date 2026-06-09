@@ -72,6 +72,20 @@ public class CatalogController {
         return catalog.get(id);
     }
 
+    /**
+     * Hybrid product recommendations ("you may also like") — public, like browse/search. Blends
+     * co-purchase (from order-service) with content-based similarity (OpenSearch), falling back to
+     * same-category products; best-effort, so it returns a (possibly empty) list rather than 503-ing
+     * when a signal is unavailable. Returns a bare {@code List} (not a page) — the related-row is a
+     * small fixed strip, not a paginated grid. 404 only if the anchor product itself is missing.
+     */
+    @GetMapping("/products/{id}/recommendations")
+    public java.util.List<ProductResponse> recommendations(
+            @PathVariable Long id,
+            @RequestParam(required = false, defaultValue = "8") int size) {
+        return catalog.recommend(id, size);
+    }
+
     // ---- admin CRUD ----
 
     @PostMapping("/admin/products")

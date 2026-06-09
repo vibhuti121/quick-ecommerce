@@ -615,3 +615,174 @@ body {
     font-size: 1.55rem;
   }
 }
+
+/* ---- product detail modal + recommendations (Recommendations pillar) ---- */
+/* Cards are now clickable to open the detail modal; lift the cursor + keep the existing hover. */
+.product-card-clickable {
+  cursor: pointer;
+}
+.product-card-clickable:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Secondary button (used by the compact "Add" on rec cards). */
+.btn-secondary {
+  background: var(--bg);
+  color: var(--accent);
+  border: 1px solid var(--border);
+}
+.btn-secondary:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+/* Centered modal card. Sits above the page overlay (z 30) but BELOW the cart drawer (z 40) so
+   adding from the modal slides the cart over it. */
+.product-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: calc(100% - 32px);
+  max-width: 860px;
+  max-height: 90vh;
+  overflow-y: auto;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  z-index: 35;
+  padding: 24px;
+}
+
+.product-modal-close {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  font-size: 1.1rem;
+}
+
+.product-modal-main {
+  display: flex;
+  gap: 24px;
+}
+
+.product-modal-image {
+  position: relative;
+  flex: 0 0 280px;
+}
+.product-modal-image img {
+  width: 100%;
+  height: 280px;
+  object-fit: cover;
+  border-radius: var(--radius);
+}
+
+.product-modal-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+.product-modal-name {
+  margin: 4px 0 10px;
+  font-size: 1.5rem;
+}
+.product-modal-description {
+  color: var(--muted);
+  line-height: 1.5;
+  margin-bottom: 18px;
+}
+.product-modal-buy {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+/* "You may also like" row. */
+.recs-section {
+  margin-top: 28px;
+  border-top: 1px solid var(--border);
+  padding-top: 18px;
+}
+.recs-title {
+  font-size: 1.1rem;
+  margin-bottom: 14px;
+}
+.recs-loading {
+  display: flex;
+  justify-content: center;
+  padding: 16px 0;
+}
+.recs-empty {
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+/* Horizontal scroll strip of compact rec cards. */
+.recs-row {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  padding-bottom: 6px;
+}
+.rec-card {
+  flex: 0 0 150px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor: pointer;
+  background: var(--surface);
+  transition: box-shadow 0.15s ease, transform 0.15s ease;
+}
+.rec-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow);
+}
+.rec-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.rec-image img {
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+}
+.rec-body {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.rec-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.rec-price {
+  font-size: 0.85rem;
+  color: var(--accent);
+  font-weight: 600;
+}
+.rec-add {
+  margin-top: 2px;
+  padding: 6px 10px;
+  font-size: 0.8rem;
+}
+
+/* Stack the modal on small screens. */
+@media (max-width: 640px) {
+  .product-modal-main {
+    flex-direction: column;
+  }
+  .product-modal-image {
+    flex-basis: auto;
+  }
+  .product-modal-image img {
+    height: 220px;
+  }
+}

@@ -284,6 +284,10 @@ Non-secret knobs (safe defaults in `docker-compose.yml`):
 | `OPENSEARCH_HOST` / `OPENSEARCH_PORT` / `OPENSEARCH_SCHEME` | `opensearch` / `9200` / `http` | Where catalog-service reaches the search index (compose-internal). |
 | `OPENSEARCH_CONNECT_TIMEOUT_MS` / `OPENSEARCH_RESPONSE_TIMEOUT_MS` | `2000` / `2000` | Short by design — a dead/slow OpenSearch fails fast into the Postgres fallback instead of stalling a request thread. |
 | `SEARCH_BACKFILL_READINESS_TIMEOUT_MS` | `30000` | How long startup waits for OpenSearch (it boots a little behind catalog) before skipping the index backfill. Skipping is non-fatal — the next catalog write re-indexes that product. |
+| `REC_ENABLED` | `true` | Master switch for the **co-purchase** signal in recommendations. `false` skips the catalog→order call entirely and recs run content-based + category-fallback only. Content-based and the fallback are unaffected. |
+| `ORDER_SERVICE_URL` | `http://order-service:8094` | Where catalog-service reaches order-service for co-purchase data — **compose-internal, bypassing the gateway** (same pattern as order→inventory). Best-effort: any failure (timeout/4xx/5xx/unreachable) degrades to an empty co-purchase list; there is intentionally **no** `depends_on`. |
+| `REC_SIZE_DEFAULT` | `8` | Default `size` when the caller omits `?size=`. Any requested size is clamped to 1–24 so a caller can't trigger an unbounded blend/aggregation. |
+| `REC_CONNECT_TIMEOUT_MS` / `REC_RESPONSE_TIMEOUT_MS` | `1500` / `2000` | Short by design — a dead/slow order-service fails fast into co-purchase-empty degradation instead of stalling the recommendations request thread. |
 | `GOOGLE_CLIENT_ID` / `_SECRET` | dummy | Real values enable Google login; guest tokens cover the full journey without them. |
 
 Frontend (`frontend/.env.example`): leave `VITE_API_BASE` **empty** for local dev — the Vite dev
@@ -334,6 +338,7 @@ Base URL = the gateway, e.g. `https://localhost:8443` (HTTPS, dev self-signed �
 |---|---|---|---|
 | 🔓 GET | `/api/catalog/products` | `?category=&type=&page=&size=` | **Paginated `Page` object** (`{content:[...]}`), default size 20 |
 | 🔓 GET | `/api/catalog/products/search` | `?q=&category=&type=&page=&size=` | **Full-text search** (same `Page` shape as browse). Typo-tolerant, relevance-ranked, searches name/sku/category/description + flattened JSONB attributes. Blank `q` → normal browse. Degrades to a Postgres `ILIKE` scan if OpenSearch is down (never 503s). Not cached — a just-created SKU is findable immediately |
+| 🔓 GET | `/api/catalog/products/{id}/recommendations` | `?size=8` | **"You may also like"** — hybrid (co-purchase first, content-based fills, same-category fallback). Bare `List<ProductResponse>` (not a `Page`). Public, never 503s (only 404 if the anchor is gone); excludes the anchor; `size` clamped to 1–24 |
 | 🔓 GET | `/api/catalog/products/{id}` | — | Single product |
 | 🛡 POST | `/api/catalog/admin/products` | `ProductRequest` | Create (ADMIN only) |
 | 🛡 PUT | `/api/catalog/admin/products/{id}` | `ProductRequest` | Update (ADMIN only) |
@@ -424,7 +429,7 @@ pre-seeded, so no setup needed.
 ### 1. Automated smoke tests
 | Script | Proves | Run |
 |---|---|---|
-| `scripts/fullstack-smoke.sh` | 20 assertions: edge health, guest auth, 401 on anon, admin seed, public browse, cart snapshot, **checkout saga → CONFIRMED + payment SUCCESS + stock decrement**, **idempotent replay**, **product search** (public, backfilled-seed, typo-tolerant, just-created-SKU/dual-write), **restart-survives-data** | `bash scripts/fullstack-smoke.sh` |
+| `scripts/fullstack-smoke.sh` | 27 assertions: edge health, guest auth, 401 on anon, admin seed, public browse, cart snapshot, **checkout saga → CONFIRMED + payment SUCCESS + stock decrement**, **idempotent replay**, **product search** (public, backfilled-seed, typo-tolerant, just-created-SKU/dual-write), **hybrid recommendations** (two CONFIRMED orders drive a co-purchase pair → public 200 no-token, co-purchase partner present, anchor excluded, still 200 with order-service stopped), **restart-survives-data** | `bash scripts/fullstack-smoke.sh` |
 | `scripts/saga-smoke.sh` | The order saga happy path in isolation | `bash scripts/saga-smoke.sh` |
 
 Both are **re-runnable** (unique SKU + idempotency key per run). Expected: `20 passed, 0 failed`.
@@ -566,8 +571,9 @@ request/response bodies, and `docker compose logs <service>` around the timestam
   managed deployment / CA-signed cert / public domain yet. See [Production readiness](#production-readiness--what-it-takes-to-go-live).
 - **DS-0031 open** — `TLS_KEYSTORE_PASSWORD` is passed via a gateway Dockerfile build-ARG (trivy `fs`
   CRITICAL); a dev convenience, tracked as a follow-up (see Security-scan section).
-- **Minimal storefront UI** — the React app proves the journey (now incl. a search box) but isn't a
-  finished shopping experience (no real catalog content, faceted filters, checkout UX, or account pages).
+- **Minimal storefront UI** — the React app proves the journey (now incl. a search box and a product
+  detail modal with a "you may also like" row) but isn't a finished shopping experience (no real catalog
+  content, faceted filters, checkout UX, or account pages).
 - **Search is eventually consistent (secondary index).** Postgres is the source of truth; OpenSearch is
   kept in sync by dual-write on every catalog write **and** a startup backfill. Two consequences: (1) a
   catalog write is reflected in search after OpenSearch's refresh (~1s); (2) **a product deleted while
@@ -577,6 +583,14 @@ request/response bodies, and `docker compose logs <service>` around the timestam
   http://opensearch:9200/products` then restart catalog to trigger a clean backfill). Acceptable for the
   pilot; a production fix is a periodic reconcile or an outbox-driven index. Likewise, **mapping changes
   need an index rebuild** — `ensureIndex()` is create-if-absent and won't alter an existing mapping.
+- **Recommendations are on-demand and cold-start-sparse.** Co-purchase is computed live from
+  `order_items` per request (no precomputed table / batch pipeline — fine at pilot scale), so a brand-new
+  catalog with few `CONFIRMED` orders leans almost entirely on the content-based and same-category signals
+  until purchase pairs accumulate. The content-based half **inherits the search index's eventual
+  consistency** — a just-created product is `more_like_this`-recommendable only after OpenSearch's refresh
+  (~1s), and a "ghost" doc (deleted while OpenSearch was down, see above) can surface as a rec until the
+  index is rebuilt. Recs are not cached and the blend weighting is a fixed heuristic (behavioral first,
+  content fills) — no per-user personalization or A/B ranking yet.
 - **"Sell anything"** = flexible schema + generic checkout, **not** per-category logistics/tax/compliance.
 - Commerce-service automated test coverage is pending (see QA §3).
 - Live social commerce + AI assistant are **not built yet** (see Roadmap).
@@ -611,8 +625,11 @@ hard part and it's in place — the list above is integration and operations wor
 - **Product search — DONE:** OpenSearch-backed full-text search in catalog-service (typo-tolerant,
   relevance-ranked, attribute-aware), dual-write + startup backfill, Postgres `ILIKE` degradation, and a
   storefront search box.
-- **Next — Recommendations:** "you may also like" as a separate pillar — hybrid content-based +
-  co-purchase (from `order_items`). *(Designed, not yet built.)*
+- **Recommendations — DONE:** "you may also like" — hybrid **co-purchase** (a `CONFIRMED`-orders
+  self-join on `order_items`, owned by order-service, fetched best-effort over the compose network)
+  **first**, **content-based** (OpenSearch `more_like_this`) fills remaining slots and covers cold-start
+  products, with a same-category Postgres fallback so the row is never empty when siblings exist. The
+  endpoint never 503s. Surfaced as a storefront **product detail modal** with a related-products row.
 - **Phase 3:** **Live social commerce** — reuse the FamilyCall WebRTC stack (signaling-service, coturn,
   `useWebRTC`) for shoppable livestreams.
 - **Phase 4:** **AI shopping assistant** — Claude API: conversational discovery + semantic search.

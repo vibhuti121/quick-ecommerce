@@ -149,6 +149,17 @@ export async function searchProducts(q: string): Promise<Product[]> {
   return (page.content ?? []).map(toProduct);
 }
 
+// Hybrid "you may also like" recommendations for a product (co-purchase first, content-based fills,
+// same-category fallback). Public + best-effort on the backend — it never 503s, so an empty array
+// simply means "no related products to show". NOTE: unlike browse/search this returns a BARE array
+// (List<ProductResponse>), not a Spring Page — so we map the array directly, not `.content`.
+export async function getRecommendations(productId: number): Promise<Product[]> {
+  const list = await request<CatalogProduct[]>(
+    `/api/catalog/products/${productId}/recommendations?size=8`,
+  );
+  return (list ?? []).map(toProduct);
+}
+
 export async function getCart(): Promise<Cart> {
   return toCart(await request<ServerCart>('/api/cart'));
 }

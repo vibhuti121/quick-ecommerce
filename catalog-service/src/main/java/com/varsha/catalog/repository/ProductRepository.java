@@ -10,6 +10,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 public interface ProductRepository extends JpaRepository<Product, Long> {
@@ -23,6 +25,16 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     Page<Product> findByActiveTrueAndCategoryIgnoreCase(String category, Pageable pageable);
 
     Page<Product> findByActiveTrueAndProductType(ProductType productType, Pageable pageable);
+
+    /**
+     * Resolve a set of product ids to active products (recommendations: co-purchase returns ids,
+     * not full products; inactive ones are dropped). DB order is undefined — the caller re-sorts to
+     * the recommendation ranking.
+     */
+    List<Product> findByIdInAndActiveTrue(Collection<Long> ids);
+
+    /** Same-category active products excluding the anchor — the recommendation cold-start fallback. */
+    Page<Product> findByActiveTrueAndCategoryIgnoreCaseAndIdNot(String category, Long id, Pageable pageable);
 
     /**
      * Degraded search path when OpenSearch is unreachable: a case-insensitive substring match over

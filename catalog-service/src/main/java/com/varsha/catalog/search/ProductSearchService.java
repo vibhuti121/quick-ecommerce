@@ -198,6 +198,62 @@ public class ProductSearchService {
     }
 
     /**
+     * Content-based recommendations: products textually similar to the anchor, via OpenSearch
+     * {@code more_like_this} over the analyzed fields. The anchor is referenced by its document
+     * {@code _id} (no need to re-send its text), filtered to active products and with the anchor
+     * itself excluded. Returns reconstructed {@link ProductResponse}s from the stored {@code source}.
+     *
+     * <p><b>Small-catalog note:</b> {@code more_like_this} defaults to {@code min_term_freq=2} /
+     * {@code min_doc_freq=5}, which return <em>nothing</em> on a pilot-sized catalog. We force both
+     * to 1 so similarity works from the very first products.
+     *
+     * @throws SearchUnavailableException if OpenSearch is disabled/unreachable — the recommendation
+     *         blend degrades to co-purchase / category fallback.
+     */
+    public Page<ProductResponse> moreLikeThis(Long id, Pageable pageable) {
+        if (client == null) {
+            throw new SearchUnavailableException("search is disabled (no OpenSearch client)", null);
+        }
+        if (id == null) {
+            return new PageImpl<>(List.of(), pageable, 0);
+        }
+        String anchorId = String.valueOf(id);
+        try {
+            SearchResponse<ProductDocument> resp = client.search(s -> s
+                    .index(index)
+                    .from((int) pageable.getOffset())
+                    .size(pageable.getPageSize())
+                    .query(buildMoreLikeThisQuery(anchorId)), ProductDocument.class);
+
+            List<ProductResponse> content = resp.hits().hits().stream()
+                    .map(Hit::source)
+                    .filter(Objects::nonNull)
+                    .map(d -> d.toProductResponse(mapper))
+                    .toList();
+            long total = resp.hits().total() == null ? content.size() : resp.hits().total().value();
+            return new PageImpl<>(content, pageable, total);
+        } catch (Exception e) {
+            throw new SearchUnavailableException("OpenSearch more_like_this failed for id=" + anchorId, e);
+        }
+    }
+
+    /**
+     * {@code bool}: {@code more_like_this} (the anchor doc as the {@code like} seed) as the scoring
+     * clause, with active=true as a filter and the anchor id excluded via {@code must_not}.
+     */
+    private Query buildMoreLikeThisQuery(String anchorId) {
+        return Query.of(q -> q.bool(b -> b
+                .must(m -> m.moreLikeThis(mlt -> mlt
+                        .fields("name", "description", "category", "attributesText")
+                        .like(l -> l.document(d -> d.index(index).id(anchorId)))
+                        .minTermFreq(1)
+                        .minDocFreq(1)
+                        .maxQueryTerms(25)))
+                .filter(f -> f.term(t -> t.field("active").value(FieldValue.of(true))))
+                .mustNot(mn -> mn.term(t -> t.field("id").value(FieldValue.of(anchorId))))));
+    }
+
+    /**
      * {@code bool}: a fuzzy multi_match (name^3, sku^2, category^1.5, description, attributesText)
      * as the scoring clause, with active=true and any category/type as non-scoring filters.
      */

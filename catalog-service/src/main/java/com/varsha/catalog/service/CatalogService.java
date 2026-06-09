@@ -45,15 +45,17 @@ public class CatalogService {
     private final ObjectStorageService storage;
     private final ProductSearchService search;
     private final ProductReader reader;
+    private final RecommendationService recommendations;
 
     public CatalogService(ProductRepository products, ProductCacheService cache,
                           ObjectStorageService storage, ProductSearchService search,
-                          ProductReader reader) {
+                          ProductReader reader, RecommendationService recommendations) {
         this.products = products;
         this.cache = cache;
         this.storage = storage;
         this.search = search;
         this.reader = reader;
+        this.recommendations = recommendations;
     }
 
     // ---- public browse (read path) ----
@@ -86,6 +88,16 @@ public class CatalogService {
         } catch (SearchUnavailableException e) {
             return reader.searchFallback(q.trim(), pageable);
         }
+    }
+
+    /**
+     * Hybrid "you may also like" recommendations for a product (co-purchase first, content-based
+     * fills, same-category fallback). Best-effort by design — never 503s; only a missing anchor
+     * surfaces (404). Delegates to {@link RecommendationService}; deliberately uncached (must
+     * reflect fresh orders, same stance as {@link #search}).
+     */
+    public List<ProductResponse> recommend(Long id, int size) {
+        return recommendations.recommend(id, size);
     }
 
     // ---- admin CRUD (write path) ----

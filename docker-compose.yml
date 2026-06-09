@@ -126,6 +126,11 @@ services:
       OPENSEARCH_HOST: opensearch
       OPENSEARCH_PORT: "9200"
       OPENSEARCH_SCHEME: http
+      # Co-purchase signal for hybrid recommendations. catalog calls order-service directly over the
+      # docker network (bypassing the gateway), BEST-EFFORT: a slow/down order-service fails fast on a
+      # short timeout and recs degrade to content-based/category — hence NO depends_on (a boot-order
+      # coupling would defeat the degradation contract).
+      ORDER_SERVICE_URL: http://order-service:8094
     depends_on:
       postgres:
         condition: service_healthy

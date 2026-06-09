@@ -82,6 +82,17 @@ app:
     backfill:
       # How long startup waits for OpenSearch before skipping backfill (it boots a bit behind catalog).
       readiness-timeout-ms: ${SEARCH_BACKFILL_READINESS_TIMEOUT_MS:30000}
+  # Hybrid product recommendations. catalog-service blends co-purchase (fetched from order-service,
+  # which owns the purchase history) with content-based similarity (OpenSearch more_like_this), and
+  # falls back to same-category browse. The order-service call is BEST-EFFORT: short timeouts so a
+  # slow/down order-service fails fast and the endpoint degrades instead of 503-ing. enabled=false
+  # skips the co-purchase call entirely (content-based + category only).
+  recommendations:
+    enabled: ${REC_ENABLED:true}
+    order-service-url: ${ORDER_SERVICE_URL:http://localhost:8094}
+    size-default: ${REC_SIZE_DEFAULT:8}
+    connect-timeout-ms: ${REC_CONNECT_TIMEOUT_MS:1500}
+    response-timeout-ms: ${REC_RESPONSE_TIMEOUT_MS:2000}
   # S3-compatible object storage (MinIO) for product images.
   #  endpoint   — in-network S3 API the service uploads to (path-style).
   #  public-url — browser-facing base used to BUILD image URLs; differs from endpoint because the
