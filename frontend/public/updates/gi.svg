@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 420" preserveAspectRatio="xMidYMid slice" role="img" aria-label="GI-tagged and lab-tested">
+  <defs>
+    <linearGradient id="gg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#34d399"/>
+      <stop offset="1" stop-color="#047857"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="420" fill="url(#gg)"/>
+  <g fill="#ffffff" opacity="0.10">
+    <circle cx="1000" cy="120" r="80"/>
+    <circle cx="1090" cy="250" r="50"/>
+    <circle cx="930" cy="300" r="38"/>
+  </g>
+  <g transform="translate(170,210)">
+    <path d="M 0 -80 L 64 -52 L 64 8 Q 64 64 0 90 Q -64 64 -64 8 L -64 -52 Z" fill="#ecfdf5" opacity="0.95"/>
+    <path d="M -28 4 L -8 26 L 34 -24" stroke="#059669" stroke-width="14" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

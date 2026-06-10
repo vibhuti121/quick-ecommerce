@@ -386,3 +386,23 @@ export function formatPrice(value: number): string {
     currency: 'INR',
   }).format(value);
 }
+
+// ---- launch-interest signup ("Notify me") -----------------------------------
+// POST /api/catalog/notify is the public, gateway-whitelisted endpoint that persists a signup to
+// Postgres (the source of truth the founder reads). The storefront ALSO writes localStorage as an
+// offline fallback (see lib/comingSoon.saveNotify), so callers fire this best-effort: a backend outage
+// must not surface an error to the visitor, who already saw the form's own confirmation.
+interface NotifyResponse {
+  id: number;
+  topic: string;
+  phone: string;
+  email?: string;
+  createdAt: string;
+}
+
+export async function notify(topic: string, phone: string, email?: string): Promise<void> {
+  await request<NotifyResponse>('/api/catalog/notify', {
+    method: 'POST',
+    body: JSON.stringify({ topic, phone, email: email ?? null }),
+  });
+}

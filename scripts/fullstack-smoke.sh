@@ -100,6 +100,44 @@ echo "$MAL" | grep -q 'Coorg (Kodagu), Karnataka' && ok "provenance.origin round
 echo "$MAL" | grep -q '"status":"authorized"' && ok "GI-authorized example present (badge-eligible)" || bad "GI-authorized example present (badge-eligible)"
 
 echo
+echo "== 4c. notify-me launch-interest capture (public POST + admin-gated read; Flyway V4) =="
+# The storefront "🔔 Notify me" popups POST here; rows land in catalog's notify_signups table (Flyway
+# V4 — build-gate-blind, so this is the ONLY check the migration applied) and the founder reads them via
+# the admin GET. Public write, admin-only read. Idempotent on (topic, phone): a re-submit returns the
+# same row, mirroring the client's localStorage dedupe. Unique-ish valid 10-digit Indian mobile per run
+# (leading 9 satisfies the [6-9] server @Pattern) so reruns don't accumulate distinct rows.
+NPHONE="9$(printf '%09d' $((RANDOM * RANDOM % 1000000000)))"
+NRESP=$(curl -fs -w '\n%{http_code}' -X POST $GW/api/catalog/notify -H 'Content-Type: application/json' \
+  -d "{\"topic\":\"honey\",\"phone\":\"$NPHONE\"}")
+NCODE=$(tail -1 <<<"$NRESP"); NBODY=$(sed '$d' <<<"$NRESP")
+assert_eq "201" "$NCODE" "POST /api/catalog/notify without token -> 201 (public, in PUBLIC_PATHS)"
+NID=$(jnum "$NBODY" id)
+[ -n "$NID" ] && ok "notify signup persisted (id=$NID sku-free)" || bad "notify signup persisted"
+# Idempotency: same (topic, phone) -> same id, no second row. POST is not auto-retried at the gateway
+# (only GETs are), so absorb a transient blip on the rapid second call ourselves (same pattern as the
+# idempotent-checkout step below). A real duplicate would surface as a DIFFERENT id and still fail.
+NID2=""
+for i in $(seq 1 10); do
+  NRR=$(curl -s -w '\n%{http_code}' -X POST $GW/api/catalog/notify -H 'Content-Type: application/json' \
+    -d "{\"topic\":\"honey\",\"phone\":\"$NPHONE\"}")
+  if [ "$(tail -1 <<<"$NRR")" = "201" ]; then
+    NID2=$(jnum "$(sed '$d' <<<"$NRR")" id)
+    [ -n "$NID2" ] && break
+  fi
+  sleep 1
+done
+assert_eq "$NID" "$NID2" "re-POST same (topic,phone) -> same id (idempotent, no dup row)"
+# Validation: a junk phone is rejected by the server @Pattern (defence in depth on a public endpoint).
+assert_eq "400" "$(curl -fs -o /dev/null -w '%{http_code}' -X POST $GW/api/catalog/notify \
+  -H 'Content-Type: application/json' -d '{"topic":"honey","phone":"12345"}')" "POST invalid phone -> 400 (validation)"
+# Admin read is gated by BOTH the gateway ADMIN_PATHS prefix and the in-service AdminRoleFilter.
+assert_eq "401" "$(curl -fs -o /dev/null -w '%{http_code}' $GW/api/catalog/admin/notify)" \
+  "GET /api/catalog/admin/notify without token -> 401"
+NADM=$(curl -fs -w '\n%{http_code}' $GW/api/catalog/admin/notify "${ADMIN[@]}")
+assert_eq "200" "$(tail -1 <<<"$NADM")" "GET admin/notify with ADMIN token -> 200"
+sed '$d' <<<"$NADM" | grep -q "$NPHONE" && ok "admin list contains the signup (phone $NPHONE)" || bad "admin list contains the signup"
+
+echo
 echo "== 5. seed inventory stock (admin, token) =="
 curl -fs -X POST $GW/api/inventory/admin/stock "${ADMIN[@]}" -H 'Content-Type: application/json' \
   -d "{\"sku\":\"$SKU\",\"quantity\":20}" >/dev/null && ok "stock seeded $SKU=20" || bad "stock seeded"
