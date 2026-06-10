@@ -1459,9 +1459,44 @@ body {
   transform: translateY(-50%);
   max-width: 60%;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: flex-start;
   gap: 14px;
   color: #fff;
+}
+
+.updates-caption-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+/* Per-banner "notify me" CTA — a compact pill that reads over the scrim. Stops the hover-advance click
+   from bubbling anywhere it shouldn't; opens the topic popup for THIS banner. */
+.updates-notify {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 16px;
+  border: none;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: clamp(0.85rem, 1.4vw, 1rem);
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+  transition: transform 0.12s ease, background 0.12s ease;
+}
+
+.updates-notify:hover {
+  background: #4338ca;
+  transform: translateY(-1px);
+}
+
+.updates-notify:active {
+  transform: translateY(0);
 }
 
 .updates-icon {

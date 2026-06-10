@@ -6,7 +6,9 @@ import ProductDetail from './components/ProductDetail';
 import ProfileDrawer from './components/ProfileDrawer';
 import UpdatesCarousel from './components/UpdatesCarousel';
 import ComingSoonModal from './components/ComingSoonModal';
+import NotifyModal from './components/NotifyModal';
 import type { ProfileSection } from './components/ProfileDrawer';
+import type { NotifyTopic } from './lib/updates';
 import {
   addToCart,
   getCart,
@@ -14,6 +16,7 @@ import {
   getProductById,
   getProducts,
   getProfile,
+  notify,
   placeOrder,
   removeFromCart,
   searchProducts,
@@ -56,6 +59,10 @@ export default function App() {
   // view action so honey never opens the buyable detail drawer, from any entry point.
   const [comingSoonProduct, setComingSoonProduct] = useState<Product | null>(null);
   const [comingSoonOpen, setComingSoonOpen] = useState<boolean>(false);
+
+  // Per-banner "notify me" popup opened from the carousel. Driven by the clicked banner's NotifyTopic
+  // (honey launch, litchi season, …) — separate from the honey product popup above.
+  const [notifyTopic, setNotifyTopic] = useState<NotifyTopic | null>(null);
 
   // My Profile drawer (a third slide-over): identity, order history, derived addresses, wishlist.
   const [profileOpen, setProfileOpen] = useState<boolean>(false);
@@ -290,7 +297,7 @@ export default function App() {
       />
 
       <main className="main">
-        <UpdatesCarousel />
+        <UpdatesCarousel onNotify={setNotifyTopic} />
 
         <section className="hero">
           <h1>Everything you need, delivered quick.</h1>
@@ -353,7 +360,27 @@ export default function App() {
         product={comingSoonProduct}
         onClose={handleCloseComingSoon}
         onNotify={(phone, email) => {
-          if (comingSoonProduct) saveNotify(comingSoonProduct.id, phone, email);
+          // Honey is the only isComingSoon category — store all honey-card signups under one topic so
+          // they dedupe with the honey carousel banner's signups into a single launch list. Persist to
+          // the backend (source of truth) AND localStorage (offline fallback); the POST is best-effort
+          // so a backend outage never surfaces an error — the form already showed its confirmation.
+          if (comingSoonProduct) {
+            saveNotify('honey', phone, email);
+            void notify('honey', phone, email).catch(() => {});
+          }
+        }}
+      />
+
+      <NotifyModal
+        open={notifyTopic != null}
+        topic={notifyTopic}
+        onClose={() => setNotifyTopic(null)}
+        onNotify={(phone, email) => {
+          // Backend (source of truth) + localStorage (offline fallback); POST is best-effort.
+          if (notifyTopic) {
+            saveNotify(notifyTopic.key, phone, email);
+            void notify(notifyTopic.key, phone, email).catch(() => {});
+          }
         }}
       />
 

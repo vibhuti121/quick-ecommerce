@@ -27,7 +27,10 @@ public class AuthFilter implements GlobalFilter, Ordered {
         "/actuator/",
         "/auth/guest",
         // catalog browse is open to anonymous shoppers; writes live under /api/catalog/admin/** and stay protected
-        "/api/catalog/products"
+        "/api/catalog/products",
+        // public launch-interest signup ("Notify me"). Note: /api/catalog/admin/notify does NOT startsWith
+        // this, so the admin list stays behind the ADMIN_PATHS check below.
+        "/api/catalog/notify"
     );
 
     // Paths that require the ADMIN role (Phase 3, Pillar 1). These all sit OUTSIDE PUBLIC_PATHS,

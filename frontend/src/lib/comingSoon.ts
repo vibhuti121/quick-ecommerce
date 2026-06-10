@@ -42,8 +42,11 @@ export function isValidIndianMobile(raw: string): boolean {
 
 const NOTIFY_KEY = 'qe.notify';
 
+// Interest is keyed on a TOPIC string, not a productId — so the carousel banners (litchi/gi/delivery,
+// which aren't catalog products) and the honey product cards can all feed one unified list. Honey
+// signups land under the fixed topic 'honey' from both the card popup and the honey banner.
 export interface NotifyEntry {
-  productId: number;
+  topic: string; // stable subject id: 'honey' | 'litchi' | 'gi' | 'delivery' (see lib/updates NotifyTopic)
   phone: string; // normalized 10-digit Indian mobile — the required contact
   email?: string; // optional secondary contact
 }
@@ -58,7 +61,7 @@ export function getNotifyList(): NotifyEntry[] {
       (e): e is NotifyEntry =>
         !!e &&
         typeof e === 'object' &&
-        typeof (e as NotifyEntry).productId === 'number' &&
+        typeof (e as NotifyEntry).topic === 'string' &&
         typeof (e as NotifyEntry).phone === 'string' &&
         ((e as NotifyEntry).email === undefined || typeof (e as NotifyEntry).email === 'string'),
     );
@@ -68,15 +71,17 @@ export function getNotifyList(): NotifyEntry[] {
 }
 
 // Record interest. Phone is required (normalized to 10 digits); email is optional. Dedupes on
-// (productId, phone) so re-submitting the same number is idempotent. Returns the new list.
-export function saveNotify(productId: number, phone: string, email?: string): NotifyEntry[] {
+// (topic, phone) so re-submitting the same number for the same subject is idempotent. Returns the new
+// list. (Older productId-keyed entries from a returning browser fail the topic guard above and are
+// dropped — acceptable; this is best-effort browser-local interest, not a system of record.)
+export function saveNotify(topic: string, phone: string, email?: string): NotifyEntry[] {
   const normalizedPhone = normalizeMobile(phone);
   const normalizedEmail = email?.trim().toLowerCase() || undefined;
   const current = getNotifyList();
-  if (current.some((e) => e.productId === productId && e.phone === normalizedPhone)) {
+  if (current.some((e) => e.topic === topic && e.phone === normalizedPhone)) {
     return current;
   }
-  const entry: NotifyEntry = { productId, phone: normalizedPhone };
+  const entry: NotifyEntry = { topic, phone: normalizedPhone };
   if (normalizedEmail) entry.email = normalizedEmail;
   const next = [entry, ...current];
   try {
