@@ -6,9 +6,18 @@ interface ProductGridProps {
   onAdd: (product: Product) => void;
   onView: (product: Product) => void;
   addingId: number | null;
+  wishedIds: Set<number>;
+  onToggleWishlist: (product: Product) => void;
 }
 
-export default function ProductGrid({ products, onAdd, onView, addingId }: ProductGridProps) {
+export default function ProductGrid({
+  products,
+  onAdd,
+  onView,
+  addingId,
+  wishedIds,
+  onToggleWishlist,
+}: ProductGridProps) {
   return (
     <div className="product-grid">
       {products.map((product) => (
@@ -18,6 +27,8 @@ export default function ProductGrid({ products, onAdd, onView, addingId }: Produ
           onAdd={onAdd}
           onView={onView}
           adding={addingId === product.id}
+          wished={wishedIds.has(product.id)}
+          onToggleWishlist={onToggleWishlist}
         />
       ))}
     </div>

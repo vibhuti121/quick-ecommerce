@@ -962,3 +962,433 @@ body {
     height: 220px;
   }
 }
+
+/* ============================================================================
+   My Profile drawer (additive — reuses .overlay / .cart-header geometry)
+   ============================================================================ */
+
+/* Header profile button — sibling of .cart-button, outlined rather than filled so the cart stays
+   the primary action. */
+.profile-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 10px 16px;
+  border-radius: 999px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s ease, transform 0.1s ease;
+}
+
+.profile-button:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.profile-button:active {
+  transform: scale(0.97);
+}
+
+/* The drawer itself — same slide-over mechanics as .cart-drawer, a touch wider for the section nav. */
+.profile-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  height: 100vh;
+  width: 100%;
+  max-width: 460px;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  transform: translateX(100%);
+  transition: transform 0.25s ease;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-drawer-open {
+  transform: translateX(0);
+}
+
+/* In-drawer section nav (My Profile / My Orders / My Address / My Wishlist). */
+.profile-nav {
+  display: flex;
+  gap: 4px;
+  padding: 12px 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.profile-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 4px 10px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.profile-nav-item:hover {
+  color: var(--text);
+}
+
+.profile-nav-item--active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.profile-nav-icon {
+  font-size: 1.1rem;
+}
+
+.profile-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 20px;
+}
+
+/* ---- panel toolbar (shared by Orders/Address) ---- */
+.panel-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.panel-toolbar-note {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.btn-ghost {
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.btn-ghost:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 0.82rem;
+}
+
+/* ---- My Profile panel ---- */
+.profile-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.profile-identity {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.profile-avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.profile-avatar--initial {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent);
+  color: #fff;
+  font-size: 1.4rem;
+  font-weight: 700;
+}
+
+.profile-identity-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.profile-name {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.profile-email {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.profile-role {
+  align-self: flex-start;
+  margin-top: 4px;
+  background: var(--bg);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.profile-guest-note {
+  margin: 0;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #9a3412;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.profile-empty {
+  color: var(--muted);
+  text-align: center;
+  padding: 30px 0;
+}
+
+/* ---- status badges (order status + delivery status) ---- */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.status-badge--pending {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.status-badge--confirmed {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-badge--failed {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.status-badge--awaiting {
+  background: #e0e7ff;
+  color: #3730a3;
+}
+
+.status-badge--delivered {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.status-badge--cancelled {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+/* ---- My Orders panel ---- */
+.order-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.order-card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.order-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.order-id {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.order-total {
+  font-weight: 700;
+  font-size: 1rem;
+}
+
+.order-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.order-date {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.order-lines {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.order-line {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 10px;
+  font-size: 0.85rem;
+}
+
+.order-line-name {
+  color: var(--text);
+}
+
+.order-line-qty {
+  color: var(--muted);
+}
+
+.order-line-price {
+  font-weight: 600;
+  text-align: right;
+}
+
+/* ---- My Address panel ---- */
+.address-list {
+  list-style: none;
+  margin: 12px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.address-row {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.address-name {
+  font-weight: 600;
+}
+
+.address-text {
+  color: var(--text);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.address-phone {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+/* ---- My Wishlist panel + the card/detail heart toggle ---- */
+.wishlist-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.wishlist-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.wishlist-image {
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.wishlist-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wishlist-name {
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.wishlist-price {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+/* The card needs a positioning context for the absolutely-placed heart (additive to the existing rule). */
+.product-card {
+  position: relative;
+}
+
+.wishlist-heart {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.9);
+  color: #9ca3af;
+  font-size: 1.15rem;
+  line-height: 1;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow);
+  transition: color 0.15s ease, transform 0.1s ease;
+  z-index: 2;
+}
+
+.wishlist-heart:hover {
+  transform: scale(1.1);
+  color: #ef4444;
+}
+
+.wishlist-heart--active {
+  color: #ef4444;
+}

@@ -3,16 +3,29 @@ import Header from './components/Header';
 import ProductGrid from './components/ProductGrid';
 import CartDrawer from './components/CartDrawer';
 import ProductDetail from './components/ProductDetail';
+import ProfileDrawer from './components/ProfileDrawer';
+import type { ProfileSection } from './components/ProfileDrawer';
 import {
   addToCart,
   getCart,
+  getOrders,
   getProductById,
   getProducts,
+  getProfile,
   placeOrder,
   removeFromCart,
   searchProducts,
 } from './api';
-import type { Cart, DeliveryDetails, Order, Product } from './types';
+import type {
+  Cart,
+  DeliveryDetails,
+  Order,
+  OrderSummary,
+  Product,
+  UserProfile,
+  WishlistItem,
+} from './types';
+import { getWishlist, removeWishlist, toggleWishlist } from './lib/wishlist';
 
 export default function App() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -35,6 +48,15 @@ export default function App() {
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
   const [detailOpen, setDetailOpen] = useState<boolean>(false);
   const [detailLoading, setDetailLoading] = useState<boolean>(false);
+
+  // My Profile drawer (a third slide-over): identity, order history, derived addresses, wishlist.
+  const [profileOpen, setProfileOpen] = useState<boolean>(false);
+  const [profileSection, setProfileSection] = useState<ProfileSection>('orders');
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [orders, setOrders] = useState<OrderSummary[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState<boolean>(false);
+  // Wishlist is client-side (localStorage) — seed from storage on mount so hearts render correctly.
+  const [wishlist, setWishlist] = useState<WishlistItem[]>(() => getWishlist());
 
   useEffect(() => {
     let active = true;
@@ -129,6 +151,67 @@ export default function App() {
     setDetailOpen(false);
   }, []);
 
+  // Fetch the user's order history (newest-first). Used on profile-open, on Refresh, after checkout,
+  // and by the auto-poll. Errors are non-fatal — the panel just keeps whatever it had.
+  const loadOrders = useCallback(async () => {
+    setOrdersLoading(true);
+    try {
+      setOrders(await getOrders());
+    } catch {
+      // history fetch is best-effort; don't hijack the global error banner for the drawer
+    } finally {
+      setOrdersLoading(false);
+    }
+  }, []);
+
+  const handleOpenProfile = useCallback(() => {
+    setProfileOpen(true);
+    void loadOrders();
+    getProfile()
+      .then(setProfile)
+      .catch(() => setProfile(null));
+  }, [loadOrders]);
+
+  const handleToggleWishlist = useCallback((product: Product) => {
+    setWishlist(
+      toggleWishlist({
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        imageUrl: product.imageUrl,
+      }),
+    );
+  }, []);
+
+  const handleRemoveWishlist = useCallback((id: number) => {
+    setWishlist(removeWishlist(id));
+  }, []);
+
+  const wishedIds = useMemo(() => new Set(wishlist.map((w) => w.id)), [wishlist]);
+
+  // Auto-poll order status while the drawer is open and any order is still PENDING (the saga settles
+  // it to CONFIRMED/FAILED a moment after checkout). The interval clears the instant nothing is
+  // pending, the drawer closes, or the component unmounts — no runaway timers. `active` guards a stale
+  // response from overwriting a newer one, mirroring the search effect above.
+  const hasPendingOrder = orders.some((o) => o.status === 'PENDING');
+  useEffect(() => {
+    if (!profileOpen || !hasPendingOrder) return;
+    let active = true;
+    const handle = setInterval(() => {
+      getOrders()
+        .then((list) => {
+          if (active) setOrders(list);
+        })
+        .catch(() => {
+          /* transient — keep polling on the next tick */
+        });
+    }, 4000);
+    return () => {
+      active = false;
+      clearInterval(handle);
+    };
+  }, [profileOpen, hasPendingOrder]);
+
   const handleChangeQuantity = useCallback(
     async (productId: number, delta: number) => {
       setBusy(true);
@@ -162,12 +245,14 @@ export default function App() {
       const placed = await placeOrder(delivery);
       setOrder(placed);
       setCart({ items: [], total: 0 });
+      // Refresh history so the just-placed PENDING order is present for the profile drawer to poll.
+      void loadOrders();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to place order.');
     } finally {
       setBusy(false);
     }
-  }, []);
+  }, [loadOrders]);
 
   const handleDismissOrder = useCallback(() => {
     setOrder(null);
@@ -179,6 +264,7 @@ export default function App() {
       <Header
         itemCount={itemCount}
         onOpenCart={() => setCartOpen(true)}
+        onOpenProfile={handleOpenProfile}
         query={query}
         onQueryChange={setQuery}
         onClearQuery={() => setQuery('')}
@@ -223,6 +309,8 @@ export default function App() {
             onAdd={handleAdd}
             onView={handleView}
             addingId={addingId}
+            wishedIds={wishedIds}
+            onToggleWishlist={handleToggleWishlist}
           />
         )}
       </main>
@@ -235,6 +323,21 @@ export default function App() {
         onClose={handleCloseDetail}
         onAdd={handleAdd}
         onViewProduct={handleView}
+        wished={detailProduct != null && wishedIds.has(detailProduct.id)}
+        onToggleWishlist={handleToggleWishlist}
+      />
+
+      <ProfileDrawer
+        open={profileOpen}
+        onClose={() => setProfileOpen(false)}
+        activeSection={profileSection}
+        onSection={setProfileSection}
+        profile={profile}
+        orders={orders}
+        ordersLoading={ordersLoading}
+        onRefreshOrders={loadOrders}
+        wishlist={wishlist}
+        onRemoveWishlist={handleRemoveWishlist}
       />
 
       <CartDrawer
