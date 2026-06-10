@@ -11,6 +11,9 @@ interface ProductDetailProps {
   onAdd: (product: Product) => void;
   // Re-anchor the drawer to a clicked recommendation (refetches the authoritative record + its recs).
   onViewProduct?: (product: Product) => void;
+  // Wishlist heart — consistent with the card. `wished` reflects the anchored product's membership.
+  wished: boolean;
+  onToggleWishlist: (product: Product) => void;
 }
 
 // A provenance field row — rendered only when the value is present, so a sparse
@@ -54,6 +57,8 @@ export default function ProductDetail({
   onClose,
   onAdd,
   onViewProduct,
+  wished,
+  onToggleWishlist,
 }: ProductDetailProps) {
   const provenance = product?.provenance;
   const labCert = provenance?.labCert;
@@ -111,6 +116,19 @@ export default function ProductDetail({
               <div className="detail-image">
                 <img src={product.imageUrl} alt={product.name} />
                 <span className="category-badge">{product.category}</span>
+                <button
+                  type="button"
+                  className={`wishlist-heart ${wished ? 'wishlist-heart--active' : ''}`}
+                  onClick={() => onToggleWishlist(product)}
+                  aria-label={
+                    wished
+                      ? `Remove ${product.name} from wishlist`
+                      : `Save ${product.name} to wishlist`
+                  }
+                  aria-pressed={wished}
+                >
+                  {wished ? '♥' : '♡'}
+                </button>
               </div>
 
               <h3 className="detail-name">{product.name}</h3>

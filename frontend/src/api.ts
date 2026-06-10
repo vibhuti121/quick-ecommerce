@@ -1,4 +1,16 @@
-import type { Cart, CartItem, DeliveryDetails, Order, Product, Provenance, Variant } from './types';
+import type {
+  Cart,
+  CartItem,
+  DeliveryDetails,
+  DeliveryStatus,
+  Order,
+  OrderStatus,
+  OrderSummary,
+  Product,
+  Provenance,
+  UserProfile,
+  Variant,
+} from './types';
 
 // Everything goes through the API gateway (the real edge), not the individual services. In production
 // the frontend is served from the same origin as the gateway, so the empty-string default means
@@ -104,7 +116,13 @@ interface OrderItem {
 }
 interface OrderResponse {
   orderId: string;
+  status: OrderStatus;
   totalAmount: number;
+  currency: string | null;
+  customerName: string | null;
+  customerPhone: string | null;
+  deliveryAddress: string | null;
+  deliveryStatus: DeliveryStatus;
   createdAt: string;
   items: OrderItem[];
 }
@@ -263,6 +281,103 @@ export async function placeOrder(delivery: DeliveryDetails): Promise<Order> {
     total: res.totalAmount,
     placedAt: res.createdAt,
   };
+}
+
+// ---- order history (My Profile → My Orders) ---------------------------------
+// GET /api/orders is gateway-gated and scoped to the token's X-User-Id (newest-first). It returns the
+// full OrderResponse list, so a single call backs the whole history view. Maps the loose wire shape
+// into the strict OrderSummary the UI renders; status/deliveryStatus drive the two badges + the poll.
+function toOrderSummary(o: OrderResponse): OrderSummary {
+  return {
+    orderId: o.orderId,
+    status: o.status,
+    deliveryStatus: o.deliveryStatus,
+    total: o.totalAmount,
+    currency: o.currency ?? 'INR',
+    placedAt: o.createdAt,
+    customerName: o.customerName ?? '',
+    customerPhone: o.customerPhone ?? '',
+    deliveryAddress: o.deliveryAddress ?? '',
+    items: (o.items ?? []).map((i) => ({
+      productId: i.productId,
+      sku: i.sku,
+      name: i.name,
+      unitPrice: i.unitPrice,
+      quantity: i.quantity,
+    })),
+  };
+}
+
+export async function getOrders(): Promise<OrderSummary[]> {
+  const list = await request<OrderResponse[]>('/api/orders');
+  return (list ?? []).map(toOrderSummary);
+}
+
+// ---- identity (My Profile → My Profile) -------------------------------------
+// The JWT payload carries the base identity (sub/displayName/email/role) and is decodable client-side
+// with no network call, so a guest always has a profile. /auth/me is then a best-effort enrichment for
+// a logged-in (OAuth) account — it is DB-backed and 404s for guests, which we treat as "isGuest:true".
+interface JwtClaims {
+  sub?: string;
+  userId?: string;
+  displayName?: string;
+  name?: string;
+  email?: string;
+  role?: string;
+  picture?: string;
+}
+
+// Decode a JWT payload (middle segment) without verifying — we only read display claims, and the
+// gateway is the real verifier. base64url-safe; returns {} on any malformed token so callers degrade.
+function decodeJwt(token: string): JwtClaims {
+  try {
+    const payload = token.split('.')[1];
+    if (!payload) return {};
+    const b64 = payload.replace(/-/g, '+').replace(/_/g, '/');
+    const json = decodeURIComponent(
+      atob(b64)
+        .split('')
+        .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join(''),
+    );
+    return JSON.parse(json) as JwtClaims;
+  } catch {
+    return {};
+  }
+}
+
+interface MeResponse {
+  userId?: string;
+  displayName?: string;
+  email?: string;
+  picture?: string | null;
+  role?: string;
+}
+
+export async function getProfile(): Promise<UserProfile> {
+  const claims = decodeJwt(await getToken());
+  const base: UserProfile = {
+    userId: claims.userId ?? claims.sub ?? '',
+    displayName: claims.displayName ?? claims.name ?? 'Guest Shopper',
+    email: claims.email,
+    picture: claims.picture,
+    role: claims.role ?? 'GUEST',
+    isGuest: true, // assume guest until /auth/me confirms a persisted account
+  };
+  try {
+    const me = await request<MeResponse>('/auth/me');
+    return {
+      userId: me.userId ?? base.userId,
+      displayName: me.displayName ?? base.displayName,
+      email: me.email ?? base.email,
+      picture: me.picture ?? base.picture,
+      role: me.role ?? base.role,
+      isGuest: false, // a 200 from the DB-backed endpoint means a real account
+    };
+  } catch {
+    // 404 (guest, no DB row) or any failure → keep the token-derived guest identity.
+    return base;
+  }
 }
 
 export function formatPrice(value: number): string {

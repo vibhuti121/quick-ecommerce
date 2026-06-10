@@ -65,6 +65,54 @@ export interface Order {
   placedAt: string;
 }
 
+// ---- profile / order-history (My Profile drawer) --------------------------------------------
+// Saga state on the backend: PENDING settles to CONFIRMED (or FAILED) a moment after checkout.
+export type OrderStatus = 'PENDING' | 'CONFIRMED' | 'FAILED';
+// COD fulfilment state, advanced by the admin platform.
+export type DeliveryStatus = 'AWAITING_DELIVERY' | 'DELIVERED' | 'CANCELLED';
+
+// One line of a historical order (lighter than CartItem — no nested Product needed to render).
+export interface OrderLine {
+  productId: number;
+  sku: string;
+  name: string;
+  unitPrice: number;
+  quantity: number;
+}
+
+// A past order as shown in My Orders. Mirrors the backend OrderResponse (order-service Dtos.java).
+export interface OrderSummary {
+  orderId: string;
+  status: OrderStatus;
+  deliveryStatus: DeliveryStatus;
+  total: number;
+  currency: string;
+  items: OrderLine[];
+  placedAt: string;
+  customerName: string;
+  customerPhone: string;
+  deliveryAddress: string;
+}
+
+// Identity for the My Profile panel. Derived from the JWT (guest-safe); enriched by /auth/me for
+// logged-in users. isGuest = no persisted account behind the token (the storefront default today).
+export interface UserProfile {
+  userId: string;
+  displayName: string;
+  email?: string;
+  picture?: string;
+  role: string;
+  isGuest: boolean;
+}
+
+// A wishlisted product — client-side only (localStorage). Stores just enough to render the tab.
+export interface WishlistItem {
+  id: number;
+  name: string;
+  price: number;
+  imageUrl: string;
+}
+
 // Cash-on-Delivery pilot: where the order goes. Collected at checkout and required before placing.
 export interface DeliveryDetails {
   customerName: string;

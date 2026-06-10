@@ -3,6 +3,7 @@ import SearchBar from './SearchBar';
 interface HeaderProps {
   itemCount: number;
   onOpenCart: () => void;
+  onOpenProfile: () => void;
   query: string;
   onQueryChange: (value: string) => void;
   onClearQuery: () => void;
@@ -11,6 +12,7 @@ interface HeaderProps {
 export default function Header({
   itemCount,
   onOpenCart,
+  onOpenProfile,
   query,
   onQueryChange,
   onClearQuery,
@@ -23,6 +25,10 @@ export default function Header({
           <span className="brand-name">QuickCart</span>
         </div>
         <SearchBar value={query} onChange={onQueryChange} onClear={onClearQuery} />
+        <button className="profile-button" onClick={onOpenProfile} aria-label="Open profile">
+          <span className="profile-icon">👤</span>
+          <span>Profile</span>
+        </button>
         <button className="cart-button" onClick={onOpenCart} aria-label="Open cart">
           <span className="cart-icon">🛒</span>
           <span>Cart</span>
