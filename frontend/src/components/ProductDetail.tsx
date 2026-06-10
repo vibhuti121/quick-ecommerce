@@ -1,5 +1,6 @@
+import { useEffect, useState } from 'react';
 import type { Product, Provenance } from '../types';
-import { formatPrice } from '../api';
+import { formatPrice, getRecommendations } from '../api';
 
 interface ProductDetailProps {
   open: boolean;
@@ -8,6 +9,8 @@ interface ProductDetailProps {
   adding: boolean;
   onClose: () => void;
   onAdd: (product: Product) => void;
+  // Re-anchor the drawer to a clicked recommendation (refetches the authoritative record + its recs).
+  onViewProduct?: (product: Product) => void;
 }
 
 // A provenance field row — rendered only when the value is present, so a sparse
@@ -50,10 +53,34 @@ export default function ProductDetail({
   adding,
   onClose,
   onAdd,
+  onViewProduct,
 }: ProductDetailProps) {
   const provenance = product?.provenance;
   const labCert = provenance?.labCert;
   const variants = product?.variants ?? [];
+
+  // Hybrid "you may also like" recs for the anchored product. Best-effort & non-blocking: the
+  // endpoint never 503s, so any failure (or none related) simply leaves an empty row. `active`
+  // guards against a stale response from a previous anchor overwriting the current one.
+  const [recs, setRecs] = useState<Product[]>([]);
+  const productId = product?.id;
+  useEffect(() => {
+    if (!open || productId == null) {
+      setRecs([]);
+      return;
+    }
+    let active = true;
+    getRecommendations(productId)
+      .then((list) => {
+        if (active) setRecs(list);
+      })
+      .catch(() => {
+        if (active) setRecs([]); // recs are decorative — never surface an error for them
+      });
+    return () => {
+      active = false;
+    };
+  }, [open, productId]);
 
   return (
     <>
@@ -124,6 +151,27 @@ export default function ProductDetail({
                   <p className="variant-note">
                     Grades shown for information. This listing ships as the standard pack.
                   </p>
+                </section>
+              )}
+
+              {recs.length > 0 && (
+                <section className="recs-section">
+                  <h4 className="recs-title">You may also like</h4>
+                  <div className="recs-row">
+                    {recs.map((r) => (
+                      <button
+                        key={r.id}
+                        type="button"
+                        className="rec-card"
+                        onClick={() => onViewProduct?.(r)}
+                        aria-label={`View details for ${r.name}`}
+                      >
+                        <img src={r.imageUrl} alt={r.name} loading="lazy" />
+                        <span className="rec-name">{r.name}</span>
+                        <span className="rec-price">{formatPrice(r.price)}</span>
+                      </button>
+                    ))}
+                  </div>
                 </section>
               )}
             </div>

@@ -4,6 +4,7 @@ import { formatPrice } from '../api';
 interface ProductCardProps {
   product: Product;
   onAdd: (product: Product) => void;
+  // Open the product detail drawer. The Add-to-cart button stops propagation so it never also opens it.
   onView: (product: Product) => void;
   adding: boolean;
 }
@@ -33,7 +34,10 @@ export default function ProductCard({ product, onAdd, onView, adding }: ProductC
           <span className="product-price">{formatPrice(product.price)}</span>
           <button
             className="btn btn-primary"
-            onClick={() => onAdd(product)}
+            onClick={(e) => {
+              e.stopPropagation(); // add to cart without opening the detail drawer
+              onAdd(product);
+            }}
             disabled={adding}
           >
             {adding ? 'Adding…' : 'Add to cart'}

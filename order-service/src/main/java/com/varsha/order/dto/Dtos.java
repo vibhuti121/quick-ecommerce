@@ -39,6 +39,13 @@ public final class Dtos {
     public record OrderItemResponse(Long productId, String sku, String name,
                                     BigDecimal unitPrice, int quantity, BigDecimal lineTotal) {}
 
+    /**
+     * Co-purchase pair for the recommendations pillar: {@code productId} appeared in
+     * {@code count} distinct CONFIRMED orders alongside the anchor product. Consumed
+     * service-to-service by catalog-service, which blends it with content-based hits.
+     */
+    public record CoPurchaseResponse(Long productId, long count) {}
+
     public record OrderResponse(
             String orderId,
             String userId,

@@ -10,6 +10,7 @@ import {
   getProducts,
   placeOrder,
   removeFromCart,
+  searchProducts,
 } from './api';
 import type { Cart, DeliveryDetails, Order, Product } from './types';
 
@@ -17,6 +18,12 @@ export default function App() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Search: the input updates `query` immediately (responsive box); a debounced effect calls the
+  // search endpoint and stores hits in `searchResults`. A blank query falls back to the full catalog.
+  const [query, setQuery] = useState<string>('');
+  const [searchResults, setSearchResults] = useState<Product[]>([]);
+  const [searching, setSearching] = useState<boolean>(false);
 
   const [cart, setCart] = useState<Cart | null>(null);
   const [cartOpen, setCartOpen] = useState<boolean>(false);
@@ -50,6 +57,39 @@ export default function App() {
       active = false;
     };
   }, []);
+
+  // Debounced search: wait 300ms after the last keystroke, then query. An empty term short-circuits
+  // (no request) and the grid shows the full catalog. `active` guards against an out-of-order response
+  // from a stale query overwriting a newer one.
+  useEffect(() => {
+    const term = query.trim();
+    if (!term) {
+      setSearchResults([]);
+      setSearching(false);
+      return;
+    }
+    let active = true;
+    setSearching(true);
+    const handle = setTimeout(() => {
+      searchProducts(term)
+        .then((hits) => {
+          if (active) setSearchResults(hits);
+        })
+        .catch((err: unknown) => {
+          if (active) setError(err instanceof Error ? err.message : 'Search failed.');
+        })
+        .finally(() => {
+          if (active) setSearching(false);
+        });
+    }, 300);
+    return () => {
+      active = false;
+      clearTimeout(handle);
+    };
+  }, [query]);
+
+  const isSearching = query.trim().length > 0;
+  const displayed = isSearching ? searchResults : products;
 
   const itemCount = useMemo(
     () => (cart?.items ?? []).reduce((sum, item) => sum + item.quantity, 0),
@@ -136,7 +176,13 @@ export default function App() {
 
   return (
     <div className="app">
-      <Header itemCount={itemCount} onOpenCart={() => setCartOpen(true)} />
+      <Header
+        itemCount={itemCount}
+        onOpenCart={() => setCartOpen(true)}
+        query={query}
+        onQueryChange={setQuery}
+        onClearQuery={() => setQuery('')}
+      />
 
       <main className="main">
         <section className="hero">
@@ -158,13 +204,22 @@ export default function App() {
             <div className="spinner" />
             <p>Loading products…</p>
           </div>
-        ) : products.length === 0 && !error ? (
+        ) : isSearching && searching && displayed.length === 0 ? (
+          <div className="state-message">
+            <div className="spinner" />
+            <p>Searching…</p>
+          </div>
+        ) : isSearching && !searching && displayed.length === 0 && !error ? (
+          <div className="state-message">
+            <p>No products match “{query.trim()}”.</p>
+          </div>
+        ) : !isSearching && products.length === 0 && !error ? (
           <div className="state-message">
             <p>No products available right now.</p>
           </div>
         ) : (
           <ProductGrid
-            products={products}
+            products={displayed}
             onAdd={handleAdd}
             onView={handleView}
             addingId={addingId}
@@ -179,6 +234,7 @@ export default function App() {
         adding={detailProduct != null && addingId === detailProduct.id}
         onClose={handleCloseDetail}
         onAdd={handleAdd}
+        onViewProduct={handleView}
       />
 
       <CartDrawer

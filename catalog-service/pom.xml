@@ -97,6 +97,22 @@
       <groupId>software.amazon.awssdk</groupId>
       <artifactId>s3</artifactId>
     </dependency>
+    <!-- OpenSearch low-level Java client (Phase 2, search pillar). Chosen over spring-data-opensearch,
+         which is version-coupled to specific Boot lines (the #1 build risk vs Boot 3.5.x); this client
+         is version-decoupled. It transitively pulls Apache httpclient5/httpcore5 + jackson — both managed
+         by the Boot BOM, so versions align with the rest of the service (verified by `compose build`). -->
+    <dependency>
+      <groupId>org.opensearch.client</groupId>
+      <artifactId>opensearch-java</artifactId>
+      <version>2.11.1</version>
+    </dependency>
+    <!-- opensearch-java declares the Apache httpclient5 transport as optional, so it must be brought
+         in explicitly. Version is managed by the Boot 3.5 BOM (httpclient5.version) → aligned with
+         the rest of the service; do NOT pin a version here. -->
+    <dependency>
+      <groupId>org.apache.httpcomponents.client5</groupId>
+      <artifactId>httpclient5</artifactId>
+    </dependency>
 
     <dependency>
       <groupId>org.springframework.boot</groupId>

@@ -52,6 +52,36 @@ services:
       - miniodata:/data
     restart: unless-stopped
 
+  # Search index for the catalog (Phase 2, search pillar). OpenSearch is the OSS (Apache-2.0) fork of
+  # Elasticsearch — fits the fully-local, asset-light pilot. Postgres stays the source of truth; this is
+  # a secondary index kept consistent by catalog-service (dual-write on writes + startup backfill of the
+  # Flyway-seeded rows). Single-node, security plugin OFF for local dev (a real deploy enables it + TLS +
+  # creds — see README). 512m heap keeps it light. memlock unlimited so the JVM can lock its heap.
+  opensearch:
+    image: opensearchproject/opensearch:2.11.1
+    environment:
+      discovery.type: single-node
+      plugins.security.disabled: "true"
+      bootstrap.memory_lock: "true"
+      OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
+      # 2.12+ requires a strong admin password even with security off; 2.11.1 does not. Pin 2.11.1.
+      DISABLE_INSTALL_DEMO_CONFIG: "true"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - opensearchdata:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+    restart: unless-stopped
+
   auth-service:
     build: ./auth-service
     environment:
@@ -91,12 +121,26 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:?missing - run ./scripts/gen-secrets.sh to create .env}
       MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?missing - run ./scripts/gen-secrets.sh to create .env}
       MINIO_BUCKET: ${MINIO_BUCKET:-product-images}
+      # Secondary search index. Postgres remains source of truth; an OpenSearch outage degrades search
+      # to a Postgres ILIKE fallback and never fails a catalog write (graceful degradation).
+      OPENSEARCH_HOST: opensearch
+      OPENSEARCH_PORT: "9200"
+      OPENSEARCH_SCHEME: http
+      # Co-purchase signal for hybrid recommendations. catalog calls order-service directly over the
+      # docker network (bypassing the gateway), BEST-EFFORT: a slow/down order-service fails fast on a
+      # short timeout and recs degrade to content-based/category — hence NO depends_on (a boot-order
+      # coupling would defeat the degradation contract).
+      ORDER_SERVICE_URL: http://order-service:8094
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
       minio:
+        condition: service_started
+      # service_started (not _healthy) like minio: catalog must boot even if the index is slow/down —
+      # the startup backfill waits for readiness itself and degrades gracefully if OpenSearch never comes up.
+      opensearch:
         condition: service_started
     restart: unless-stopped
 
@@ -255,5 +299,6 @@ volumes:
   pgdata:
   redisdata:
   miniodata:
+  opensearchdata:
   promdata:
   grafanadata:

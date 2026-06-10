@@ -69,10 +69,21 @@ jobs:
             [ "$code" = "200" ] && break
             sleep 2
           done
-          echo "readiness OK (gateway/auth/catalog)."
+          # OpenSearch boots a few seconds behind catalog, then the startup backfill indexes the seed.
+          # The smoke's search assertions need that done — poll the search endpoint until the seed
+          # appears (proves OpenSearch is up AND the backfill ran). Non-fatal: if it never indexes,
+          # search degrades to the Postgres ILIKE fallback and the assertions still pass on the seed.
+          echo "waiting for search backfill (q=shirt -> seed)..."
+          for i in $(seq 1 30); do
+            curl -fsk "$GW/api/catalog/products/search?q=shirt" 2>/dev/null | grep -q "Cotton Round-Neck T-Shirt" && break
+            sleep 2
+          done
+          echo "readiness OK (gateway/auth/catalog/search)."
 
-      # 16 assertions: routing, RBAC admin seed, anonymous browse, checkout saga, idempotency,
-      # and data-survives-restart (the smoke does its own compose down/up for the persistence test).
+      # 33 assertions: routing, RBAC admin seed, anonymous browse, checkout saga, idempotency,
+      # OpenSearch search (public/backfill/fuzzy/dual-write), hybrid recommendations (public 200,
+      # co-purchase partner present, anchor excluded, 200 with order-service down), and
+      # data-survives-restart (the smoke does its own compose down/up for the persistence test).
       - name: Full-stack smoke
         run: bash scripts/fullstack-smoke.sh
 

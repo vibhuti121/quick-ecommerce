@@ -10,6 +10,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 public interface ProductRepository extends JpaRepository<Product, Long> {
@@ -23,6 +25,30 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     Page<Product> findByActiveTrueAndCategoryIgnoreCase(String category, Pageable pageable);
 
     Page<Product> findByActiveTrueAndProductType(ProductType productType, Pageable pageable);
+
+    /**
+     * Resolve a set of product ids to active products (recommendations: co-purchase returns ids,
+     * not full products; inactive ones are dropped). DB order is undefined — the caller re-sorts to
+     * the recommendation ranking.
+     */
+    List<Product> findByIdInAndActiveTrue(Collection<Long> ids);
+
+    /** Same-category active products excluding the anchor — the recommendation cold-start fallback. */
+    Page<Product> findByActiveTrueAndCategoryIgnoreCaseAndIdNot(String category, Long id, Pageable pageable);
+
+    /**
+     * Degraded search path when OpenSearch is unreachable: a case-insensitive substring match over
+     * name/description/sku on active products. No fuzziness, no attribute search, no relevance ranking
+     * — just enough that the search endpoint never 503s during an OpenSearch outage.
+     */
+    @Query("""
+            select p from Product p
+            where p.active = true and (
+                lower(p.name)        like lower(concat('%', :q, '%')) or
+                lower(p.description) like lower(concat('%', :q, '%')) or
+                lower(p.sku)         like lower(concat('%', :q, '%')))
+            """)
+    Page<Product> searchFallback(@Param("q") String q, Pageable pageable);
 
     /** Targeted image-URL update — used by the MinIO seeder so it never touches variants/other fields. */
     @Modifying

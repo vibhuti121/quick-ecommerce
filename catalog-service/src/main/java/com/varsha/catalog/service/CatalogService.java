@@ -5,10 +5,12 @@ import com.varsha.catalog.dto.ProductResponse;
 import com.varsha.catalog.dto.VariantRequest;
 import com.varsha.catalog.exception.ConflictException;
 import com.varsha.catalog.exception.NotFoundException;
+import com.varsha.catalog.exception.SearchUnavailableException;
 import com.varsha.catalog.model.Product;
 import com.varsha.catalog.model.ProductType;
 import com.varsha.catalog.model.Variant;
 import com.varsha.catalog.repository.ProductRepository;
+import com.varsha.catalog.search.ProductSearchService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -41,12 +43,19 @@ public class CatalogService {
     private final ProductRepository products;
     private final ProductCacheService cache;
     private final ObjectStorageService storage;
+    private final ProductSearchService search;
+    private final ProductReader reader;
+    private final RecommendationService recommendations;
 
     public CatalogService(ProductRepository products, ProductCacheService cache,
-                          ObjectStorageService storage) {
+                          ObjectStorageService storage, ProductSearchService search,
+                          ProductReader reader, RecommendationService recommendations) {
         this.products = products;
         this.cache = cache;
         this.storage = storage;
+        this.search = search;
+        this.reader = reader;
+        this.recommendations = recommendations;
     }
 
     // ---- public browse (read path) ----
@@ -63,6 +72,34 @@ public class CatalogService {
         return cache.product(id);
     }
 
+    /**
+     * Full-text search. A blank query is just a browse (keeps the endpoint useful with no term). With
+     * a term we hit OpenSearch (fuzzy, attribute-aware, relevance-ranked); if OpenSearch is down we
+     * degrade to a Postgres {@code ILIKE} scan so search never 503s — same graceful-degradation ethos
+     * as the Redis cache. Deliberately NOT cached: query strings are high-cardinality and a just-created
+     * SKU must be findable immediately.
+     */
+    public Page<ProductResponse> search(String q, String category, ProductType type, Pageable pageable) {
+        if (q == null || q.isBlank()) {
+            return browse(category, type, pageable);
+        }
+        try {
+            return search.search(q, category, type, pageable);
+        } catch (SearchUnavailableException e) {
+            return reader.searchFallback(q.trim(), pageable);
+        }
+    }
+
+    /**
+     * Hybrid "you may also like" recommendations for a product (co-purchase first, content-based
+     * fills, same-category fallback). Best-effort by design — never 503s; only a missing anchor
+     * surfaces (404). Delegates to {@link RecommendationService}; deliberately uncached (must
+     * reflect fresh orders, same stance as {@link #search}).
+     */
+    public List<ProductResponse> recommend(Long id, int size) {
+        return recommendations.recommend(id, size);
+    }
+
     // ---- admin CRUD (write path) ----
     // Each write evicts the affected entries so cached reads never outlive a change.
 
@@ -75,6 +112,7 @@ public class CatalogService {
         apply(p, req);
         ProductResponse saved = ProductResponse.from(products.save(p));
         cache.evictBrowse();
+        search.indexProduct(saved);   // dual-write: keep the search index consistent (log-and-degrade)
         return saved;
     }
 
@@ -89,6 +127,7 @@ public class CatalogService {
         ProductResponse saved = ProductResponse.from(products.save(p));
         cache.evictProduct(id);
         cache.evictBrowse();
+        search.indexProduct(saved);   // dual-write: re-index the updated product (log-and-degrade)
         return saved;
     }
 
@@ -119,6 +158,7 @@ public class CatalogService {
         ProductResponse saved = ProductResponse.from(products.save(p));
         cache.evictProduct(id);
         cache.evictBrowse();
+        search.indexProduct(saved);   // dual-write: image URL changed, re-index (log-and-degrade)
         return saved;
     }
 
@@ -134,6 +174,7 @@ public class CatalogService {
         products.deleteById(id);
         cache.evictProduct(id);
         cache.evictBrowse();
+        search.deleteProduct(id);   // dual-write: drop from the search index (log-and-degrade)
     }
 
     private Product load(Long id) {

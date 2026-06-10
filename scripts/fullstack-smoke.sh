@@ -83,7 +83,10 @@ echo "  created product id=$PID sku=$SKU"
 echo
 echo "== 4. anonymous catalog browse (PUBLIC, no token) =="
 assert_eq "200" "$(curl -fs -o /dev/null -w '%{http_code}' $GW/api/catalog/products)" "GET /api/catalog/products without token -> 200"
-curl -fs "$GW/api/catalog/products" | grep -q "$SKU" && ok "seeded product visible in public browse" || bad "seeded product visible in public browse"
+# size=200 (same as the storefront's getProducts): the default page is 20, so once the catalog holds
+# >20 products (richer seed + accumulated test SKUs on a persistent volume) the just-created SKU lands
+# on a later page and a default-page grep false-negatives.
+curl -fs "$GW/api/catalog/products?size=200" | grep -q "$SKU" && ok "seeded product visible in public browse" || bad "seeded product visible in public browse"
 
 echo
 echo "== 4b. MaLLADE provenance seeded (B3 — proves V3 migration ran at startup) =="
@@ -148,6 +151,81 @@ done
 assert_eq "$OID" "$OID2" "same Idempotency-Key -> same order (no double charge)"
 
 echo
+echo "== 8b. search (OpenSearch secondary index; falls back to Postgres ILIKE if down) =="
+# Public, like browse — no token (the /api/catalog/products prefix is in AuthFilter PUBLIC_PATHS).
+assert_eq "200" "$(curl -fs -o /dev/null -w '%{http_code}' "$GW/api/catalog/products/search?q=shirt")" "GET /products/search without token -> 200"
+# Backfill indexed the Flyway seed: a generic term hits the seeded catalog (proves startup backfill ran).
+curl -fs "$GW/api/catalog/products/search?q=shirt" | grep -q "Cotton Round-Neck T-Shirt" \
+  && ok "search finds backfilled seed (q=shirt)" || bad "search finds backfilled seed (q=shirt)"
+# Fuzziness/typo tolerance (AUTO): a misspelling still matches. NOTE: only OpenSearch is fuzzy — the
+# Postgres ILIKE fallback is substring-only, so this asserts the OpenSearch path specifically.
+curl -fs "$GW/api/catalog/products/search?q=shrt" | grep -q "Cotton Round-Neck T-Shirt" \
+  && ok "search is typo-tolerant (q=shrt -> shirt)" || bad "search is typo-tolerant (q=shrt -> shirt)"
+# Dual-write + cache-bypass: the per-run SKU created in step 3 is findable. Poll to absorb the
+# OpenSearch refresh interval (~1s) — search is deliberately NOT cached, so no eviction lag.
+SRCH_OK=""
+for i in $(seq 1 10); do
+  curl -fs "$GW/api/catalog/products/search?q=Smoke" | grep -q "$SKU" && { SRCH_OK=1; break; }
+  sleep 1
+done
+[ -n "$SRCH_OK" ] && ok "just-created SKU findable via search (dual-write, q=Smoke)" || bad "just-created SKU findable via search (dual-write, q=Smoke)"
+
+echo
+echo "== 8c. recommendations (hybrid: co-purchase first, content-based fills, category fallback) =="
+# Co-purchase needs a PAIR bought together in CONFIRMED orders. Use TWO FRESH products A2+B2 (same
+# category, distinct from the step-7 widget) so this block's stock consumption never perturbs step 9's
+# inventory-survives-restart assertion. Place TWO orders each containing A2 AND B2; A2's recs must then
+# surface B2 (behavioral signal). This pillar is build-gate-blind (Flyway index + a live order-service,
+# [[migration-not-run-by-build-gate]]) — it can ONLY be proven here at runtime.
+SKU_A2="$SKU-RA"; SKU_B2="$SKU-RB"
+PROD_A2=$(curl -fs -X POST $GW/api/catalog/admin/products "${ADMIN[@]}" -H 'Content-Type: application/json' \
+  -d "{\"sku\":\"$SKU_A2\",\"name\":\"Smoke Rec Anchor\",\"description\":\"smoke recommendation anchor gadget\",\"productType\":\"PHYSICAL\",\"category\":\"SmokeRec\",\"basePrice\":299.00,\"currency\":\"INR\"}")
+PROD_B2=$(curl -fs -X POST $GW/api/catalog/admin/products "${ADMIN[@]}" -H 'Content-Type: application/json' \
+  -d "{\"sku\":\"$SKU_B2\",\"name\":\"Smoke Rec Companion\",\"description\":\"smoke recommendation companion gadget\",\"productType\":\"PHYSICAL\",\"category\":\"SmokeRec\",\"basePrice\":149.00,\"currency\":\"INR\"}")
+PID_A2=$(jnum "$PROD_A2" id); PID_B2=$(jnum "$PROD_B2" id)
+echo "  rec anchor A2 id=$PID_A2 sku=$SKU_A2 | companion B2 id=$PID_B2 sku=$SKU_B2"
+{ [ -n "$PID_A2" ] && [ -n "$PID_B2" ]; } && ok "rec products A2+B2 created" || bad "rec products A2+B2 created"
+curl -fs -X POST $GW/api/inventory/admin/stock "${ADMIN[@]}" -H 'Content-Type: application/json' -d "{\"sku\":\"$SKU_A2\",\"quantity\":20}" >/dev/null
+curl -fs -X POST $GW/api/inventory/admin/stock "${ADMIN[@]}" -H 'Content-Type: application/json' -d "{\"sku\":\"$SKU_B2\",\"quantity\":20}" >/dev/null \
+  && ok "stock seeded A2+B2" || bad "stock seeded A2+B2"
+
+# Two CONFIRMED orders, each = {A2,B2}. Distinct idempotency keys so both actually persist.
+place_pair_order() { # $1 = idempotency key
+  local co code body oid st
+  co=$(curl -fs -w '\n%{http_code}' -X POST $GW/api/orders/checkout "${AUTH[@]}" \
+    -H 'Content-Type: application/json' -H "Idempotency-Key: $1" \
+    -d "{\"currency\":\"INR\",\"customerName\":\"Smoke Tester\",\"customerPhone\":\"9990000002\",\"deliveryAddress\":\"1 Test Lane, Bengaluru\",\"items\":[{\"productId\":$PID_A2,\"sku\":\"$SKU_A2\",\"name\":\"Smoke Rec Anchor\",\"unitPrice\":299.00,\"quantity\":1},{\"productId\":$PID_B2,\"sku\":\"$SKU_B2\",\"name\":\"Smoke Rec Companion\",\"unitPrice\":149.00,\"quantity\":1}]}")
+  code=$(tail -1 <<<"$co"); body=$(sed '$d' <<<"$co")
+  [ "$code" = "202" ] || { echo "    checkout $1 -> $code"; return 1; }
+  oid=$(jget "$body" orderId)
+  for i in $(seq 1 25); do
+    st=$(jget "$(curl -fs $GW/api/orders/$oid "${AUTH[@]}")" status)
+    { [ "$st" = "CONFIRMED" ] || [ "$st" = "FAILED" ]; } && break
+    sleep 1
+  done
+  echo "    order $oid -> $st"
+  [ "$st" = "CONFIRMED" ]
+}
+place_pair_order "$IDEM-cp1" && place_pair_order "$IDEM-cp2" \
+  && ok "two CONFIRMED orders containing A2+B2 (co-purchase pair)" || bad "two CONFIRMED A2+B2 orders"
+
+# Recs are public (the /api/catalog/products prefix is in AuthFilter PUBLIC_PATHS) and best-effort.
+assert_eq "200" "$(curl -fs -o /dev/null -w '%{http_code}' "$GW/api/catalog/products/$PID_A2/recommendations")" \
+  "GET /products/{A2}/recommendations without token -> 200 (public)"
+# Co-purchase reads order_items synchronously (native SQL) — no eventual-consistency lag.
+RECS=$(curl -fs "$GW/api/catalog/products/$PID_A2/recommendations")
+echo "$RECS" | grep -q "\"id\":$PID_B2," && ok "recs include co-purchase partner B2 (id=$PID_B2)" || bad "recs include co-purchase partner B2"
+echo "$RECS" | grep -q "\"id\":$PID_A2," && bad "recs MUST NOT include the anchor A2 itself" || ok "recs exclude anchor A2 (id=$PID_A2)"
+# Degradation: with order-service stopped the co-purchase signal vanishes but the endpoint must NOT 503
+# (content-based / same-category fallback carries it). Restart after so step 9's restart test is clean.
+echo "  stopping order-service (degradation check)..."
+docker compose stop order-service >/dev/null 2>&1
+assert_eq "200" "$(curl -fs -o /dev/null -w '%{http_code}' "$GW/api/catalog/products/$PID_A2/recommendations")" \
+  "recs still 200 with order-service DOWN (degrade, never 503)"
+echo "  restarting order-service..."
+docker compose start order-service >/dev/null 2>&1
+
+echo
 echo "== 9. PERSISTENCE: full stack down -> up, data survives =="
 echo "  bringing stack down (keeping volumes)..."
 docker compose down >/dev/null 2>&1
@@ -178,7 +256,7 @@ assert_eq "CONFIRMED" "$ST_AFTER" "order $OID still CONFIRMED after restart"
 # so poll for readiness like the order/inventory checks do — a single shot here is a false-negative race.
 CAT_OK=""
 for i in $(seq 1 30); do
-  curl -fs $GW/api/catalog/products 2>/dev/null | grep -q "$SKU" && { CAT_OK=1; break; }
+  curl -fs "$GW/api/catalog/products?size=200" 2>/dev/null | grep -q "$SKU" && { CAT_OK=1; break; }
   sleep 2
 done
 [ -n "$CAT_OK" ] && ok "catalog product survived restart" || bad "catalog product survived restart"
