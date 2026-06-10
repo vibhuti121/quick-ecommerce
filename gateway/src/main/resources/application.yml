@@ -168,6 +168,40 @@ spring:
                   factor: 2
                   basedOnPreviousValue: false
 
+        - id: videocall-service
+          uri: http://${VIDEOCALL_HOST:localhost}:8095
+          predicates:
+            - Path=/api/videocall/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                name: videocall-service
+                fallbackUri: forward:/fallback/unavailable
+                statusCodes:
+                  - BAD_GATEWAY
+                  - SERVICE_UNAVAILABLE
+                  - GATEWAY_TIMEOUT
+            - name: Retry
+              args:
+                retries: 2
+                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                methods: GET
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 500ms
+                  factor: 2
+                  basedOnPreviousValue: false
+
+        # WebRTC signaling (Socket.IO). SCG proxies the WebSocket upgrade over a plain http:// uri — the
+        # ws:// scheme is negotiated by the Upgrade handshake, not the route URI. NO CircuitBreaker/Retry:
+        # those wrap request/response semantics and would break a long-lived bidirectional socket. The
+        # upgrade is allowed through AuthFilter via /socket.io/ in PUBLIC_PATHS; signaling-service validates
+        # the call grant carried in the handshake auth payload. Gateway-internal service, no host port.
+        - id: signaling-service
+          uri: http://${SIGNALING_HOST:localhost}:3001
+          predicates:
+            - Path=/socket.io/**
+
         # Storefront SPA (B1) — the catch-all. Path=/** matches EVERYTHING, including /api/**, so it
         # MUST be lowest priority: order:1 puts it behind every route above (implicit order:0), which
         # means the specific /api,/auth,/oauth2,/login routes win and this only serves what's left over
@@ -232,6 +266,8 @@ resilience4j:
         baseConfig: default
       order-service:
         baseConfig: default
+      videocall-service:
+        baseConfig: default
       auth-validate:
         slidingWindowSize: 10
         minimumNumberOfCalls: 5
@@ -256,6 +292,8 @@ resilience4j:
       payment-service:
         baseConfig: default
       order-service:
+        baseConfig: default
+      videocall-service:
         baseConfig: default
       auth-validate:
         timeoutDuration: 2s

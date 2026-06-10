@@ -8,6 +8,9 @@ import UpdatesCarousel from './components/UpdatesCarousel';
 import ComingSoonModal from './components/ComingSoonModal';
 import NotifyModal from './components/NotifyModal';
 import AuthModal from './components/AuthModal';
+import VideoCallGateModal from './components/VideoCall/VideoCallGateModal';
+import type { CallStart } from './components/VideoCall/VideoCallGateModal';
+import CallRoom from './components/VideoCall/CallRoom';
 import type { ProfileSection } from './components/ProfileDrawer';
 import type { NotifyTopic } from './lib/updates';
 import {
@@ -76,6 +79,28 @@ export default function App() {
   const [authOpen, setAuthOpen] = useState<boolean>(false);
   // Wishlist is client-side (localStorage) — seed from storage on mount so hearts render correctly.
   const [wishlist, setWishlist] = useState<WishlistItem[]>(() => getWishlist());
+
+  // Gated live video call (reuses the FamilyCall WebRTC stack). The gate modal resolves eligibility
+  // and asks videocall-service for a short-lived grant; on success it hands back a CallStart and we
+  // mount the full-screen CallRoom. `joinRoomId` is set when arriving via a shared invite link
+  // (?call=<roomId>) so the gate requests a grant bound to THAT room instead of a fresh one.
+  const [videoCallOpen, setVideoCallOpen] = useState<boolean>(false);
+  const [activeCall, setActiveCall] = useState<CallStart | null>(null);
+  const [joinRoomId, setJoinRoomId] = useState<string | undefined>(undefined);
+
+  // Invite-link entry: if the URL carries ?call=<roomId>, open the gate bound to that room, then
+  // strip the param so a reload/leave doesn't re-trigger it. Every joiner is still independently gated.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const call = params.get('call');
+    if (call) {
+      setJoinRoomId(call);
+      setVideoCallOpen(true);
+      params.delete('call');
+      const qs = params.toString();
+      window.history.replaceState(null, '', window.location.pathname + (qs ? `?${qs}` : ''));
+    }
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -436,6 +461,32 @@ export default function App() {
         onCheckout={handleCheckout}
         onDismissOrder={handleDismissOrder}
       />
+
+      {/* Floating entry point for the gated live call. Open to everyone here; the gate modal handles
+          guests (prompts login) and ineligible users (Tally form) — entry never leaks call access. */}
+      <button
+        className="videocall-fab"
+        onClick={() => { setJoinRoomId(undefined); setVideoCallOpen(true); }}
+        aria-label="Talk to us live"
+      >
+        📹 Talk to us live
+      </button>
+
+      <VideoCallGateModal
+        open={videoCallOpen}
+        joinRoomId={joinRoomId}
+        onClose={() => setVideoCallOpen(false)}
+        onStartCall={(call) => { setActiveCall(call); setVideoCallOpen(false); }}
+      />
+
+      {activeCall && (
+        <CallRoom
+          roomId={activeCall.roomId}
+          grant={activeCall.grant}
+          iceServers={activeCall.iceServers}
+          onLeave={() => { setActiveCall(null); setJoinRoomId(undefined); }}
+        />
+      )}
     </div>
   );
 }
