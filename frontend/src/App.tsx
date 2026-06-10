@@ -7,6 +7,7 @@ import ProfileDrawer from './components/ProfileDrawer';
 import UpdatesCarousel from './components/UpdatesCarousel';
 import ComingSoonModal from './components/ComingSoonModal';
 import NotifyModal from './components/NotifyModal';
+import AuthModal from './components/AuthModal';
 import type { ProfileSection } from './components/ProfileDrawer';
 import type { NotifyTopic } from './lib/updates';
 import {
@@ -16,6 +17,7 @@ import {
   getProductById,
   getProducts,
   getProfile,
+  logout,
   notify,
   placeOrder,
   removeFromCart,
@@ -70,6 +72,8 @@ export default function App() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [orders, setOrders] = useState<OrderSummary[]>([]);
   const [ordersLoading, setOrdersLoading] = useState<boolean>(false);
+  // Our own sign-in (email/phone+password or phone-OTP), opened from the profile drawer's guest note.
+  const [authOpen, setAuthOpen] = useState<boolean>(false);
   // Wishlist is client-side (localStorage) — seed from storage on mount so hearts render correctly.
   const [wishlist, setWishlist] = useState<WishlistItem[]>(() => getWishlist());
 
@@ -196,6 +200,26 @@ export default function App() {
     getProfile()
       .then(setProfile)
       .catch(() => setProfile(null));
+  }, [loadOrders]);
+
+  // A real (non-guest) JWT is now stored. Close the auth modal and refresh the identity + orders so the
+  // drawer immediately reflects the signed-in account.
+  const handleAuthed = useCallback(() => {
+    setAuthOpen(false);
+    getProfile()
+      .then(setProfile)
+      .catch(() => setProfile(null));
+    void loadOrders();
+  }, [loadOrders]);
+
+  // Drop the stored token; the next API call mints a fresh guest. Refresh the profile so the drawer
+  // flips back to the guest view.
+  const handleSignOut = useCallback(() => {
+    logout();
+    getProfile()
+      .then(setProfile)
+      .catch(() => setProfile(null));
+    void loadOrders();
   }, [loadOrders]);
 
   const handleToggleWishlist = useCallback((product: Product) => {
@@ -395,7 +419,11 @@ export default function App() {
         onRefreshOrders={loadOrders}
         wishlist={wishlist}
         onRemoveWishlist={handleRemoveWishlist}
+        onSignIn={() => setAuthOpen(true)}
+        onSignOut={handleSignOut}
       />
+
+      <AuthModal open={authOpen} onClose={() => setAuthOpen(false)} onAuthed={handleAuthed} />
 
       <CartDrawer
         open={cartOpen}

@@ -1633,3 +1633,99 @@ body {
   color: var(--success);
   font-weight: 600;
 }
+
+/* ---- Auth modal (our own sign-in; reuses .overlay + .product-modal + .coming-soon-* form) ---- */
+.auth-modal {
+  max-width: 420px;
+}
+
+.auth-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 4px 8px;
+}
+
+.auth-tabs {
+  display: flex;
+  gap: 4px;
+  margin: 12px 0 14px;
+  padding: 4px;
+  background: var(--surface-muted, #f3f4f6);
+  border-radius: var(--radius);
+}
+
+.auth-tab {
+  flex: 1;
+  padding: 8px 6px;
+  border: none;
+  border-radius: calc(var(--radius) - 2px);
+  background: transparent;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.auth-tab--active {
+  background: #fff;
+  color: var(--text, #111827);
+  box-shadow: var(--shadow-sm, 0 1px 2px rgba(0, 0, 0, 0.08));
+}
+
+.auth-otp-sent {
+  font-size: 0.9rem;
+  color: var(--muted);
+  margin: 0 0 4px;
+}
+
+.auth-link {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--accent);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+
+.auth-link:disabled {
+  color: var(--muted);
+  cursor: default;
+}
+
+.auth-resend {
+  margin-top: 8px;
+  align-self: center;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0 12px;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.auth-google {
+  width: 100%;
+  justify-content: center;
+}
+
+.profile-signin-btn {
+  margin-top: 10px;
+}
+
+.profile-signout-btn {
+  margin-top: 14px;
+}

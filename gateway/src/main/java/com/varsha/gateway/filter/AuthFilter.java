@@ -26,6 +26,10 @@ public class AuthFilter implements GlobalFilter, Ordered {
         "/oauth2/", "/login/", "/health",
         "/actuator/",
         "/auth/guest",
+        // our own sign-in front doors — the caller has no token yet, so these MUST be public (like
+        // /auth/guest). They each end in JwtService.generate(); downstream still only trusts the JWT.
+        // Anti-enumeration / rate-limit / attempt-caps are enforced inside auth-service, not here.
+        "/auth/register", "/auth/login", "/auth/otp/",
         // catalog browse is open to anonymous shoppers; writes live under /api/catalog/admin/** and stay protected
         "/api/catalog/products",
         // public launch-interest signup ("Notify me"). Note: /api/catalog/admin/notify does NOT startsWith

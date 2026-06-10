@@ -48,6 +48,12 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-data-jpa</artifactId>
     </dependency>
+    <!-- OTP store only: 6-digit codes (hashed), attempt counters and resend rate-limits live in
+         Redis with short TTLs. Same Redis the rest of the stack already runs (cart/catalog/videocall). -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-data-redis</artifactId>
+    </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-validation</artifactId>

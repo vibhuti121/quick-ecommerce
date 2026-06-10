@@ -28,6 +28,8 @@ interface ProfileDrawerProps {
   onRefreshOrders: () => void;
   wishlist: WishlistItem[];
   onRemoveWishlist: (id: number) => void;
+  onSignIn: () => void;
+  onSignOut: () => void;
 }
 
 // ---- status badges ----------------------------------------------------------
@@ -76,7 +78,15 @@ function formatDate(iso: string): string {
 
 // ---- panels -----------------------------------------------------------------
 
-function ProfilePanel({ profile }: { profile: UserProfile | null }) {
+function ProfilePanel({
+  profile,
+  onSignIn,
+  onSignOut,
+}: {
+  profile: UserProfile | null;
+  onSignIn: () => void;
+  onSignOut: () => void;
+}) {
   if (!profile) {
     return <p className="profile-empty">Loading your profile…</p>;
   }
@@ -95,11 +105,20 @@ function ProfilePanel({ profile }: { profile: UserProfile | null }) {
           <span className="profile-role">{profile.role}</span>
         </div>
       </div>
-      {profile.isGuest && (
-        <p className="profile-guest-note">
-          You’re browsing as a <strong>guest</strong>. Your orders and wishlist are tied to this
-          browser — sign in to keep them across devices.
-        </p>
+      {profile.isGuest ? (
+        <div className="profile-guest-note">
+          <p>
+            You’re browsing as a <strong>guest</strong>. Your orders and wishlist are tied to this
+            browser — sign in to keep them across devices.
+          </p>
+          <button className="btn btn-primary profile-signin-btn" onClick={onSignIn}>
+            Sign in
+          </button>
+        </div>
+      ) : (
+        <button className="btn btn-ghost profile-signout-btn" onClick={onSignOut}>
+          Sign out
+        </button>
       )}
     </div>
   );
@@ -252,6 +271,8 @@ export default function ProfileDrawer({
   onRefreshOrders,
   wishlist,
   onRemoveWishlist,
+  onSignIn,
+  onSignOut,
 }: ProfileDrawerProps) {
   return (
     <>
@@ -280,7 +301,9 @@ export default function ProfileDrawer({
         </nav>
 
         <div className="profile-body">
-          {activeSection === 'profile' && <ProfilePanel profile={profile} />}
+          {activeSection === 'profile' && (
+            <ProfilePanel profile={profile} onSignIn={onSignIn} onSignOut={onSignOut} />
+          )}
           {activeSection === 'orders' && (
             <OrdersPanel orders={orders} loading={ordersLoading} onRefresh={onRefreshOrders} />
           )}

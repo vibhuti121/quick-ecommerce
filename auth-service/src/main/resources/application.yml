@@ -24,6 +24,12 @@ spring:
     enabled: true
     baseline-on-migrate: true
     baseline-version: 0
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2s
+      connect-timeout: 2s
   threads:
     virtual:
       enabled: true
@@ -73,3 +79,14 @@ app:
   # Comma-separated email allowlist promoted to the ADMIN role at login (Phase 3, Pillar 1).
   # Empty by default → no admins, so the platform is locked-down out of the box.
   admin-emails: ${ADMIN_EMAILS:}
+  otp:
+    # 6-digit numeric code, valid 5 minutes, max 5 verify attempts before the code is burned.
+    code-length: 6
+    ttl-seconds: 300
+    max-attempts: 5
+    # Resend throttle: at most one request per phone in this window (cost control + anti-SMS-bombing).
+    resend-window-seconds: 60
+    # DEV STUB ONLY. When true, /auth/otp/request echoes the code in the JSON so local/CI can verify
+    # without a real SMS. MUST stay false in any real deployment (it would leak every OTP). The real
+    # SmsSender is wired in at go-live; until then LoggingSmsSender just logs the code.
+    dev-echo: ${OTP_DEV_ECHO:false}

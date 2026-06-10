@@ -99,8 +99,17 @@ services:
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
       # RBAC admin allowlist (Phase 3, Pillar 1). Comma-separated emails; empty → no admins.
       ADMIN_EMAILS: ${ADMIN_EMAILS:-}
+      # Phone-OTP store (otp:{phone} hashed code + attempts + resend throttle, short TTLs). Same Redis
+      # the rest of the stack uses. Password login needs no Redis; only the OTP method touches it.
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      # DEV STUB: echo the OTP in the request response so local/CI can verify without a real SMS.
+      # MUST be false (or unset) in any real deployment — it would leak every code. Real SMS at go-live.
+      OTP_DEV_ECHO: ${OTP_DEV_ECHO:-false}
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     restart: unless-stopped
 

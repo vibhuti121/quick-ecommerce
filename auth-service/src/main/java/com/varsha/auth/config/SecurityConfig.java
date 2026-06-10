@@ -24,7 +24,8 @@ public class SecurityConfig {
             // Session only for OAuth2 handshake — killed after redirect
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/health", "/actuator/**", "/auth/validate", "/auth/me", "/auth/guest").permitAll()
+                .requestMatchers("/health", "/actuator/**", "/auth/validate", "/auth/me", "/auth/guest",
+                        "/auth/register", "/auth/login", "/auth/otp/**").permitAll()
                 .anyRequest().authenticated()
             )
             .oauth2Login(oauth2 -> oauth2
