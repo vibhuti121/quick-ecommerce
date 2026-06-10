@@ -14,6 +14,11 @@ export function isComingSoon(product: Pick<Product, 'category'>): boolean {
   return product.category?.toLowerCase() === 'honey';
 }
 
+// The real MaLLADE honey jar shot, bundled under public/updates/ (served at /updates/honey.jpg).
+// Used for BOTH the carousel honey slide (lib/updates.ts) and the honey "Coming Soon" cards
+// (ProductCard) so the two never drift. Honey's catalog imageUrl is a placeholder until launch.
+export const HONEY_IMAGE = '/updates/honey.jpg';
+
 // ---- notify-me list (localStorage only) -----------------------------------------------------
 // Mirrors lib/wishlist.ts: pure, synchronous, defensive read, never throws. The captured emails
 // live only in this browser under localStorage['qe.notify'] — there is no /api/notify yet, so

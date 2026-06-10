@@ -34,14 +34,16 @@ export default function UpdatesCarousel() {
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
-      <div className="updates-carousel-track">
-        {/* key forces a remount per slide so the fade/slide transition re-runs on each advance */}
-        <p className="updates-slide" key={index}>
+      {/* key forces a remount per slide so the fade/slide transition re-runs on each advance */}
+      <div className="updates-slide" key={index}>
+        <img className="updates-slide-img" src={current.image} alt={current.text} />
+        <div className="updates-overlay" />
+        <div className="updates-caption">
           <span className="updates-icon" aria-hidden="true">
             {current.icon}
           </span>
           <span className="updates-text">{current.text}</span>
-        </p>
+        </div>
       </div>
       {UPDATES.length > 1 && (
         <div className="updates-dots" role="tablist" aria-label="Choose an update">

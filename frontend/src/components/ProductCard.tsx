@@ -1,6 +1,6 @@
 import type { Product } from '../types';
 import { formatPrice } from '../api';
-import { isComingSoon } from '../lib/comingSoon';
+import { isComingSoon, HONEY_IMAGE } from '../lib/comingSoon';
 
 interface ProductCardProps {
   product: Product;
@@ -24,6 +24,8 @@ export default function ProductCard({
   const gi = product.provenance?.gi;
   const origin = product.provenance?.origin;
   const comingSoon = isComingSoon(product);
+  // Honey's catalog imageUrl is a placeholder until launch — show the real MaLLADE jar shot instead.
+  const imgSrc = comingSoon ? HONEY_IMAGE : product.imageUrl;
   return (
     <article className="product-card">
       <button
@@ -32,7 +34,7 @@ export default function ProductCard({
         onClick={() => onView(product)}
         aria-label={comingSoon ? `Coming soon: ${product.name}` : `View details for ${product.name}`}
       >
-        <img src={product.imageUrl} alt={product.name} loading="lazy" />
+        <img src={imgSrc} alt={product.name} loading="lazy" />
         {comingSoon ? (
           <span className="coming-soon-badge">Coming Soon</span>
         ) : (
