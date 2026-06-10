@@ -352,8 +352,8 @@ export default function App() {
         open={comingSoonOpen}
         product={comingSoonProduct}
         onClose={handleCloseComingSoon}
-        onNotify={(email) => {
-          if (comingSoonProduct) saveNotify(comingSoonProduct.id, email);
+        onNotify={(phone, email) => {
+          if (comingSoonProduct) saveNotify(comingSoonProduct.id, phone, email);
         }}
       />
 

@@ -1537,7 +1537,7 @@ body {
 .coming-soon-form {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
   margin-top: auto;
 }
 
@@ -1547,17 +1547,32 @@ body {
   color: var(--muted);
 }
 
-.coming-soon-row {
-  display: flex;
-  gap: 10px;
+/* second+ field labels get a little breathing room above */
+.coming-soon-label + .coming-soon-input + .coming-soon-label,
+.coming-soon-error + .coming-soon-label {
+  margin-top: 6px;
+}
+
+.coming-soon-req {
+  color: var(--danger);
+}
+
+.coming-soon-optional {
+  font-weight: 400;
+  color: var(--muted);
 }
 
 .coming-soon-input {
-  flex: 1;
+  width: 100%;
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   font-size: 0.95rem;
+}
+
+.coming-soon-submit {
+  width: 100%;
+  margin-top: 10px;
 }
 
 .coming-soon-input:focus {
