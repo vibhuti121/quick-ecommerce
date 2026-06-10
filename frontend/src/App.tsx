@@ -4,6 +4,8 @@ import ProductGrid from './components/ProductGrid';
 import CartDrawer from './components/CartDrawer';
 import ProductDetail from './components/ProductDetail';
 import ProfileDrawer from './components/ProfileDrawer';
+import UpdatesCarousel from './components/UpdatesCarousel';
+import ComingSoonModal from './components/ComingSoonModal';
 import type { ProfileSection } from './components/ProfileDrawer';
 import {
   addToCart,
@@ -26,6 +28,7 @@ import type {
   WishlistItem,
 } from './types';
 import { getWishlist, removeWishlist, toggleWishlist } from './lib/wishlist';
+import { isComingSoon, saveNotify } from './lib/comingSoon';
 
 export default function App() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -48,6 +51,11 @@ export default function App() {
   const [detailProduct, setDetailProduct] = useState<Product | null>(null);
   const [detailOpen, setDetailOpen] = useState<boolean>(false);
   const [detailLoading, setDetailLoading] = useState<boolean>(false);
+
+  // "Coming soon" teaser popup (honey is not launched yet — see lib/comingSoon.ts). Intercepts the
+  // view action so honey never opens the buyable detail drawer, from any entry point.
+  const [comingSoonProduct, setComingSoonProduct] = useState<Product | null>(null);
+  const [comingSoonOpen, setComingSoonOpen] = useState<boolean>(false);
 
   // My Profile drawer (a third slide-over): identity, order history, derived addresses, wishlist.
   const [profileOpen, setProfileOpen] = useState<boolean>(false);
@@ -134,6 +142,13 @@ export default function App() {
   // Open the overlay immediately with the card's product (it already carries provenance from
   // the browse fetch), then refresh from getProductById for the authoritative full record.
   const handleView = useCallback(async (product: Product) => {
+    // Honey is not launched — route it to the teaser popup instead of the buyable detail drawer.
+    // This single branch covers grid cards, search results, and recommendation clicks (all call here).
+    if (isComingSoon(product)) {
+      setComingSoonProduct(product);
+      setComingSoonOpen(true);
+      return;
+    }
     setDetailProduct(product);
     setDetailOpen(true);
     setDetailLoading(true);
@@ -149,6 +164,10 @@ export default function App() {
 
   const handleCloseDetail = useCallback(() => {
     setDetailOpen(false);
+  }, []);
+
+  const handleCloseComingSoon = useCallback(() => {
+    setComingSoonOpen(false);
   }, []);
 
   // Fetch the user's order history (newest-first). Used on profile-open, on Refresh, after checkout,
@@ -271,6 +290,8 @@ export default function App() {
       />
 
       <main className="main">
+        <UpdatesCarousel />
+
         <section className="hero">
           <h1>Everything you need, delivered quick.</h1>
           <p>Browse our curated picks and check out in seconds.</p>
@@ -325,6 +346,15 @@ export default function App() {
         onViewProduct={handleView}
         wished={detailProduct != null && wishedIds.has(detailProduct.id)}
         onToggleWishlist={handleToggleWishlist}
+      />
+
+      <ComingSoonModal
+        open={comingSoonOpen}
+        product={comingSoonProduct}
+        onClose={handleCloseComingSoon}
+        onNotify={(email) => {
+          if (comingSoonProduct) saveNotify(comingSoonProduct.id, email);
+        }}
       />
 
       <ProfileDrawer

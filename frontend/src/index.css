@@ -1392,3 +1392,170 @@ body {
 .wishlist-heart--active {
   color: #ef4444;
 }
+
+/* ============================================================================
+   "Coming soon" (honey, pre-launch) + the top "latest updates" carousel
+   ========================================================================= */
+
+/* Coming-soon badge — same layer/position as .category-badge but a warm accent so an
+   un-buyable product reads as different-on-purpose, not broken. */
+.coming-soon-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 4px 10px;
+  border-radius: 999px;
+  box-shadow: 0 2px 8px rgba(217, 119, 6, 0.35);
+}
+
+/* The card footer for a coming-soon product is a single full-width CTA (no price/Add). */
+.coming-soon-cta {
+  width: 100%;
+}
+
+/* ---- Updates carousel (top strip under the header) ---- */
+.updates-carousel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  background: linear-gradient(135deg, #eef2ff, #fef3c7);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px 18px;
+  margin-bottom: 20px;
+  min-height: 52px;
+}
+
+.updates-carousel-track {
+  flex: 1;
+  overflow: hidden;
+}
+
+.updates-slide {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 550;
+  color: #1f2430;
+  animation: updates-slide-in 0.45s ease;
+}
+
+.updates-icon {
+  font-size: 1.2rem;
+  flex: 0 0 auto;
+}
+
+.updates-text {
+  line-height: 1.4;
+}
+
+@keyframes updates-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Respect reduced-motion: no slide animation (auto-advance still works, it just cross-cuts). */
+@media (prefers-reduced-motion: reduce) {
+  .updates-slide {
+    animation: none;
+  }
+}
+
+.updates-dots {
+  display: flex;
+  gap: 7px;
+  flex: 0 0 auto;
+}
+
+.carousel-dot {
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: rgba(31, 36, 48, 0.25);
+  cursor: pointer;
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.carousel-dot:hover {
+  background: rgba(31, 36, 48, 0.45);
+}
+
+.carousel-dot.active {
+  background: var(--accent);
+  transform: scale(1.25);
+}
+
+/* ---- Coming-soon modal (reuses .overlay + .product-modal) ---- */
+.coming-soon-headline {
+  margin: 0 0 8px;
+  font-size: 1.05rem;
+  font-weight: 650;
+  color: #d97706;
+}
+
+.coming-soon-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: auto;
+}
+
+.coming-soon-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.coming-soon-row {
+  display: flex;
+  gap: 10px;
+}
+
+.coming-soon-input {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 0.95rem;
+}
+
+.coming-soon-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+}
+
+.coming-soon-input[aria-invalid='true'] {
+  border-color: var(--danger);
+}
+
+.coming-soon-error {
+  font-size: 0.85rem;
+  color: var(--danger);
+}
+
+.coming-soon-confirm {
+  margin-top: auto;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+  background: #ecfdf5;
+  color: var(--success);
+  font-weight: 600;
+}

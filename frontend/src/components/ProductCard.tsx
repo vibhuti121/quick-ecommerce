@@ -1,5 +1,6 @@
 import type { Product } from '../types';
 import { formatPrice } from '../api';
+import { isComingSoon } from '../lib/comingSoon';
 
 interface ProductCardProps {
   product: Product;
@@ -22,16 +23,21 @@ export default function ProductCard({
 }: ProductCardProps) {
   const gi = product.provenance?.gi;
   const origin = product.provenance?.origin;
+  const comingSoon = isComingSoon(product);
   return (
     <article className="product-card">
       <button
         type="button"
         className="product-image product-view"
         onClick={() => onView(product)}
-        aria-label={`View details for ${product.name}`}
+        aria-label={comingSoon ? `Coming soon: ${product.name}` : `View details for ${product.name}`}
       >
         <img src={product.imageUrl} alt={product.name} loading="lazy" />
-        <span className="category-badge">{product.category}</span>
+        {comingSoon ? (
+          <span className="coming-soon-badge">Coming Soon</span>
+        ) : (
+          <span className="category-badge">{product.category}</span>
+        )}
         {gi?.status === 'authorized' && <span className="gi-badge gi-badge-card">GI ✓</span>}
       </button>
       <button
@@ -52,19 +58,33 @@ export default function ProductCard({
         </h3>
         {origin && <span className="product-origin">📍 {origin}</span>}
         <p className="product-description">{product.description}</p>
-        <div className="product-footer">
-          <span className="product-price">{formatPrice(product.price)}</span>
-          <button
-            className="btn btn-primary"
-            onClick={(e) => {
-              e.stopPropagation(); // add to cart without opening the detail drawer
-              onAdd(product);
-            }}
-            disabled={adding}
-          >
-            {adding ? 'Adding…' : 'Add to cart'}
-          </button>
-        </div>
+        {comingSoon ? (
+          <div className="product-footer">
+            <button
+              className="btn btn-primary coming-soon-cta"
+              onClick={(e) => {
+                e.stopPropagation(); // open the teaser popup, not the cart
+                onView(product);
+              }}
+            >
+              🔔 Notify me
+            </button>
+          </div>
+        ) : (
+          <div className="product-footer">
+            <span className="product-price">{formatPrice(product.price)}</span>
+            <button
+              className="btn btn-primary"
+              onClick={(e) => {
+                e.stopPropagation(); // add to cart without opening the detail drawer
+                onAdd(product);
+              }}
+              disabled={adding}
+            >
+              {adding ? 'Adding…' : 'Add to cart'}
+            </button>
+          </div>
+        )}
       </div>
     </article>
   );
