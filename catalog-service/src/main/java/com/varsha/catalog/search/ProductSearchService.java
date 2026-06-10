@@ -254,16 +254,28 @@ public class ProductSearchService {
     }
 
     /**
-     * {@code bool}: a fuzzy multi_match (name^3, sku^2, category^1.5, description, attributesText)
-     * as the scoring clause, with active=true and any category/type as non-scoring filters.
+     * {@code bool}: the scoring clause is itself a nested bool that matches on <em>fuzzy OR prefix</em>
+     * (minimum_should_match=1), so search behaves as type-ahead. Clause 1 is the original fuzzy
+     * multi_match (name^3, sku^2, category^1.5, description, attributesText) — preserves whole-word +
+     * typo tolerance. Clause 2 is a phrase_prefix multi_match over the identity fields only
+     * (name^3, sku^2, category^1.5) so a leading substring of a token matches ({@code lit}->litchi,
+     * {@code hon}->honey); description/attributesText are excluded from the prefix clause to keep
+     * type-ahead from latching onto noisy mid-sentence words. active=true and any category/type stay
+     * as non-scoring filters on the outer bool.
      */
     private Query buildQuery(String text, String category, ProductType type) {
         return Query.of(q -> q.bool(b -> {
-            b.must(m -> m.multiMatch(mm -> mm
-                    .query(text)
-                    .fields("name^3", "sku^2", "category^1.5", "description", "attributesText")
-                    .fuzziness("AUTO")
-                    .type(TextQueryType.BestFields)));
+            b.must(m -> m.bool(t -> t
+                    .should(sh -> sh.multiMatch(mm -> mm
+                            .query(text)
+                            .fields("name^3", "sku^2", "category^1.5", "description", "attributesText")
+                            .fuzziness("AUTO")
+                            .type(TextQueryType.BestFields)))
+                    .should(sh -> sh.multiMatch(mm -> mm
+                            .query(text)
+                            .fields("name^3", "sku^2", "category^1.5")
+                            .type(TextQueryType.PhrasePrefix)))
+                    .minimumShouldMatch("1")));
             b.filter(f -> f.term(t -> t.field("active").value(FieldValue.of(true))));
             if (category != null && !category.isBlank()) {
                 b.filter(f -> f.term(t -> t.field("category.keyword").value(FieldValue.of(category))));
