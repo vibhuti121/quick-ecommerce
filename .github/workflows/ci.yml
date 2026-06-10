@@ -80,10 +80,12 @@ jobs:
           done
           echo "readiness OK (gateway/auth/catalog/search)."
 
-      # 33 assertions: routing, RBAC admin seed, anonymous browse, checkout saga, idempotency,
+      # 57 assertions: routing, RBAC admin seed, anonymous browse, checkout saga, idempotency,
       # OpenSearch search (public/backfill/fuzzy/dual-write), hybrid recommendations (public 200,
-      # co-purchase partner present, anchor excluded, 200 with order-service down), and
-      # data-survives-restart (the smoke does its own compose down/up for the persistence test).
+      # co-purchase partner present, anchor excluded, 200 with order-service down), the gated
+      # videocall grant gate (default-deny before eligibility, grant claims: aud/room-bound/max-3/
+      # 10-min exp, silent 5h cooldown, guest rejection, admin roster), and data-survives-restart
+      # (the smoke does its own compose down/up for the persistence test).
       - name: Full-stack smoke
         run: bash scripts/fullstack-smoke.sh
 

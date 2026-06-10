@@ -50,6 +50,26 @@ mint_admin_jwt() {
   sig=$(printf '%s' "$hdr.$pl" | openssl dgst -sha256 -hmac "$JWT_SECRET" -binary | b64url)
   printf '%s.%s.%s' "$hdr" "$pl" "$sig"
 }
+# A NON-guest login JWT for an arbitrary user id. The videocall grant gate rejects guest-* subjects, so
+# its happy path needs a "real" logged-in user. role=USER (no admin powers). Same HS256 + JWT_SECRET trust
+# path as mint_admin_jwt (see that note). $1 = subject (the user id baked into sub, also drives the email).
+mint_user_jwt() {
+  local sub="$1" hdr pl now exp sig
+  now=$(date +%s); exp=$((now + 3600))
+  hdr=$(printf '%s' '{"alg":"HS256","typ":"JWT"}' | b64url)
+  pl=$(printf '%s' "{\"sub\":\"$sub\",\"email\":\"$sub@local\",\"displayName\":\"Smoke VC User\",\"role\":\"USER\",\"iat\":$now,\"exp\":$exp}" | b64url)
+  sig=$(printf '%s' "$hdr.$pl" | openssl dgst -sha256 -hmac "$JWT_SECRET" -binary | b64url)
+  printf '%s.%s.%s' "$hdr" "$pl" "$sig"
+}
+# Decode one base64url JWT segment (e.g. the grant payload) to raw JSON: restore +/ then pad to a multiple
+# of 4 before base64-decoding. Lets the smoke inspect the grant's claims (aud/exp/roomId/maxParticipants).
+b64url_decode() {
+  local s="$1" m
+  m=$(( ${#s} % 4 ))
+  [ "$m" -eq 2 ] && s="${s}=="
+  [ "$m" -eq 3 ] && s="${s}="
+  printf '%s' "$s" | tr '_-' '/+' | openssl base64 -d -A 2>/dev/null
+}
 
 echo "Using SKU=$SKU"
 
@@ -340,6 +360,74 @@ if [ -n "$DEVCODE" ]; then
 else
   echo "  SKIP: OTP happy-path verify (OTP_DEV_ECHO not enabled — no code to read)"
 fi
+
+echo
+echo "== 8d. videocall grant gate (login + eligibility + silent 5h cooldown; two-token model) =="
+# The gated video-call pillar: a logged-in customer who has shown interest (Tally) gets a SHORT-LIVED,
+# ROOM-BOUND call GRANT — a SEPARATE token from the login JWT, signed with VIDEOCALL_GRANT_SECRET — and
+# that grant (not the login token) is the only thing that admits a socket. This block proves the server-
+# side gate end-to-end through the edge: guest-rejection, eligibility-required, grant minting + claims,
+# and the SILENT 5h cooldown. It is build-gate-blind (videocall-service boots Flyway V1 + needs Redis,
+# [[migration-not-run-by-build-gate]]) so it can ONLY be proven here at runtime.
+# Out of band (need a real socket.io client, not curl): the WS handshake through wss://:8443, max-3
+# room-full, and the exp kill-timer — covered by the standalone security smoke, not this curl script.
+# A UNIQUE per-run user id so the 5h cooldown set on the first grant never blocks a re-run (mirrors the
+# unique-SKU idempotency pattern above). Its grant is single-use here; we never connect a socket with it.
+VC_USER="smoke-vc-$$-${RANDOM}"
+VC_TOK=$(mint_user_jwt "$VC_USER")
+VCAUTH=(-H "Authorization: Bearer $VC_TOK")
+VB="$GW/api/videocall"
+# Poll grant-before-eligibility: doubles as the videocall-service readiness gate (it cold-starts like the
+# other JPA services) AND asserts the gate's default-deny — a logged-in but NOT-yet-eligible user gets the
+# neutral {"available":false} (no reason, no countdown), indistinguishable from cooldown/no-capacity.
+VC_PRE=""
+for i in $(seq 1 30); do
+  VC_PRE=$(curl -s -X POST $VB/grant "${VCAUTH[@]}" -H 'Content-Type: application/json' -d '{}')
+  echo "$VC_PRE" | grep -q '"available"' && break
+  sleep 2
+done
+echo "$VC_PRE" | grep -q '"available":false' && ok "grant before eligibility -> {available:false} (default-deny)" || bad "grant before eligibility -> available:false (got: $VC_PRE)"
+echo "$VC_PRE" | grep -q '"grant"' && bad "no-eligibility response MUST NOT leak a grant" || ok "no-eligibility response carries no grant (silent)"
+
+# Record Tally eligibility for this user (idempotent upsert keyed on user id). 201 on first create.
+VC_ELIG=$(curl -fs -w '\n%{http_code}' -X POST $VB/eligibility "${VCAUTH[@]}" -H 'Content-Type: application/json' -d '{}')
+VC_ELIG_CODE=$(tail -1 <<<"$VC_ELIG"); VC_ELIG_BODY=$(sed '$d' <<<"$VC_ELIG")
+assert_eq "201" "$VC_ELIG_CODE" "POST /videocall/eligibility -> 201 (interest recorded)"
+echo "$VC_ELIG_BODY" | grep -q '"eligible":true' && ok "eligibility response says eligible:true" || bad "eligibility response says eligible:true (got: $VC_ELIG_BODY)"
+
+# Now eligible + no cooldown yet -> a grant is issued. Inspect its claims (the two-token security model).
+VC_G=$(curl -fs -X POST $VB/grant "${VCAUTH[@]}" -H 'Content-Type: application/json' -d '{}')
+echo "$VC_G" | grep -q '"available":true' && ok "grant after eligibility -> {available:true}" || bad "grant after eligibility -> available:true (got: $VC_G)"
+VGRANT=$(jget "$VC_G" grant)
+VROOM=$(jget "$VC_G" roomId)
+[ -n "$VGRANT" ] && ok "grant token present in response" || bad "grant token present in response"
+[ -n "$VROOM" ] && ok "grant carries a roomId ($VROOM)" || bad "grant carries a roomId"
+# Decode the grant payload and assert the security-relevant claims: single-purpose audience, room binding,
+# max-3, and the 10-minute hard cap baked into exp (exp-iat == 600). These are what make it un-replayable.
+VC_PL=$(b64url_decode "$(cut -d. -f2 <<<"$VGRANT")")
+assert_eq "videocall-grant" "$(jget "$VC_PL" aud)" "grant aud == videocall-grant (single-purpose)"
+assert_eq "3" "$(jnum "$VC_PL" maxParticipants)" "grant maxParticipants == 3"
+assert_eq "$VROOM" "$(jget "$VC_PL" roomId)" "grant payload roomId matches the response roomId (room-bound)"
+VC_IAT=$(jnum "$VC_PL" iat); VC_EXP=$(jnum "$VC_PL" exp)
+assert_eq "600" "$(( VC_EXP - VC_IAT ))" "grant lifetime exp-iat == 600s (10-min hard cap)"
+
+# Silent 5h cooldown: an immediate second grant for the SAME user returns the neutral {available:false}
+# with no grant and no reason — the user is blocked but "will not know" (cooldown is indistinguishable
+# from not-eligible / no-capacity by design). The cooldown was claimed atomically at the first issuance.
+VC_CD=$(curl -fs -X POST $VB/grant "${VCAUTH[@]}" -H 'Content-Type: application/json' -d '{}')
+echo "$VC_CD" | grep -q '"available":false' && ok "immediate re-grant -> {available:false} (silent 5h cooldown)" || bad "immediate re-grant -> available:false (got: $VC_CD)"
+echo "$VC_CD" | grep -q '"grant"' && bad "cooldown response MUST NOT leak a grant" || ok "cooldown response carries no grant + no reason (silent)"
+
+# Guests are rejected outright. Reuse the step-1 guest token (sub = guest-… ) -> neutral {available:false}.
+VC_GUEST=$(curl -fs -X POST $VB/grant "${AUTH[@]}" -H 'Content-Type: application/json' -d '{}')
+echo "$VC_GUEST" | grep -q '"available":false' && ok "guest grant -> {available:false} (guests not allowed)" || bad "guest grant -> available:false (got: $VC_GUEST)"
+
+# Admin eligibility roster: gateway ADMIN_PATHS + in-service guard. No token -> 401; ADMIN token -> 200
+# and the list contains this run's eligible user (proves the eligibility row persisted).
+assert_eq "401" "$(curl -fs -o /dev/null -w '%{http_code}' $VB/admin/eligibility)" "GET /videocall/admin/eligibility without token -> 401"
+VC_ADM=$(curl -fs -w '\n%{http_code}' $VB/admin/eligibility "${ADMIN[@]}")
+assert_eq "200" "$(tail -1 <<<"$VC_ADM")" "GET admin/eligibility with ADMIN token -> 200"
+sed '$d' <<<"$VC_ADM" | grep -q "$VC_USER" && ok "admin roster contains the eligible user ($VC_USER)" || bad "admin roster contains the eligible user"
 
 echo
 echo "== 9. PERSISTENCE: full stack down -> up, data survives =="
