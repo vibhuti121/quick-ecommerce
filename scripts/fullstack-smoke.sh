@@ -2,6 +2,7 @@
 # Full-stack acceptance smoke — everything through the gateway (the real edge), proving:
 #   routing (gateway -> each service) · auth (guest JWT -> X-User-Id injection) ·
 #   public catalog browse (no token) · the checkout saga end-to-end ·
+#   notify-me launch-interest capture (public POST, idempotent, admin-gated read) ·
 #   and DATA SURVIVES A FULL RESTART (compose down -> up, order still there).
 #
 # Re-runnable: each run uses a unique SKU so it never collides with prior runs' catalog rows.
