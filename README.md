@@ -1,10 +1,11 @@
 # quick-ecommerce
 
 A production-shaped **microservices commerce platform**: a resilient, TLS-terminating API gateway +
-auth edge (reused from the FamilyCall project) in front of six commerce services, with a Prometheus +
-Grafana observability layer — all persistent, all containerized. One `docker compose up` brings up the
-whole stack (15 containers); the full shopping journey works through the gateway and **survives a
-restart**.
+auth edge (reused from the FamilyCall project) in front of seven commerce services — including
+**self-serve auth** (email/phone + password and phone-OTP) and a **gated WebRTC video-call** pillar
+(signaling-service + coturn) — with a Prometheus + Grafana observability layer. All persistent, all
+containerized. One `docker compose up` brings up the whole stack (18 containers); the full shopping
+journey works through the gateway and **survives a restart**.
 
 > Sells **anything** — `product_type` ∈ {physical, digital, service, subscription, rental} with a
 > JSONB `attributes` column, so adding a new kind of product needs no schema change.
@@ -34,11 +35,11 @@ docker compose up -d --build
 # 5. Wait ~20s, then confirm the edge is healthy (HTTPS edge, dev self-signed cert → -k)
 curl -k https://localhost:8443/actuator/health     # → {"status":"UP",...}
 
-# 6. Prove the whole thing works end-to-end (expect: 33 passed, 0 failed)
+# 6. Prove the whole thing works end-to-end (expect: 57 passed, 0 failed)
 bash scripts/fullstack-smoke.sh
 ```
 
-If step 5 returns `{"status":"UP"}` and step 6 says **33 passed, 0 failed**, your environment is
+If step 5 returns `{"status":"UP"}` and step 6 says **57 passed, 0 failed**, your environment is
 correct and you can start working. See [Verify your setup](#verify-your-setup) for a checklist.
 
 > **Skipped step 3?** The stack is fail-closed — `docker compose up` will stop immediately with
@@ -111,6 +112,12 @@ correct and you can start working. See [Verify your setup](#verify-your-setup) f
 
   Observability:  Prometheus :9090  ──scrapes /actuator/prometheus──▶ all services
                   Grafana    :3000  ──reads──▶ Prometheus (cache-hit & service dashboards)
+
+  Gated video call (Phase 3):
+    /api/videocall ─▶ videocall-service :8095 (videocalldb + Redis cooldown) — mints a short-lived
+                      *call grant* (separate secret from the login JWT)
+    /socket.io     ─▶ signaling-service :3001 (Node/Socket.IO, no DB) — admits a socket only on a
+                      valid grant; coturn :3478 relays media (STUN/TURN)
 ```
 
 - **Each service owns its own schema** — no cross-service DB joins. Synchronous reads go service→service
@@ -163,12 +170,15 @@ Checkout is **asynchronous and crash-safe** — an outbox + poller **saga**, not
 | Service | Internal port | Backing store | Responsibility |
 |---|---|---|---|
 | **gateway** | 8443 (published, **HTTPS**) | — | TLS edge: routing, auth, circuit breakers, retries, CORS |
-| **auth-service** | 8081 | `authdb` | Guest JWT + Google OAuth2; `/auth/validate` for the gateway |
-| **catalog-service** | 8090 | `catalogdb` + Redis (cache) + MinIO (images) + OpenSearch (search index) | Products + variants + JSONB attributes; admin CRUD + public browse + full-text search |
+| **auth-service** | 8081 | `authdb` + Redis (OTP store) | Guest JWT, Google OAuth2, **self-serve login** (email/phone + BCrypt password, phone-OTP); `/auth/validate` for the gateway |
+| **catalog-service** | 8090 | `catalogdb` + Redis (cache) + MinIO (images) + OpenSearch (search index) | Products + variants + JSONB attributes; admin CRUD + public browse + full-text search + "Notify me" signups |
 | **cart-service** | 8091 | Redis | Per-user cart keyed on `X-User-Id`; snapshots price/name/image at add-time |
 | **inventory-service** | 8092 | `inventorydb` | Stock, holds/reservations; commit/release in the saga |
 | **payment-service** | 8093 | `paymentdb` | `PaymentProvider` interface + `MockPaymentProvider` |
 | **order-service** | 8094 | `orderdb` | Orders + outbox saga + idempotent checkout |
+| **videocall-service** | 8095 | `videocalldb` + Redis (5h cooldown) | Gated-call enforcement brain: eligibility gate + mints the short-lived **call grant** (separate secret from the login JWT) |
+| **signaling-service** | 3001 | — (no DB) | Node + Socket.IO WebRTC mesh signaling; admits a socket only on a valid grant (fail-closed), max 3 participants/room |
+| **coturn** | 3478 (published, udp/tcp) | — | TURN/STUN media relay for the video call (STUN-only locally) |
 | postgres | 5432 | volume `pgdata` | One DB per service (created on first boot) |
 | redis | 6379 | volume `redisdata` | Cart store **and** catalog read cache |
 | opensearch | 9200 | volume `opensearchdata` | Product full-text search index (secondary; Postgres stays source of truth). **Not published** — internal to catalog-service |
@@ -176,10 +186,11 @@ Checkout is **asynchronous and crash-safe** — an outbox + poller **saga**, not
 | **prometheus** | 9090 (**published**) | volume `promdata` | Scrapes every service's `/actuator/prometheus` (15d retention) |
 | **grafana** | 3000 (**published**) | volume `grafanadata` | Dashboards over Prometheus (catalog cache-hit, per-service traffic/JVM) |
 
-> **Published to the host:** the **gateway** (8443) plus the **observability/admin consoles** —
-> Grafana (3000), Prometheus (9090), MinIO (9000/9001). The six commerce services are **not** published;
-> reach them **through** the gateway — that's the contract you test against. (`backend/` is the retired
-> in-memory monolith, kept for reference only.)
+> **Published to the host:** the **gateway** (8443), the **observability/admin consoles** —
+> Grafana (3000), Prometheus (9090), MinIO (9000/9001) — and **coturn** (3478 udp/tcp, the one service
+> that needs host ports for media relay). The seven commerce services (incl. videocall-service and
+> signaling-service) are **not** published; reach them **through** the gateway — that's the contract you
+> test against. (`backend/` is the retired in-memory monolith, kept for reference only.)
 
 ---
 
@@ -189,7 +200,8 @@ Checkout is **asynchronous and crash-safe** — an outbox + poller **saga**, not
   multi-stage images; you do **not** need Java/Maven on the host).
 - **Node 18+** — only if you want to run the **frontend dev server** with hot-reload.
 - Free host ports: **8443** (gateway HTTPS; override with `GATEWAY_PORT` if taken), 5173 (frontend dev),
-  and the published consoles — **3000** (Grafana), **9090** (Prometheus), **9000/9001** (MinIO API/console).
+  the published consoles — **3000** (Grafana), **9090** (Prometheus), **9000/9001** (MinIO API/console) —
+  and **3478** udp/tcp (coturn media relay, only needed if you exercise the video-call pillar).
   Each has a `*_PORT` override if it clashes.
 
 ---
@@ -216,7 +228,7 @@ shop immediately with no admin setup.
 
 **Smoke the whole journey in one command:**
 ```bash
-bash scripts/fullstack-smoke.sh                # expect: 33 passed, 0 failed
+bash scripts/fullstack-smoke.sh                # expect: 57 passed, 0 failed
 ```
 
 **Storefront — two ways to run it:**
@@ -246,13 +258,14 @@ docker compose down -v                # wipe data too (fresh DBs + re-seed next 
 ### Verify your setup
 Tick all of these and your environment is good to go:
 
-- [ ] `docker compose ps` shows **15 containers** (`gateway`, `auth-service`, `catalog-service`,
-      `cart-service`, `inventory-service`, `payment-service`, `order-service`, `frontend`, `admin-app`,
-      `postgres`, `redis`, `minio`, `opensearch`, `prometheus`, `grafana`) — all `running`.
+- [ ] `docker compose ps` shows **18 containers** (`gateway`, `auth-service`, `catalog-service`,
+      `cart-service`, `inventory-service`, `payment-service`, `order-service`, `videocall-service`,
+      `signaling-service`, `coturn`, `frontend`, `admin-app`, `postgres`, `redis`, `minio`,
+      `opensearch`, `prometheus`, `grafana`) — all `running`.
 - [ ] `curl -k https://localhost:8443/actuator/health` → `{"status":"UP"}`.
 - [ ] `curl -k https://localhost:8443/` → the storefront HTML (`<div id="root">`), served same-origin.
 - [ ] `curl -k https://localhost:8443/api/catalog/products` → JSON with **11 seeded products** (5 demo + 6 MaLLADE).
-- [ ] `bash scripts/fullstack-smoke.sh` → **33 passed, 0 failed**.
+- [ ] `bash scripts/fullstack-smoke.sh` → **57 passed, 0 failed**.
 - [ ] http://localhost:3000 opens **Grafana** (log in `admin` / `GRAFANA_PASSWORD`); http://localhost:9090 opens **Prometheus**.
 - [ ] http://localhost:5173 (Vite dev, optional) shows the product grid.
 
@@ -277,6 +290,8 @@ Secrets (required — provided by `gen-secrets.sh`, no source default):
 | `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` | MinIO object-storage root credentials. |
 | `GRAFANA_PASSWORD` | Grafana admin password (user is `GRAFANA_USER`, default `admin`). |
 | `TLS_KEYSTORE_PASSWORD` | Password for the gateway's dev self-signed TLS keystore (Pillar 4). Used at image build **and** runtime — keep one value. Defaults to `changeit` if unset. Prod: mount a CA-signed keystore + set this. |
+| `VIDEOCALL_GRANT_SECRET` | Signs the short-lived **call grant** for the video-call pillar. **Distinct from `JWT_SECRET`** — shared only between videocall-service (mints) and signaling-service (verifies); fail-closed if absent at boot. |
+| `TURN_SECRET` | Shared secret for coturn's TURN long-term credential mechanism (media relay auth). |
 
 Non-secret knobs (safe defaults in `docker-compose.yml`):
 
@@ -301,6 +316,7 @@ Non-secret knobs (safe defaults in `docker-compose.yml`):
 | `REC_SIZE_DEFAULT` | `8` | Default `size` when the caller omits `?size=`. Any requested size is clamped to 1–24 so a caller can't trigger an unbounded blend/aggregation. |
 | `REC_CONNECT_TIMEOUT_MS` / `REC_RESPONSE_TIMEOUT_MS` | `1500` / `2000` | Short by design — a dead/slow order-service fails fast into co-purchase-empty degradation instead of stalling the recommendations request thread. |
 | `GOOGLE_CLIENT_ID` / `_SECRET` | dummy | Real values enable Google login; guest tokens cover the full journey without them. |
+| `OTP_DEV_ECHO` | `false` | **Dev stub only.** `true` → `/auth/otp/request` echoes the OTP in its JSON response so local/CI can verify the phone-OTP flow without a real SMS provider. Leave **false** outside dev — the real code only ever leaves over the SMS channel. |
 
 Frontend (`frontend/.env.example`): leave `VITE_API_BASE` **empty** for local dev — the Vite dev
 server proxies `/api` and `/auth` to the HTTPS gateway (`https://localhost:8443`, `secure: false`),
@@ -320,17 +336,28 @@ so the browser never sees the dev self-signed cert. Empty in production too (ser
 3. The gateway validates the token **once** and injects `X-User-Id` downstream. Your cart and orders
    are scoped to that token's user — reuse the same token to keep the same cart.
 
-**Public paths** (no token): `/auth/guest`, `/api/catalog/products` (browse), `/api/catalog/notify`
-(launch-interest signup), `/actuator/**`, `/oauth2/**`, `/login/**`. Everything else returns **401**
-without a valid Bearer token.
+**Public paths** (no token): `/auth/guest`, `/auth/register`, `/auth/login`, `/auth/otp/**`
+(self-serve sign-up / sign-in), `/api/catalog/products` (browse), `/api/catalog/notify`
+(launch-interest signup), `/socket.io/**` (the WebRTC handshake carries the call grant itself),
+`/actuator/**`, `/oauth2/**`, `/login/**`. Everything else returns **401** without a valid Bearer token.
+
+**Self-serve accounts** (Phase 2) live alongside Google/guest: a customer can `register`/`login` with an
+email-or-phone + password (BCrypt, never stored plaintext) or with a phone-OTP (6-digit code, hashed in
+Redis with a TTL + attempt cap + resend throttle). Every path ends at the **same** `JwtService.generate(...)`
+call, so a password- or OTP-issued JWT is a normal non-guest token — nothing downstream changes. Responses
+are deliberately **generic** (no "user exists" / "wrong password" distinction) to resist account enumeration.
+
+> Login JWT ≠ call grant. The video-call pillar (`/api/videocall/grant`) mints a **separate**,
+> short-lived token signed with its own secret — see the Videocall rows in the [API reference](#api-reference).
 
 ### Roles (RBAC)
 Identity carries a **role**. At login, auth-service checks the user's email against the `ADMIN_EMAILS`
 allowlist: a match mints a JWT with the **ADMIN** role, everyone else (including guests) is **USER**.
 The gateway reads the role from the validated token and injects it downstream as **`X-User-Role`**.
-Admin-only routes — `/api/catalog/admin/**` and `/api/inventory/admin/**` — are enforced **at the
-gateway** (403 for non-admins) **and re-checked inside** catalog-service and inventory-service
-(`AdminRoleFilter`), so a service is safe even if reached off-gateway — defense in depth.
+Admin-only routes — `/api/catalog/admin/**`, `/api/inventory/admin/**`, and
+`/api/videocall/admin/**` (the eligibility roster) — are enforced **at the gateway** (403 for
+non-admins) **and re-checked inside** each service (`AdminRoleFilter`), so a service is safe even if
+reached off-gateway — defense in depth.
 
 ---
 
@@ -342,6 +369,10 @@ Base URL = the gateway, e.g. `https://localhost:8443` (HTTPS, dev self-signed �
 | Method | Path | Body | Notes |
 |---|---|---|---|
 | 🔓 POST | `/auth/guest` | `{ "name": "..." }` | Returns `{ token, userId, displayName }` |
+| 🔓 POST | `/auth/register` | `{ identifier, password, displayName }` | Self-serve sign-up. `identifier` = email **or** 10-digit Indian phone; `password` ≥ 8. Hashes with BCrypt, mints a `usr-<uuid>` account, auto-logs-in → `{ token, displayName }`. Duplicate identifier → **409** (generic) |
+| 🔓 POST | `/auth/login` | `{ identifier, password }` | Email-or-phone + password sign-in → `{ token, displayName }`. Bad creds **or** unknown identifier → identical generic **401** (anti-enumeration) |
+| 🔓 POST | `/auth/otp/request` | `{ phone }` | Send a 6-digit OTP (hashed in Redis, ~5-min TTL, rate-limited). Always returns neutral `{ sent:true }` regardless of whether the phone is known. **Dev stub** logs/echoes the code (`OTP_DEV_ECHO=true`); a real SMS provider drops in behind config at go-live |
+| 🔓 POST | `/auth/otp/verify` | `{ phone, code }` | Verify the OTP (attempt-capped) → finds-or-creates the phone account → `{ token, displayName }`. Wrong code → generic error + attempt increment |
 | 🔒 GET | `/auth/me` | — | Current user from token (incl. `role`) |
 | 🔒 PUT | `/auth/me/display-name` | `{ "displayName": "..." }` | Update the current user's display name |
 | 🔓 GET | `/oauth2/authorization/google` | — | Start Google login (optional) |
@@ -394,6 +425,18 @@ Base URL = the gateway, e.g. `https://localhost:8443` (HTTPS, dev self-signed �
 | 🔒 GET | `/api/orders` | — | Current user's orders |
 
 `CheckoutRequest` = `{ currency, customerName, customerPhone, deliveryAddress, items:[{ productId, sku, name, unitPrice, quantity }] }` — the three delivery fields are required (COD pilot: goods are delivered to the address and paid on delivery).
+
+### Videocall — `/api/videocall/**`
+Gated 3-person video calling for **logged-in** customers (Phase 3). The login JWT only proves login and
+is never sent to the socket; the socket admits **only** a short-lived **call grant** signed with a
+separate secret (`VIDEOCALL_GRANT_SECRET`).
+
+| Method | Path | Body | Notes |
+|---|---|---|---|
+| 🔒 POST | `/api/videocall/eligibility` | eligibility payload | Records/upserts the customer's eligibility (Tally gate). Login required (non-guest) |
+| 🔒 POST | `/api/videocall/grant` | — | Issues a call grant if eligible **and** not in cooldown → `{ available:true, grant, roomId, exp }` (grant claims `aud=videocall-grant`, `maxParticipants:3`, `exp=iat+600`). Guest / not-eligible / cooldown all return identical `{ available:false }` — no reason, no countdown (by design). A 5h Redis cooldown is claimed atomically at issuance |
+| 🛡 GET | `/api/videocall/admin/eligibility` | — | Eligibility roster (ADMIN only) |
+| 🔓 WS | `/socket.io/**` | grant in handshake | WebRTC signaling (signaling-service). Verifies the grant fail-closed (pins HS256, requires `aud`+`exp`+`roomId`); a per-socket kill-timer force-drops the socket at grant `exp`. 4th join → `room-full`. Media relays via coturn (`:3478`) |
 
 ---
 
@@ -473,10 +516,12 @@ pre-seeded, so no setup needed.
 ### 1. Automated smoke tests
 | Script | Proves | Run |
 |---|---|---|
-| `scripts/fullstack-smoke.sh` | 33 assertions: edge health, guest auth, 401 on anon, admin seed, public browse, **MaLLADE provenance round-trips (V3 seed applied)**, cart snapshot, **checkout saga → CONFIRMED + payment SUCCESS + stock decrement**, **idempotent replay**, **product search** (public, backfilled-seed, typo-tolerant, just-created-SKU/dual-write), **hybrid recommendations** (two CONFIRMED orders drive a co-purchase pair → public 200 no-token, co-purchase partner present, anchor excluded, still 200 with order-service stopped), **restart-survives-data** | `bash scripts/fullstack-smoke.sh` |
+| `scripts/fullstack-smoke.sh` | 57 assertions: edge health, guest auth, 401 on anon, admin seed, public browse, **MaLLADE provenance round-trips (V3 seed applied)**, cart snapshot, **checkout saga → CONFIRMED + payment SUCCESS + stock decrement**, **idempotent replay**, **product search** (public, backfilled-seed, typo-tolerant, just-created-SKU/dual-write), **hybrid recommendations** (two CONFIRMED orders drive a co-purchase pair → public 200 no-token, co-purchase partner present, anchor excluded, still 200 with order-service stopped), **self-serve auth** (register → login → generic 401 on bad creds, OTP request/verify with the dev-echoed code), **videocall grant gate** (default-deny before eligibility, grant claims aud/room-bound/max-3/`exp-iat=600`, silent 5h cooldown, guest rejection, admin roster), **restart-survives-data** | `bash scripts/fullstack-smoke.sh` |
 | `scripts/saga-smoke.sh` | The order saga happy path in isolation | `bash scripts/saga-smoke.sh` |
 
-Both are **re-runnable** (unique SKU + idempotency key per run). Expected: `33 passed, 0 failed`.
+Both are **re-runnable** (unique SKU + idempotency key per run). Expected: `57 passed, 0 failed`.
+The WebRTC socket admit-on-grant / max-3 / kill-timer paths are covered by the signaling-service's
+own Jest tests (`signaling-service/src/__tests__/`), not the curl smoke.
 
 ### 1b. Supply-chain & image security scan (Trivy)
 `scripts/security-scan.sh` runs [Trivy](https://github.com/aquasecurity/trivy) **fully dockerized**
@@ -637,7 +682,9 @@ request/response bodies, and `docker compose logs <service>` around the timestam
   content fills) — no per-user personalization or A/B ranking yet.
 - **"Sell anything"** = flexible schema + generic checkout, **not** per-category logistics/tax/compliance.
 - Commerce-service automated test coverage is pending (see QA §3).
-- Live social commerce + AI assistant are **not built yet** (see Roadmap).
+- **Gated video calling is built** (signaling-service + coturn + videocall-service); **admin
+  livestreaming and the AI assistant are not** (see Roadmap). The WebRTC mesh is peer-to-peer (max 3) —
+  audience-scale livestreaming needs an SFU (mediasoup/LiveKit), not yet built.
 
 ---
 
@@ -674,7 +721,10 @@ hard part and it's in place — the list above is integration and operations wor
   **first**, **content-based** (OpenSearch `more_like_this`) fills remaining slots and covers cold-start
   products, with a same-category Postgres fallback so the row is never empty when siblings exist. The
   endpoint never 503s. Surfaced as a storefront **product detail modal** with a related-products row.
-- **Phase 3:** **Live social commerce** — reuse the FamilyCall WebRTC stack (signaling-service, coturn,
-  `useWebRTC`) for shoppable livestreams.
+- **Phase 3 — gated video calling DONE:** vendored the FamilyCall WebRTC stack (signaling-service,
+  coturn, `useWebRTC`) + a Spring `videocall-service` enforcement brain — 3-person gated calls for
+  logged-in customers, two-token security (login JWT ≠ short-lived call grant), max-3 rooms, silent 5h
+  cooldown, 10-min grant cap with a kill-timer. **Next:** admin-only shoppable **livestreams** (the mesh
+  is peer-to-peer — real audience scale needs an SFU like mediasoup/LiveKit).
 - **Phase 4:** **AI shopping assistant** — Claude API: conversational discovery + semantic search.
 - **Phase 5:** Cloud deploy (same images, env-only changes; Caddy auto-TLS).
