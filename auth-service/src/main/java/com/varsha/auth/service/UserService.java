@@ -2,6 +2,7 @@ package com.varsha.auth.service;
 
 import com.varsha.auth.model.User;
 import com.varsha.auth.repository.UserRepository;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.core.user.OAuth2User;
@@ -20,12 +21,17 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     // Case-insensitive allowlist of emails that are granted the ADMIN role on login.
     private final Set<String> adminEmails;
+    // Business meter (Pillar 3): signups_total{method} — net new password-backed accounts, tagged by the
+    // identifier kind (email|phone). OAuth upsert is a login/merge, not a signup, so it is not counted here.
+    private final MeterRegistry meters;
 
     public UserService(UserRepository repo,
                        PasswordEncoder passwordEncoder,
-                       @Value("${app.admin-emails:}") String adminEmailsCsv) {
+                       @Value("${app.admin-emails:}") String adminEmailsCsv,
+                       MeterRegistry meters) {
         this.repo = repo;
         this.passwordEncoder = passwordEncoder;
+        this.meters = meters;
         this.adminEmails = Arrays.stream(adminEmailsCsv.split(","))
                 .map(String::trim)
                 .filter(s -> !s.isBlank())
@@ -90,7 +96,9 @@ public class UserService {
         user.setPasswordHash(passwordEncoder.encode(rawPassword));
         user.setDisplayName(displayName == null || displayName.isBlank() ? null : displayName.trim());
         user.setRole(roleFor(email ? normalized : null));
-        return repo.save(user);
+        User saved = repo.save(user);
+        meters.counter("signups", "method", email ? "email" : "phone").increment();
+        return saved;
     }
 
     /**

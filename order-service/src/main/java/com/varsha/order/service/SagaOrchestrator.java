@@ -12,12 +12,16 @@ import com.varsha.order.model.OutboxEvent;
 import com.varsha.order.model.OutboxStatus;
 import com.varsha.order.repository.OrderRepository;
 import com.varsha.order.repository.OutboxRepository;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -46,14 +50,38 @@ public class SagaOrchestrator {
     private final PaymentClient payment;
     private final int maxAttempts;
 
+    // Business meters (Pillar 3). The saga is the single terminal authority for an order's outcome, so it
+    // owns the realized-revenue meters: orders_finalized_total{status} (the funnel's bottom), gmv_rupees_total
+    // (incremented by amount ONLY on CONFIRMED — realized GMV, never on a decline/reject, so no double count),
+    // and order_saga_seconds (placement→confirmation latency, the business-level checkout SLO). Runs on the
+    // outbox-poller thread; each terminal branch is hit once per event because the event flips PROCESSED/FAILED.
+    private final MeterRegistry meters;
+    private final Counter gmvRupees;
+    private final Timer sagaTimer;
+
     public SagaOrchestrator(OutboxRepository outbox, OrderRepository orders,
                             InventoryClient inventory, PaymentClient payment,
-                            @Value("${app.outbox.max-attempts}") int maxAttempts) {
+                            @Value("${app.outbox.max-attempts}") int maxAttempts,
+                            MeterRegistry meters) {
         this.outbox = outbox;
         this.orders = orders;
         this.inventory = inventory;
         this.payment = payment;
         this.maxAttempts = maxAttempts;
+        this.meters = meters;
+        this.gmvRupees = Counter.builder("gmv.rupees")
+                .baseUnit("rupees")
+                .description("Realized gross merchandise value — summed order total at saga confirmation")
+                .register(meters);
+        this.sagaTimer = Timer.builder("order.saga")
+                .description("Order placement to saga confirmation latency")
+                .publishPercentileHistogram()
+                .register(meters);
+    }
+
+    /** Terminal-outcome counter: orders_finalized_total{status}. One increment per order, at its end state. */
+    private void finalized(String status) {
+        meters.counter("orders.finalized", "status", status).increment();
     }
 
     @Transactional
@@ -84,12 +112,16 @@ public class SagaOrchestrator {
             if (paid) {
                 inventory.commit(orderId);
                 order.setStatus(OrderStatus.CONFIRMED);
+                finalized("confirmed");
+                gmvRupees.increment(order.getTotalAmount().doubleValue());
+                sagaTimer.record(Duration.between(order.getCreatedAt(), Instant.now()));
                 log.info("Order {} CONFIRMED", orderId,
                         kv("event", "order.confirmed"), kv("payload", lifecycle(order, null)));
             } else {
                 inventory.release(orderId);
                 order.setStatus(OrderStatus.FAILED);
                 order.setFailureReason("Payment declined");
+                finalized("payment_declined");
                 log.info("Order {} FAILED: payment declined", orderId,
                         kv("event", "order.payment_declined"), kv("payload", lifecycle(order, "Payment declined")));
             }
@@ -102,6 +134,7 @@ public class SagaOrchestrator {
             safeRelease(orderId);
             order.setStatus(OrderStatus.FAILED);
             order.setFailureReason(e.getMessage());
+            finalized("rejected");
             log.info("Order {} FAILED: {}", orderId, e.getMessage(),
                     kv("event", "order.rejected"), kv("payload", lifecycle(order, e.getMessage())));
             closeProcessed(ev);
@@ -115,6 +148,7 @@ public class SagaOrchestrator {
                 order.setFailureReason("Saga exhausted retries: " + e.getMessage());
                 ev.setStatus(OutboxStatus.FAILED);
                 ev.setProcessedAt(Instant.now());
+                finalized("retries_exhausted");
                 log.error("Order {} FAILED after {} attempts: {}", orderId, ev.getAttempts(), e.getMessage(),
                         kv("event", "order.retries_exhausted"),
                         kv("payload", lifecycle(order, "Saga exhausted retries: " + e.getMessage())));

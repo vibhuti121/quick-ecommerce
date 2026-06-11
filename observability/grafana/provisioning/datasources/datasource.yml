@@ -1,4 +1,4 @@
-# Auto-provisioned Prometheus datasource — no click-ops on first boot.
+# Auto-provisioned datasources — no click-ops on first boot.
 apiVersion: 1
 
 datasources:
@@ -9,3 +9,25 @@ datasources:
     url: http://prometheus:9090
     isDefault: true
     editable: true
+    jsonData:
+      # Prometheus stores exemplars (trace_id stamped on a sample); this maps that trace_id label to the
+      # Elasticsearch datasource so a click on a latency-panel exemplar opens the span/log in Discover.
+      exemplarTraceIdDestinations:
+        - name: trace_id
+          datasourceUid: elasticsearch-logs
+
+  # Logs/traces store (Pillar 1+2). Lets the API-SLO and Business dashboards pivot metric -> log by
+  # trace.id without leaving Grafana. Points at the `logs-quickcart` data stream Filebeat ships to.
+  - name: Elasticsearch
+    uid: elasticsearch-logs
+    type: elasticsearch
+    access: proxy
+    url: http://elasticsearch:9200
+    database: "logs-quickcart"
+    editable: true
+    jsonData:
+      index: "logs-quickcart"
+      timeField: "@timestamp"
+      esVersion: "8.15.3"
+      logMessageField: "message"
+      logLevelField: "log.level"

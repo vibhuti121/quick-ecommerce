@@ -359,13 +359,36 @@ services:
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.retention.time=15d
+      # Store exemplars (trace_id stamped on a metric sample by the Micrometer tracing bridge) so a
+      # Grafana latency spike links straight to its trace; --web.enable-lifecycle allows a config/rules
+      # reload via POST /-/reload without a restart.
+      - --enable-feature=exemplar-storage
+      - --web.enable-lifecycle
     volumes:
       - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/prometheus/rules:/etc/prometheus/rules:ro
       - promdata:/prometheus
     ports:
       - "${PROMETHEUS_PORT:-9090}:9090"
     depends_on:
       - gateway
+    restart: unless-stopped
+
+  # Alertmanager (Pillar 3): receives firing alerts from Prometheus and de-dupes/groups/routes them.
+  # Pilot tier has no real pager wired (see observability/alertmanager/alertmanager.yml); host-published
+  # so the on-call can see the routing tree + active alerts in its UI.
+  alertmanager:
+    image: prom/alertmanager:latest
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    volumes:
+      - ./observability/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanagerdata:/alertmanager
+    ports:
+      - "${ALERTMANAGER_PORT:-9093}:9093"
+    depends_on:
+      - prometheus
     restart: unless-stopped
 
   grafana:
@@ -502,3 +525,4 @@ volumes:
   grafanadata:
   esdata:
   filebeatdata:
+  alertmanagerdata:

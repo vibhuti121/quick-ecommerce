@@ -9,6 +9,7 @@ import com.varsha.payment.model.PaymentStatus;
 import com.varsha.payment.provider.ChargeOutcome;
 import com.varsha.payment.provider.PaymentProvider;
 import com.varsha.payment.repository.PaymentRepository;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -32,11 +33,17 @@ public class PaymentService {
 
     private final PaymentRepository payments;
     private final PaymentProvider provider;
+    // Business meter (Pillar 3): payment_attempts_total{provider,status}. The charge funnel's success/decline
+    // split per provider — feeds the "payment failure rate" SLO alert. Incremented once per FRESH charge (not
+    // on an idempotent replay, which performs no gateway call). Labels carry provider + outcome ONLY, no ids.
+    private final MeterRegistry meters;
 
     public PaymentService(PaymentRepository payments,
                           List<PaymentProvider> providers,
-                          @Value("${app.payment.provider}") String providerName) {
+                          @Value("${app.payment.provider}") String providerName,
+                          MeterRegistry meters) {
         this.payments = payments;
+        this.meters = meters;
         this.provider = providers.stream()
                 .filter(p -> p.name().equalsIgnoreCase(providerName))
                 .findFirst()
@@ -66,11 +73,13 @@ public class PaymentService {
         if (outcome.success()) {
             payment.setStatus(PaymentStatus.SUCCESS);
             payment.setProviderRef(outcome.providerRef());
+            meters.counter("payment.attempts", "provider", provider.name(), "status", "success").increment();
             log.info("payment.succeeded {}", req.orderId(),
                     kv("event", "payment.succeeded"), kv("payload", chargePayload(payment)));
         } else {
             payment.setStatus(PaymentStatus.FAILED);
             payment.setFailureReason(outcome.failureReason());
+            meters.counter("payment.attempts", "provider", provider.name(), "status", "failed").increment();
             log.info("payment.declined {}", req.orderId(),
                     kv("event", "payment.declined"), kv("payload", chargePayload(payment)));
         }

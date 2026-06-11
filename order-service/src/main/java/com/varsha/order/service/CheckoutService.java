@@ -12,6 +12,8 @@ import com.varsha.order.model.OutboxEvent;
 import com.varsha.order.model.OutboxStatus;
 import com.varsha.order.repository.OrderRepository;
 import com.varsha.order.repository.OutboxRepository;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -35,10 +37,17 @@ public class CheckoutService {
 
     private final OrderRepository orders;
     private final OutboxRepository outbox;
+    // Business meter (Pillar 3): top-of-funnel demand. Counts orders ACCEPTED at checkout (one per new
+    // order, never on an idempotent replay) — distinct from orders_finalized_total{status} which the saga
+    // emits at the terminal outcome. orders_placed_total minus confirmed/failed = in-flight saga backlog.
+    private final Counter ordersPlaced;
 
-    public CheckoutService(OrderRepository orders, OutboxRepository outbox) {
+    public CheckoutService(OrderRepository orders, OutboxRepository outbox, MeterRegistry meters) {
         this.orders = orders;
         this.outbox = outbox;
+        this.ordersPlaced = Counter.builder("orders.placed")
+                .description("Orders accepted at checkout (excludes idempotent replays)")
+                .register(meters);
     }
 
     /**
@@ -86,6 +95,7 @@ public class CheckoutService {
         event.setAttempts(0);
         outbox.save(event);
 
+        ordersPlaced.increment();
         log.info("order.placed {}", orderId,
                 kv("event", "order.placed"),
                 kv("payload", Map.of(
