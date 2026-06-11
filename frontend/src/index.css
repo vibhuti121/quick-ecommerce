@@ -553,6 +553,13 @@ body {
   color: var(--muted, #5b5b76);
 }
 
+/* Guest cart: the "sign in to order" prompt that replaces the delivery form. */
+.signin-note {
+  margin: 0 0 10px;
+  line-height: 1.4;
+  font-weight: 500;
+}
+
 .delivery-input {
   width: 100%;
   padding: 9px 11px;
@@ -1608,6 +1615,30 @@ body {
 .coming-soon-submit {
   width: 100%;
   margin-top: 10px;
+}
+
+/* password field with show/hide eye toggle */
+.password-field {
+  position: relative;
+}
+.password-field .coming-soon-input {
+  padding-right: 40px; /* clear the eye button */
+}
+.password-toggle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  background: none;
+  border: 0;
+  cursor: pointer;
+  color: var(--muted);
+}
+.password-toggle:hover {
+  color: var(--text, #111);
 }
 
 .coming-soon-input:focus {

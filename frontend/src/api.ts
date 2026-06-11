@@ -57,17 +57,39 @@ async function call<T>(path: string, options: RequestInit, token: string): Promi
   return (res.status === 204 ? undefined : await res.json()) as T;
 }
 
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+// During a cold start (or a service restart) an upstream behind the gateway can still be warming
+// up, so the gateway answers 503/502/504 for a few seconds — and a TCP connect can be refused
+// outright (fetch rejects with no .status). The storefront's first paint (home grid, recs) is all
+// safe GETs, so we retry those a few times with backoff to let the stack self-heal, instead of
+// leaving a dead error grid until the user manually reloads. Only idempotent GETs are retried;
+// cart/checkout mutations are never auto-replayed.
+const TRANSIENT_STATUS = new Set([502, 503, 504]);
+const MAX_RETRIES = 4; // total attempts = 1 + 4; backoff 0.4s,0.8s,1.6s,3.2s ≈ 6s of self-heal
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = await getToken();
-  try {
-    return await call<T>(path, options, token);
-  } catch (e) {
-    // A stale/expired guest token → drop it, mint a fresh one, retry exactly once.
-    if ((e as { status?: number }).status === 401) {
-      localStorage.removeItem(TOKEN_KEY);
-      return call<T>(path, options, await fetchGuestToken());
+  const isIdempotent = (options.method ?? 'GET').toUpperCase() === 'GET';
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await call<T>(path, options, token);
+    } catch (e) {
+      const status = (e as { status?: number }).status;
+      // A stale/expired guest token → drop it, mint a fresh one, retry exactly once.
+      if (status === 401) {
+        localStorage.removeItem(TOKEN_KEY);
+        return call<T>(path, options, await fetchGuestToken());
+      }
+      // Transient upstream-not-ready: a 5xx from the gateway, or a connect failure (status
+      // undefined). Retry idempotent GETs with backoff so the cold-start window heals itself.
+      const transient = status === undefined || TRANSIENT_STATUS.has(status);
+      if (isIdempotent && transient && attempt < MAX_RETRIES) {
+        await sleep(400 * 2 ** attempt);
+        continue;
+      }
+      throw e;
     }
-    throw e;
   }
 }
 

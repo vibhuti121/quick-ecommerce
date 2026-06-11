@@ -12,6 +12,8 @@ import com.varsha.inventory.model.ReservationStatus;
 import com.varsha.inventory.model.StockItem;
 import com.varsha.inventory.repository.ReservationRepository;
 import com.varsha.inventory.repository.StockItemRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,8 +22,12 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.TreeMap;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 @Service
 public class InventoryService {
+
+    private static final Logger log = LoggerFactory.getLogger(InventoryService.class);
 
     private final StockItemRepository stock;
     private final ReservationRepository reservations;
@@ -48,7 +54,15 @@ public class InventoryService {
             item.setReservedQty(0);
         }
         item.setAvailableQty(item.getAvailableQty() + quantity);
-        return stock.save(item);
+        StockItem saved = stock.save(item);
+        // Admin audit trail — trace.id + hashed user_id ride along from MDC; no PII (sku + quantities).
+        log.info("admin.stock.adjusted {}", sku,
+                kv("event", "admin.stock.adjusted"),
+                kv("payload", Map.of(
+                        "sku", sku,
+                        "addedQty", quantity,
+                        "availableQty", saved.getAvailableQty())));
+        return saved;
     }
 
     /**

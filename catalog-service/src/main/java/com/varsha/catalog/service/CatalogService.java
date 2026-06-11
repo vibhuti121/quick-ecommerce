@@ -11,6 +11,8 @@ import com.varsha.catalog.model.ProductType;
 import com.varsha.catalog.model.Variant;
 import com.varsha.catalog.repository.ProductRepository;
 import com.varsha.catalog.search.ProductSearchService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -24,6 +26,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 /**
  * Entity → DTO conversion happens INSIDE the transactional methods on purpose: with
  * {@code open-in-view: false} the Hibernate session is closed by the time the controller
@@ -31,6 +35,8 @@ import java.util.UUID;
  */
 @Service
 public class CatalogService {
+
+    private static final Logger log = LoggerFactory.getLogger(CatalogService.class);
 
     // image/<subtype> -> file extension, for objects whose key should be human-readable in MinIO.
     private static final Map<String, String> IMAGE_EXTENSIONS = Map.of(
@@ -113,6 +119,16 @@ public class CatalogService {
         ProductResponse saved = ProductResponse.from(products.save(p));
         cache.evictBrowse();
         search.indexProduct(saved);   // dual-write: keep the search index consistent (log-and-degrade)
+        // Admin audit trail — trace.id + hashed user_id ride along from MDC (UserIdMdcFilter); lands in
+        // Elasticsearch/Kibana via the LogstashEncoder. No raw PII here: id/sku/name/price are catalog data.
+        log.info("admin.product.created {}", saved.sku(),
+                kv("event", "admin.product.created"),
+                kv("payload", Map.of(
+                        "id", saved.id(),
+                        "sku", saved.sku(),
+                        "name", saved.name(),
+                        "basePrice", saved.basePrice().toPlainString(),
+                        "active", saved.active())));
         return saved;
     }
 
@@ -128,6 +144,14 @@ public class CatalogService {
         cache.evictProduct(id);
         cache.evictBrowse();
         search.indexProduct(saved);   // dual-write: re-index the updated product (log-and-degrade)
+        log.info("admin.product.updated {}", saved.sku(),
+                kv("event", "admin.product.updated"),
+                kv("payload", Map.of(
+                        "id", saved.id(),
+                        "sku", saved.sku(),
+                        "name", saved.name(),
+                        "basePrice", saved.basePrice().toPlainString(),
+                        "active", saved.active())));
         return saved;
     }
 
@@ -168,13 +192,20 @@ public class CatalogService {
 
     @Transactional
     public void delete(Long id) {
-        if (!products.existsById(id)) {
-            throw new NotFoundException("Product not found: " + id);
-        }
+        // Load (not just existsById) so the audit line can carry the SKU of what was removed.
+        Product p = load(id);
+        String sku = p.getSku();
+        String name = p.getName();
         products.deleteById(id);
         cache.evictProduct(id);
         cache.evictBrowse();
         search.deleteProduct(id);   // dual-write: drop from the search index (log-and-degrade)
+        log.info("admin.product.deleted {}", sku,
+                kv("event", "admin.product.deleted"),
+                kv("payload", Map.of(
+                        "id", id,
+                        "sku", sku,
+                        "name", name)));
     }
 
     private Product load(Long id) {

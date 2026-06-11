@@ -26,3 +26,64 @@ export interface AdminOrder {
   createdAt: string;
   updatedAt: string;
 }
+
+// --- Catalog (mirror of catalog-service ProductResponse / ProductRequest) ---
+export type ProductType =
+  | 'PHYSICAL'
+  | 'DIGITAL'
+  | 'SERVICE'
+  | 'SUBSCRIPTION'
+  | 'RENTAL';
+
+export const PRODUCT_TYPES: ProductType[] = [
+  'PHYSICAL',
+  'DIGITAL',
+  'SERVICE',
+  'SUBSCRIPTION',
+  'RENTAL',
+];
+
+export interface ProductVariant {
+  sku: string;
+  name: string;
+  priceDelta: number;
+}
+
+export interface Product {
+  id: number;
+  sku: string;
+  name: string;
+  description: string | null;
+  productType: ProductType;
+  category: string | null;
+  basePrice: number;
+  currency: string;
+  imageUrl: string | null;
+  attributes: Record<string, unknown> | null;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+  variants: ProductVariant[];
+}
+
+// What the admin form sends to POST/PUT /api/catalog/admin/products.
+export interface ProductWriteRequest {
+  sku: string;
+  name: string;
+  description: string | null;
+  productType: ProductType;
+  category: string | null;
+  basePrice: number;
+  currency: string;
+  imageUrl: string | null;
+  active: boolean;
+}
+
+// Spring Page envelope (GET /api/catalog/products?size=N).
+export interface Page<T> {
+  content: T[];
+  totalElements: number;
+  totalPages: number;
+  number: number;
+  size: number;
+}

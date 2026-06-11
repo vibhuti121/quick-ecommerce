@@ -42,6 +42,11 @@ bash scripts/fullstack-smoke.sh
 If step 5 returns `{"status":"UP"}` and step 6 says **57 passed, 0 failed**, your environment is
 correct and you can start working. See [Verify your setup](#verify-your-setup) for a checklist.
 
+> **Want to *learn how to use* the app, not just run it?** Follow the hands-on, click-by-click
+> [User Guide](docs/USER-GUIDE.md) — it walks the full customer journey (browse → search → cart → COD
+> checkout → track), the admin console, video calling, and the dashboards, each shown both in the UI and
+> as `curl`. This README is the reference; the guide is the tour.
+
 > **Skipped step 3?** The stack is fail-closed — `docker compose up` will stop immediately with
 > `error while interpolating ... JWT_SECRET ... missing - run ./scripts/gen-secrets.sh`. That's by
 > design: no usable secret is committed to the repo. Run the generator once and retry.
@@ -67,8 +72,10 @@ correct and you can start working. See [Verify your setup](#verify-your-setup) f
 
 ## Table of contents
 - [New here? Start in 5 minutes](#-new-here-start-in-5-minutes)
+- [📖 User Guide — how to use the app (hands-on walkthrough)](docs/USER-GUIDE.md)
 - [Architecture](#architecture)
 - [Services & ports](#services--ports)
+- [Admin console](#admin-console)
 - [Prerequisites](#prerequisites)
 - [Quick start](#quick-start-run-the-whole-stack)
 - [Verify your setup](#verify-your-setup)
@@ -184,6 +191,7 @@ Checkout is **asynchronous and crash-safe** — an outbox + poller **saga**, not
 | **videocall-service** | 8095 | `videocalldb` + Redis (5h cooldown) | Gated-call enforcement brain: eligibility gate + mints the short-lived **call grant** (separate secret from the login JWT) |
 | **signaling-service** | 3001 | — (no DB) | Node + Socket.IO WebRTC mesh signaling; admits a socket only on a valid grant (fail-closed), max 3 participants/room |
 | **coturn** | 3478 (published, udp/tcp) | — | TURN/STUN media relay for the video call (STUN-only locally) |
+| **admin-app** | 80 → `127.0.0.1:5174` (**loopback only**) | — | Internal admin SPA (React Router + TanStack); nginx basic-auth + same-origin reverse-proxy to the gateway. See [Admin console](#admin-console). |
 | postgres | 5432 | volume `pgdata` | One DB per service (created on first boot) |
 | redis | 6379 | volume `redisdata` | Cart store **and** catalog read cache |
 | opensearch | 9200 | volume `opensearchdata` | Product full-text search index (secondary; Postgres stays source of truth). **Not published** — internal to catalog-service |
@@ -201,7 +209,43 @@ Checkout is **asynchronous and crash-safe** — an outbox + poller **saga**, not
 > **coturn** (3478 udp/tcp, the one service that needs host ports for media relay). Elasticsearch,
 > APM-server and Filebeat stay internal to the docker network. The seven commerce services (incl. videocall-service and
 > signaling-service) are **not** published; reach them **through** the gateway — that's the contract you
-> test against. (`backend/` is the retired in-memory monolith, kept for reference only.)
+> test against. (`backend/` is the retired in-memory monolith, kept for reference only.) The **admin-app**
+> binds **loopback only** (`127.0.0.1:5174`) behind nginx basic-auth — never `0.0.0.0`; reach it over an
+> SSH tunnel. See [Admin console](#admin-console).
+
+---
+
+## Admin console
+
+A loopback-only internal admin SPA (`admin-app/`) for staff — distinct from the public storefront
+(`frontend/`). React Router v6 + Tailwind/shadcn + TanStack Query/Table + Zustand + React Hook Form/Zod
++ Axios; TypeScript strict. Reach it via an SSH tunnel, then `http://localhost:5174`:
+
+```bash
+ssh -L 5174:127.0.0.1:5174 <host>   # then open http://localhost:5174 (nginx basic-auth: ADMIN_USER / ADMIN_PASSWORD)
+```
+
+**Pages:** `/login` (email + password → `/auth/login`), `/dashboard` (product / orders-today / awaiting-delivery
+cards), `/products` (full CRUD over the catalog admin API — list, create, edit, delete, with SKU-conflict
+surfacing), `/orders` (list + mark-delivered).
+
+**Login & roles.** Sign in posts `{ identifier, password }` to `/auth/login`; only a **`role=ADMIN`** JWT is
+accepted (any other role is rejected client-side). In production an admin token comes from Google OAuth with
+an email in `ADMIN_EMAILS`, or from a password account whose email is on that allowlist. The token is held
+**in memory** (Zustand) — a refresh clears it and bounces to `/login` (accepted trade-off this round; no
+persisted session). A `<RoleGate>` hides actions the role can't use, but it is a **UI affordance only** — the
+real boundary is the gateway, which re-verifies the JWT signature + `role=ADMIN` on every `/api/**/admin/**`
+call.
+
+**Network posture.** The browser only ever speaks plain HTTP to its own loopback origin; nginx in the
+container reverse-proxies `/api/*` + `/auth/*` to the gateway **over TLS, terminated server-side** (and
+`/admin/orders` to order-service). This kills both the self-signed-cert prompt and any CORS preflight. Every
+request is additionally behind nginx basic-auth.
+
+**Audit trail.** Each admin write emits a structured log event — `admin.product.{created,updated,deleted}`
+(catalog-service) and `admin.stock.adjusted` (inventory-service) — carrying `trace.id` + a hashed `user_id`
+from the MDC and a PII-free payload (sku/name/price/qty). Queryable in Kibana via the existing LogstashEncoder
+pipeline; no new table or API.
 
 ---
 
@@ -337,7 +381,7 @@ so the browser never sees the dev self-signed cert. Empty in production too (ser
 
 ## Auth model (read this before testing)
 
-1. **Get a guest token** — no Google login needed:
+1. **Get a guest token** — no Google login needed (lets you browse + build a cart):
    ```bash
    curl -sk -X POST https://localhost:8443/auth/guest \
      -H 'Content-Type: application/json' -d '{"name":"QA Tester"}'
@@ -346,6 +390,10 @@ so the browser never sees the dev self-signed cert. Empty in production too (ser
 2. **Send it on every protected call:** `Authorization: Bearer <token>`.
 3. The gateway validates the token **once** and injects `X-User-Id` downstream. Your cart and orders
    are scoped to that token's user — reuse the same token to keep the same cart.
+4. **Ordering requires a real (non-guest) account.** Browsing and cart-building stay guest-friendly, but
+   `POST /api/orders/checkout` **403s a guest token** (`X-User-Id` starting `guest-`) — register or log in
+   first (below) to get a `usr-<uuid>` token, then check out. (The storefront enforces the same gate in the
+   cart UI; order-service is the real boundary.)
 
 **Public paths** (no token): `/auth/guest`, `/auth/register`, `/auth/login`, `/auth/otp/**`
 (self-serve sign-up / sign-in), `/api/catalog/products` (browse), `/api/catalog/notify`
@@ -431,7 +479,7 @@ Base URL = the gateway, e.g. `https://localhost:8443` (HTTPS, dev self-signed �
 ### Orders — `/api/orders/**` (🔒)
 | Method | Path | Headers / Body | Notes |
 |---|---|---|---|
-| 🔒 POST | `/api/orders/checkout` | **`Idempotency-Key` header (required)** + `CheckoutRequest` | Returns **202** with order in `PENDING`; saga confirms async |
+| 🔒 POST | `/api/orders/checkout` | **`Idempotency-Key` header (required)** + `CheckoutRequest` | **Non-guest only** — a `guest-` token → **403** ("Please sign in to place an order"). Returns **202** with order in `PENDING`; saga confirms async |
 | 🔒 GET | `/api/orders/{orderId}` | — | Poll `status`: PENDING → CONFIRMED \| FAILED |
 | 🔒 GET | `/api/orders` | — | Current user's orders |
 
@@ -636,12 +684,16 @@ docker run --rm -i --network quick-ecommerce_default -e BASE_URL=https://gateway
 ### 2. Key acceptance scenarios (manual / exploratory)
 
 **Happy path (full journey):**
-1. `POST /auth/guest` → grab token.
+1. `POST /auth/register {identifier, password, displayName}` → grab token (a `usr-<uuid>` account;
+   ordering needs a non-guest token — a `POST /auth/guest` token can browse + cart but 403s at checkout).
 2. `GET /api/catalog/products` → see 5 seeded products.
 3. `POST /api/cart/items {productId, quantity:2}` → line appears, price snapshotted.
 4. `POST /api/orders/checkout` with an `Idempotency-Key` → **202**, order `PENDING`.
 5. Poll `GET /api/orders/{id}` → flips to **CONFIRMED** within a few seconds.
 6. `GET /api/payments/{id}` → **SUCCESS**; `GET /api/inventory/stock/{sku}` → decremented.
+
+**Guest is blocked from ordering:** `POST /auth/guest` → token → `POST /api/orders/checkout` → **403**
+("Please sign in to place an order"). Register/login and retry → **202**.
 
 **Payment failure path (built-in hook):** check out a cart whose **total ends in `.66`**
 (e.g. one unit of a 100.66 item) → payment **declines** → inventory **released** → order **FAILED**.

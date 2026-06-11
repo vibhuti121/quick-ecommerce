@@ -1,7 +1,9 @@
 // Full guest-journey load test (Phase 2, Pillar 3).
 //
 // Exercises the end-to-end purchase path through the GATEWAY, the same way the storefront does:
-//   guest token  ->  browse  ->  product detail  ->  add to cart  ->  checkout
+//   register (real account)  ->  browse  ->  product detail  ->  add to cart  ->  checkout
+// Ordering now requires a non-guest account (order-service 403s guest tokens at /orders/checkout), so
+// each VU registers a real account once and reuses that token — guest browse alone can't reach checkout.
 // This stresses the edge (rate-limit, auth, correlation-id filters), auth, catalog (cached),
 // cart (Redis), and order (outbox -> inventory + payment).
 //
@@ -59,24 +61,33 @@ function clientIp() {
   return `198.18.${Math.floor(n / 254)}.${(n % 254) + 1}`;
 }
 
+// Per-VU token. Module scope is per-VU in k6 (each VU has its own JS runtime), so each VU registers a
+// real account ONCE and reuses the token across all its iterations — checkout needs a non-guest token.
+let token = null;
+
 export default function () {
   const ip = clientIp();
   const baseHeaders = { 'Content-Type': 'application/json', 'X-Forwarded-For': ip };
   let failed = false;
 
-  // 1) Guest token
-  const authRes = http.post(`${BASE}/auth/guest`, JSON.stringify({ name: `load-${__VU}` }), {
-    headers: baseHeaders,
-    tags: { name: 'auth_guest' },
-  });
-  const tokenOk = check(authRes, {
-    'guest 200': (r) => r.status === 200,
-    'guest has token': (r) => {
-      try { return !!r.json('token'); } catch (e) { return false; }
-    },
-  });
-  if (!tokenOk) { journeyErrors.add(true); return; }
-  const token = authRes.json('token');
+  // 1) Real account (ordering requires a non-guest account). Register once per VU; the identifier must
+  //    look like an email (^...@...\..+$). Reuse the token for the rest of this VU's iterations.
+  if (!token) {
+    const email = `load-${__VU}-${Date.now()}@loadtest.dev`;
+    const regRes = http.post(`${BASE}/auth/register`, JSON.stringify({
+      identifier: email,
+      password: `LoadPass${__VU}word!`,
+      displayName: `Load Tester ${__VU}`,
+    }), { headers: baseHeaders, tags: { name: 'auth_register' } });
+    const regOk = check(regRes, {
+      'register 201': (r) => r.status === 201,
+      'register has token': (r) => {
+        try { return !!r.json('token'); } catch (e) { return false; }
+      },
+    });
+    if (!regOk) { journeyErrors.add(true); return; }
+    token = regRes.json('token');
+  }
   const authHeaders = { ...baseHeaders, Authorization: `Bearer ${token}` };
 
   // 2) Browse (public, cached)

@@ -19,6 +19,13 @@ public final class OrderExceptions {
         }
     }
 
+    /** Authenticated but not allowed — e.g. a guest token trying to place an order. */
+    public static class ForbiddenException extends RuntimeException {
+        public ForbiddenException(String message) {
+            super(message);
+        }
+    }
+
     /** Missing the required Idempotency-Key header on checkout. */
     public static class BadRequestException extends RuntimeException {
         public BadRequestException(String message) {

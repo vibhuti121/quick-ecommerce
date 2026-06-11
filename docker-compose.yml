@@ -114,6 +114,15 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    # Actuator readiness probe — the gateway gates on this too: the storefront's first cold-start call is
+    # POST /auth/guest to mint a token, a mutation the SPA's GET-only retry deliberately won't replay, so
+    # the edge must not serve until auth is up or that first paint blanks. (Same probe rationale as catalog.)
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8081/actuator/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 40s
     restart: unless-stopped
 
   catalog-service:
@@ -156,6 +165,16 @@ services:
       # the startup backfill waits for readiness itself and degrades gracefully if OpenSearch never comes up.
       opensearch:
         condition: service_started
+    # Actuator readiness probe — the gateway gates on this (service_healthy) so the edge doesn't serve
+    # the storefront's product-grid GET before catalog has finished its ~30s Spring Boot warm-up, which
+    # was returning a transient 503 on a cold `compose up`. start_period covers boot without burning the
+    # retry budget; a success during it marks healthy immediately (no needless delay if it comes up early).
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:8090/actuator/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 40s
     restart: unless-stopped
 
   cart-service:
@@ -313,16 +332,31 @@ services:
       # Pillar 5: trust X-Forwarded-For for rate-limit keying ONLY behind a trusted proxy. Default false
       # (gateway is the exposed edge). The journey load test sets this true to simulate distinct clients.
       RATE_LIMIT_TRUST_FORWARDED_FOR: ${RATE_LIMIT_TRUST_FORWARDED_FOR:-false}
+    # Gate the edge on the two services on the storefront's first-paint path being HEALTHY (not merely
+    # started): auth-service (mints the guest token) and catalog-service (the product grid). This is what
+    # eliminates the cold-start 503 at the source — the gateway won't accept traffic until they can serve.
+    # The rest stay service_started on purpose: gating the edge on every backend would let one slow/unhealthy
+    # non-first-paint service (e.g. videocall) hold the whole storefront down. frontend (static nginx) boots
+    # in ~1s, far ahead of the gateway's own ~30s warm-up, so service_started already orders it correctly.
     depends_on:
-      - auth-service
-      - catalog-service
-      - cart-service
-      - inventory-service
-      - payment-service
-      - order-service
-      - videocall-service
-      - signaling-service
-      - frontend
+      auth-service:
+        condition: service_healthy
+      catalog-service:
+        condition: service_healthy
+      cart-service:
+        condition: service_started
+      inventory-service:
+        condition: service_started
+      payment-service:
+        condition: service_started
+      order-service:
+        condition: service_started
+      videocall-service:
+        condition: service_started
+      signaling-service:
+        condition: service_started
+      frontend:
+        condition: service_started
     restart: unless-stopped
 
   # ---- Storefront SPA (B1) — the public React/Vite app, containerized ----
@@ -350,7 +384,10 @@ services:
       # Loopback only — never 0.0.0.0. Access via: ssh -L 5174:127.0.0.1:5174 <host>, then localhost:5174.
       - "127.0.0.1:${ADMIN_APP_PORT:-5174}:80"
     depends_on:
+      # nginx reverse-proxies /api/* + /auth/* to the gateway and /admin/orders to order-service; both
+      # must exist on the network before nginx starts or the proxy upstreams fail to resolve.
       - order-service
+      - gateway
     restart: unless-stopped
 
   # ---- Observability (Phase 2, Pillar 2) ----
