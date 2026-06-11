@@ -1,0 +1,74 @@
+server:
+  port: 8095
+  shutdown: graceful
+
+spring:
+  application:
+    name: videocall-service
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:videocalldb}
+    username: ${DB_USER:postgres}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+      connection-timeout: 20000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+      keepalive-time: 60000
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2s
+      connect-timeout: 2s
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 0
+  threads:
+    virtual:
+      enabled: true
+
+app:
+  videocall:
+    # The grant signing secret — DISTINCT from the login JWT_SECRET. A login token is not a valid grant
+    # and cannot be replayed onto the socket. The signaling-service verifies grants with this same value.
+    grant-secret: ${VIDEOCALL_GRANT_SECRET}
+    # 10-minute hard session cap, baked into the grant's exp.
+    grant-ttl-seconds: 600
+    # Silent post-session block: one grant per this window (Redis key videocall:cd:{userId}).
+    cooldown-hours: 5
+    ice:
+      # STUN is enough for two browsers on one LAN; TURN matters for real NAT traversal in prod.
+      stun-url: ${VIDEOCALL_STUN_URL:stun:stun.l.google.com:19302}
+      turn-url: ${VIDEOCALL_TURN_URL:}
+      turn-username: ${VIDEOCALL_TURN_USER:}
+      turn-credential: ${TURN_SECRET:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when_authorized
+      show-components: when_authorized
+  health:
+    livenessstate:
+      enabled: true
+    readinessstate:
+      enabled: true
+  metrics:
+    tags:
+      application: ${spring.application.name}

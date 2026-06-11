@@ -212,6 +212,63 @@ services:
         condition: service_started
     restart: unless-stopped
 
+  # ---- Gated video calling (Phase 3) — the brain + the WebRTC signaling/relay ----
+  # videocall-service mints short-lived call GRANTs (10-min exp, room-bound, separate VIDEOCALL_GRANT_SECRET),
+  # records Tally eligibility in its own DB, and holds the silent 5h cooldown in Redis. Gateway-internal
+  # (no host port) — reached only via the gateway's /api/videocall/** route.
+  videocall-service:
+    build: ./videocall-service
+    environment:
+      DB_HOST: postgres
+      DB_NAME: videocalldb
+      DB_USER: postgres
+      DB_PASSWORD: ${DB_PASSWORD:?missing - run ./scripts/gen-secrets.sh to create .env}
+      # Cooldown store (videocall:cd:{userId}, 5h TTL) — atomic SETNX-with-TTL closes the double-issue race.
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      # Grant signing key — DISTINCT from JWT_SECRET. Shared only with signaling-service (the verifier).
+      VIDEOCALL_GRANT_SECRET: ${VIDEOCALL_GRANT_SECRET:?missing - run ./scripts/gen-secrets.sh to create .env}
+      # ICE handed to the browser. STUN default works on one LAN; set the TURN vars for real NAT traversal.
+      VIDEOCALL_STUN_URL: ${VIDEOCALL_STUN_URL:-stun:stun.l.google.com:19302}
+      VIDEOCALL_TURN_URL: ${VIDEOCALL_TURN_URL:-}
+      VIDEOCALL_TURN_USER: ${VIDEOCALL_TURN_USER:-webrtc}
+      TURN_SECRET: ${TURN_SECRET:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Node + Socket.IO mesh signaling. Admits a socket ONLY on a valid grant (verifies VIDEOCALL_GRANT_SECRET,
+  # aud=videocall-grant, fail-closed), enforces room-binding + MAX 3 + a kill-timer at the grant's exp.
+  # Gateway-internal (no host port) — the SPA reaches it same-origin via the gateway's /socket.io/** route.
+  signaling-service:
+    build: ./signaling-service
+    environment:
+      PORT: 3001
+      VIDEOCALL_GRANT_SECRET: ${VIDEOCALL_GRANT_SECRET:?missing - run ./scripts/gen-secrets.sh to create .env}
+      # Socket.IO CORS. The browser loads the SPA same-origin through the gateway, so the gateway's TLS
+      # edge is the origin; keep this aligned with the gateway's ALLOWED_ORIGIN.
+      ALLOWED_ORIGIN: ${ALLOWED_ORIGIN:-http://localhost:5173}
+      LOG_LEVEL: ${SIGNALING_LOG_LEVEL:-info}
+    restart: unless-stopped
+
+  # TURN/STUN relay. The ONE piece that needs host ports — TURN relays media from the public internet, so
+  # the relay range + listening port must be reachable. The credential is injected at runtime (NOT baked
+  # into the conf): --user=webrtc:${TURN_SECRET}. Local dev can run STUN-only; this is wired for prod.
+  # NOTE: on Linux, give this `network_mode: host` (+ external-ip in the conf) so the 49152-65535 relay
+  # range is reachable; the per-port mapping below is a macOS/Docker-Desktop convenience for local STUN.
+  coturn:
+    image: coturn/coturn:alpine
+    command: ["--log-file=stdout", "--user=webrtc:${TURN_SECRET:?missing - run ./scripts/gen-secrets.sh to create .env}"]
+    volumes:
+      - ./coturn/turnserver.conf:/etc/coturn/turnserver.conf:ro
+    ports:
+      - "${TURN_PORT:-3478}:3478/udp"
+      - "${TURN_PORT:-3478}:3478/tcp"
+    restart: unless-stopped
+
   gateway:
     build:
       context: ./gateway
@@ -225,6 +282,8 @@ services:
       INVENTORY_HOST: inventory-service
       PAYMENT_HOST: payment-service
       ORDER_HOST: order-service
+      VIDEOCALL_HOST: videocall-service
+      SIGNALING_HOST: signaling-service
       # Storefront catch-all target (B1). The frontend nginx container publishes no host port, so the
       # gateway reaching it in-network is the only way the SPA is served — same-origin with /api.
       FRONTEND_HOST: frontend
@@ -242,6 +301,8 @@ services:
       - inventory-service
       - payment-service
       - order-service
+      - videocall-service
+      - signaling-service
       - frontend
     restart: unless-stopped
 

@@ -10,6 +10,8 @@ frontend/.vite/
 admin-app/node_modules/
 admin-app/dist/
 admin-app/.vite/
+signaling-service/node_modules/
+signaling-service/dist/
 
 # Misc
 .DS_Store

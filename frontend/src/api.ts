@@ -451,6 +451,50 @@ export function logout(): void {
   localStorage.removeItem(TOKEN_KEY);
 }
 
+// ---- gated video calling (Phase 3) ------------------------------------------
+// Two endpoints on videocall-service, both under /api/videocall so the gateway requires a logged-in
+// token (guests are rejected server-side). The browser only sends its token via the shared request()
+// helper — all real enforcement (eligibility, 5h cooldown, 10-min grant, max-3) is server-side.
+export interface IceServerConfig {
+  urls: string[];
+  username?: string;
+  credential?: string;
+}
+
+// The gate's answer. `available:false` is the SILENT block — it carries no reason and no countdown,
+// so cooldown and "no capacity" look identical to the client by design.
+export interface GrantResult {
+  available: boolean;
+  grant?: string;
+  roomId?: string;
+  expiresInSeconds?: number;
+  iceServers?: IceServerConfig[];
+}
+
+interface EligibilityResult {
+  eligible: boolean;
+  created: boolean;
+}
+
+// Records Tally completion server-side (idempotent upsert keyed on the token's user). 200/201 both
+// mean "recorded"; a guest/missing-identity token is rejected with 401/403 (the caller treats any
+// throw as "not eligible yet").
+export async function recordEligibility(): Promise<EligibilityResult> {
+  return request<EligibilityResult>('/api/videocall/eligibility', {
+    method: 'POST',
+    body: JSON.stringify({}),
+  });
+}
+
+// Requests a call grant. Pass an existing roomId to JOIN that room (invitee); omit it to START a new
+// room (host) — the server generates the roomId. Every participant is independently gated.
+export async function requestGrant(roomId?: string): Promise<GrantResult> {
+  return request<GrantResult>('/api/videocall/grant', {
+    method: 'POST',
+    body: JSON.stringify(roomId ? { roomId } : {}),
+  });
+}
+
 export function formatPrice(value: number): string {
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',

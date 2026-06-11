@@ -38,6 +38,14 @@ DB_PASSWORD=$(rand_alnum)
 # JWT signing key (HS256, >= 32 bytes). Rotating this invalidates all issued tokens.
 JWT_SECRET=$(rand)
 
+# Video-call GRANT signing key (HS256, >= 32 bytes) — DISTINCT from JWT_SECRET so a login token can
+# never be replayed as a call grant. Shared by videocall-service (signer) and signaling-service (verifier).
+VIDEOCALL_GRANT_SECRET=$(rand)
+
+# coturn TURN relay credential (paired with username 'webrtc'). Injected at runtime, never baked into
+# turnserver.conf. Only matters for real NAT traversal in prod; local dev runs STUN-only.
+TURN_SECRET=$(rand_alnum)
+
 # MinIO (S3-compatible object storage) root credentials.
 MINIO_ROOT_USER=$(rand_alnum)
 MINIO_ROOT_PASSWORD=$(rand_alnum)

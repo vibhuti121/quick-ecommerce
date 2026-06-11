@@ -34,14 +34,22 @@ public class AuthFilter implements GlobalFilter, Ordered {
         "/api/catalog/products",
         // public launch-interest signup ("Notify me"). Note: /api/catalog/admin/notify does NOT startsWith
         // this, so the admin list stays behind the ADMIN_PATHS check below.
-        "/api/catalog/notify"
+        "/api/catalog/notify",
+        // WebRTC signaling (video calls). The socket carries the short-lived call GRANT in its handshake
+        // auth payload — NOT an Authorization header — so the gateway can't gate the WS upgrade here;
+        // signaling-service verifies the grant itself (separate VIDEOCALL_GRANT_SECRET, fail-closed).
+        // Identity-header stripping below still applies, so a client can't spoof X-User-* on the upgrade.
+        "/socket.io/"
     );
 
     // Paths that require the ADMIN role (Phase 3, Pillar 1). These all sit OUTSIDE PUBLIC_PATHS,
     // so a request here always reaches the validate+role-check branch below.
     private static final List<String> ADMIN_PATHS = List.of(
         "/api/catalog/admin",
-        "/api/inventory/admin"
+        "/api/inventory/admin",
+        // founder-only eligibility list. /api/videocall/grant + /eligibility stay login-protected (under
+        // /api/) and do their own per-user gating; only the admin list requires the ADMIN role.
+        "/api/videocall/admin"
     );
 
     // Identity headers the gateway owns. They are stripped from every inbound request and only ever
