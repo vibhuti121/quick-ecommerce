@@ -15,6 +15,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -106,6 +107,20 @@ public class CatalogService {
         return recommendations.recommend(id, size);
     }
 
+    // ---- admin list (read path, uncached) ----
+
+    /**
+     * Every product, active or not, for the admin console — sorted active-first then by SKU so the
+     * operator sees live products at the top. Deliberately uncached and not behind the public
+     * {@code active=true} browse filter: the admin must see disabled products to re-enable them.
+     * Runs in a read tx so the lazy {@code variants} materialize before serialization.
+     */
+    @Transactional(readOnly = true)
+    public List<ProductResponse> adminList() {
+        return products.findAll(Sort.by(Sort.Order.desc("active"), Sort.Order.asc("sku")))
+                .stream().map(ProductResponse::from).toList();
+    }
+
     // ---- admin CRUD (write path) ----
     // Each write evicts the affected entries so cached reads never outlive a change.
 
@@ -156,6 +171,33 @@ public class CatalogService {
     }
 
     /**
+     * Enable/disable one or more products in a single call (admin bulk + per-row toggle). Disabling
+     * sets {@code active=false}, which hides the product from every customer path (browse/search/
+     * recommendations all filter {@code active=true}) — this is the "soft delete" that replaced hard
+     * delete. Each affected product has its cache evicted and is re-indexed so reads reflect the change.
+     */
+    @Transactional
+    public List<ProductResponse> setActive(List<Long> ids, boolean active) {
+        List<ProductResponse> updated = new java.util.ArrayList<>();
+        for (Long id : ids) {
+            Product p = load(id);
+            p.setActive(active);
+            ProductResponse saved = ProductResponse.from(products.save(p));
+            cache.evictProduct(id);
+            search.indexProduct(saved);   // dual-write: visibility changed, re-index (log-and-degrade)
+            updated.add(saved);
+        }
+        cache.evictBrowse();
+        log.info("admin.product.active.changed {}", active,
+                kv("event", "admin.product.active.changed"),
+                kv("payload", Map.of(
+                        "active", active,
+                        "count", updated.size(),
+                        "skus", updated.stream().map(ProductResponse::sku).toList())));
+        return updated;
+    }
+
+    /**
      * Uploads a product image to object storage and points the product at its public URL. The image
      * itself is the source of truth in MinIO; the DB only holds the URL. Caches are evicted so reads
      * pick up the new image immediately.
@@ -188,24 +230,6 @@ public class CatalogService {
 
     private static String extensionFor(String contentType) {
         return IMAGE_EXTENSIONS.getOrDefault(contentType.toLowerCase(), "");
-    }
-
-    @Transactional
-    public void delete(Long id) {
-        // Load (not just existsById) so the audit line can carry the SKU of what was removed.
-        Product p = load(id);
-        String sku = p.getSku();
-        String name = p.getName();
-        products.deleteById(id);
-        cache.evictProduct(id);
-        cache.evictBrowse();
-        search.deleteProduct(id);   // dual-write: drop from the search index (log-and-degrade)
-        log.info("admin.product.deleted {}", sku,
-                kv("event", "admin.product.deleted"),
-                kv("payload", Map.of(
-                        "id", id,
-                        "sku", sku,
-                        "name", name)));
     }
 
     private Product load(Long id) {

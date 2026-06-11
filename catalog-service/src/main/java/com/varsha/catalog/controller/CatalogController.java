@@ -1,5 +1,6 @@
 package com.varsha.catalog.controller;
 
+import com.varsha.catalog.dto.BulkActiveRequest;
 import com.varsha.catalog.dto.ProductRequest;
 import com.varsha.catalog.dto.ProductResponse;
 import com.varsha.catalog.model.ProductType;
@@ -8,17 +9,15 @@ import jakarta.validation.Valid;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.web.PageableDefault;
-import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -28,9 +27,9 @@ import java.net.URI;
  * Catalog API.
  * <ul>
  *   <li>{@code GET /api/catalog/**} — public browse/read (added to gateway PUBLIC_PATHS).</li>
- *   <li>{@code POST/PUT/DELETE /api/catalog/admin/**} — admin writes. The gateway enforces the
- *       ADMIN role (Phase 3, Pillar 1); {@code AdminRoleFilter} re-checks {@code X-User-Role} here
- *       as defense-in-depth.</li>
+ *   <li>{@code POST/PUT/PATCH /api/catalog/admin/**} — admin writes (products are disabled, never
+ *       deleted). The gateway enforces the ADMIN role (Phase 3, Pillar 1); {@code AdminRoleFilter}
+ *       re-checks {@code X-User-Role} here as defense-in-depth.</li>
  * </ul>
  */
 @RestController
@@ -88,6 +87,22 @@ public class CatalogController {
 
     // ---- admin CRUD ----
 
+    /**
+     * Admin product list — every product (active AND inactive), sorted active-first. The public
+     * {@code /products} browse hides {@code active=false}, so the console needs this to show and
+     * re-enable disabled products.
+     */
+    @GetMapping("/admin/products")
+    public java.util.List<ProductResponse> adminList() {
+        return catalog.adminList();
+    }
+
+    /** Bulk (and single-row) enable/disable. Body: {@code {ids:[...], active:bool}}. */
+    @PatchMapping("/admin/products/active")
+    public java.util.List<ProductResponse> setActive(@Valid @RequestBody BulkActiveRequest req) {
+        return catalog.setActive(req.ids(), req.active());
+    }
+
     @PostMapping("/admin/products")
     public ResponseEntity<ProductResponse> create(@Valid @RequestBody ProductRequest req) {
         ProductResponse body = catalog.create(req);
@@ -97,12 +112,6 @@ public class CatalogController {
     @PutMapping("/admin/products/{id}")
     public ProductResponse update(@PathVariable Long id, @Valid @RequestBody ProductRequest req) {
         return catalog.update(id, req);
-    }
-
-    @DeleteMapping("/admin/products/{id}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable Long id) {
-        catalog.delete(id);
     }
 
     /** Upload a product image (multipart) → stored in object storage, product's imageUrl updated. */

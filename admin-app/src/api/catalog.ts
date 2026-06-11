@@ -1,13 +1,24 @@
 import { api } from '@/lib/axios';
-import type { Page, Product, ProductWriteRequest } from '@/types';
+import type { Product, ProductWriteRequest } from '@/types';
 
-// The list is the PUBLIC browse endpoint (not an admin path) so it loads without 401; default page
-// size is 20, so request a big page to show the full catalog in one table (known size=200 gotcha).
-export async function listProducts(size = 200): Promise<Product[]> {
-  const { data } = await api.get<Page<Product>>('/api/catalog/products', {
-    params: { size },
+// Admin list: the ADMIN-gated endpoint returns EVERY product (active and inactive), sorted
+// active-first, as a bare array (not a Spring Page). The public /products browse hides inactive
+// products, so the console must use this to see and re-enable disabled ones.
+export async function listProductsAdmin(): Promise<Product[]> {
+  const { data } = await api.get<Product[]>('/api/catalog/admin/products');
+  return data;
+}
+
+// Bulk (and single-row) enable/disable: flip `active` for the given product ids in one call.
+export async function setProductsActive(
+  ids: number[],
+  active: boolean,
+): Promise<Product[]> {
+  const { data } = await api.patch<Product[]>('/api/catalog/admin/products/active', {
+    ids,
+    active,
   });
-  return data.content;
+  return data;
 }
 
 // Writes hit the ADMIN-gated paths — the gateway enforces role=ADMIN; the bearer is attached by the
