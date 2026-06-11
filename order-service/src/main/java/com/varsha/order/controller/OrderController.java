@@ -3,6 +3,7 @@ package com.varsha.order.controller;
 import com.varsha.order.dto.Dtos.CheckoutRequest;
 import com.varsha.order.dto.Dtos.OrderResponse;
 import com.varsha.order.exception.OrderExceptions.BadRequestException;
+import com.varsha.order.exception.OrderExceptions.ForbiddenException;
 import com.varsha.order.exception.OrderExceptions.UnauthorizedException;
 import com.varsha.order.service.CheckoutService;
 import jakarta.validation.Valid;
@@ -38,7 +39,7 @@ public class OrderController {
             @RequestHeader(value = "X-User-Id", required = false) String userId,
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
             @Valid @RequestBody CheckoutRequest req) {
-        String uid = requireUser(userId);
+        String uid = requireNonGuestUser(userId);
         if (idempotencyKey == null || idempotencyKey.isBlank()) {
             throw new BadRequestException("Missing required Idempotency-Key header");
         }
@@ -62,5 +63,19 @@ public class OrderController {
             throw new UnauthorizedException("Missing X-User-Id header");
         }
         return userId;
+    }
+
+    /**
+     * Checkout requires a real (signed-in) account. Guest tokens carry an {@code X-User-Id} of
+     * {@code guest-<uuid>}; we reject those so an anonymous browser cannot place an order. Browsing
+     * and cart-building stay guest-friendly; only this write is gated. Mirrors videocall-service's
+     * guest guard.
+     */
+    private String requireNonGuestUser(String userId) {
+        String uid = requireUser(userId);
+        if (uid.startsWith("guest-")) {
+            throw new ForbiddenException("Please sign in to place an order");
+        }
+        return uid;
     }
 }

@@ -89,7 +89,13 @@ echo
 echo "== 1. guest auth (issues JWT) =="
 TOK=$(jget "$(curl -fs -X POST $GW/auth/guest -H 'Content-Type: application/json' -d '{"name":"Smoke Shopper"}')" token)
 [ -n "$TOK" ] && ok "guest token issued" || bad "guest token issued"
-AUTH=(-H "Authorization: Bearer $TOK")
+GUEST_AUTH=(-H "Authorization: Bearer $TOK")
+
+# Ordering now requires a real (non-guest) account — order-service 403s guest tokens at /orders/checkout
+# (browsing + cart stay guest-friendly). The cart + checkout flow below therefore runs as a logged-in
+# USER; the guest token above is kept to prove guests are blocked from checkout (step 7b).
+USER_TOK=$(mint_user_jwt "smoke-user-$$-${RANDOM}")
+AUTH=(-H "Authorization: Bearer $USER_TOK")
 
 # Admin token for the seed steps (catalog + inventory admin endpoints). Guests cannot seed
 # under Pillar-1 RBAC; an admin would. See the mint_admin_jwt note above.
@@ -198,6 +204,15 @@ done
 assert_eq "CONFIRMED" "$ST" "order reaches CONFIRMED via saga"
 assert_eq "SUCCESS" "$(jget "$(curl -fs $GW/api/payments/$OID "${AUTH[@]}")" status)" "payment SUCCESS (via gateway)"
 assert_eq "18" "$(jnum "$(curl -fs $GW/api/inventory/stock/$SKU "${AUTH[@]}")" availableQty)" "stock consumed 2 of 20 -> 18"
+
+echo
+echo "== 7b. guest checkout is rejected (login required to order) =="
+# A guest token (sub=guest-…) must NOT be able to place an order — order-service returns 403. This is the
+# server-side half of the "sign in to order" rule; the storefront also hides the button (UI half).
+GCO=$(curl -s -o /dev/null -w '%{http_code}' -X POST $GW/api/orders/checkout "${GUEST_AUTH[@]}" \
+  -H 'Content-Type: application/json' -H 'Idempotency-Key: guest-'"$IDEM"'' \
+  -d "{\"currency\":\"INR\",\"customerName\":\"Guest Tester\",\"customerPhone\":\"9990000003\",\"deliveryAddress\":\"1 Test Lane, Bengaluru\",\"items\":[{\"productId\":$PID,\"sku\":\"$SKU\",\"name\":\"Smoke Widget\",\"unitPrice\":199.00,\"quantity\":1}]}")
+assert_eq "403" "$GCO" "guest checkout -> 403 (must sign in to order)"
 
 echo
 echo "== 8. idempotent checkout (same key) =="

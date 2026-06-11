@@ -41,7 +41,7 @@ The stack boots **pre-seeded** (11 products + stock), so you can shop immediatel
 
 | What | URL | Who it's for | Auth |
 |---|---|---|---|
-| **Storefront** (shop) | `https://localhost:8443/` | Customers | none to browse; sign in to buy |
+| **Storefront** (shop) | `https://localhost:8443/` | Customers | none to browse/cart (guest token minted silently); **sign-in required to place an order** |
 | **API edge** (gateway) | `https://localhost:8443/api/...`, `/auth/...` | Apps / curl | Bearer token on protected calls |
 | **Admin console** | `http://localhost:5174/` (via SSH tunnel) | Staff | nginx basic-auth **+** ADMIN login |
 | **Grafana** | `http://localhost:3000/` | You (ops) | `admin` / `GRAFANA_PASSWORD` |
@@ -58,8 +58,8 @@ The stack boots **pre-seeded** (11 products + stock), so you can shop immediatel
 
 ## 1. The customer journey (storefront)
 
-This is the path a real shopper takes: land → sign in → browse/search → inspect a product → add to cart →
-check out (cash on delivery) → track the order.
+This is the path a real shopper takes: land → browse/search → inspect a product → add to cart → sign in
+(required to order) → check out (cash on delivery) → track the order.
 
 ### 1.1 Open the store
 
@@ -71,35 +71,54 @@ product grid (the MaLLADE honey + GI-tagged fruit catalog).
 curl -sk "https://localhost:8443/api/catalog/products?size=200" | jq '.content[] | {sku, name, basePrice}'
 ```
 
-### 1.2 Sign in (and what a "token" is)
+### 1.2 Identity & sign-in — "do I have to log in?"
 
-Everything *read-only* (browse, search, product detail, recommendations) is public. The moment you want a
-**cart or an order**, you need an identity — a **JWT token** the gateway stamps onto every protected call as
-`Authorization: Bearer <token>`. Your cart and orders are scoped to whoever that token says you are.
+**Short answer: only to place an order.** You can browse, search, and fill a cart **without signing in** —
+but **checkout requires a real account.** Here's how that works and where the login page actually is.
 
-There are four ways to get one — pick whichever fits:
+Under the hood, the gateway *does* require a token on every cart/order call — anonymous calls are
+rejected. But the storefront gets one for you **silently**: on your first action it mints a **guest
+token** (`POST /auth/guest`) and caches it in the browser's `localStorage`. A guest token is a valid
+Bearer token, so browsing and cart-building work immediately — you never see a login wall *while
+shopping*. (Reuse the same browser → same guest identity → same cart.)
 
-| Way | When | Endpoint |
-|---|---|---|
-| **Guest** | "just let me shop", no account | `POST /auth/guest` |
-| **Register** | new email/phone + password account | `POST /auth/register` |
-| **Login** | returning password account | `POST /auth/login` |
-| **Phone OTP** | sign in with a 6-digit SMS code | `POST /auth/otp/request` → `/auth/otp/verify` |
+**The one wall is checkout.** `POST /api/orders/checkout` **rejects a guest token with 403** ("Please
+sign in to place an order") — placing an order requires a **real (non-guest) account**. In the cart, a
+guest sees *"Sign in to place your order — your cart will be saved"* with a sign-in button in place of the
+delivery form; signing in carries the cart over and lets the order through. (Signing in also upgrades a
+browser-only guest identity into a **persistent account**, so your orders follow you to another device.)
 
-🖱 **In the UI:** use the sign-in control in the storefront header (guest is the fastest path for a demo).
+🖱 **Where the login page is:** click **👤 Profile** in the header → the profile drawer opens → **Sign
+in** (or hit the **Sign in to place your order** button in the cart). That opens the auth modal with four
+options:
 
-⌨ **On the wire** — grab a guest token and keep it in a shell variable for the rest of this section:
+| Option | What it does |
+|---|---|
+| **Login** | returning email/phone + password account |
+| **Register** | create a new email/phone + password account |
+| **Phone OTP** | sign in with a 6-digit SMS code |
+| **Continue with Google** | OAuth sign-in |
+
+Whichever you pick mints a **real (non-guest) token** and stores it under the *same* key as the guest
+token — so the rest of the app (cart, orders, profile) instantly treats you as that account, carrying
+over the cart you were building.
+
+⌨ **On the wire** — browsing needs no token, but the cart→checkout walkthrough below needs a non-guest
+one, so **register an account** and keep its token in a shell variable (`/auth/register` auto-logs-in and
+returns a token directly):
 ```bash
 GW="https://localhost:8443"
-TOKEN=$(curl -sk -X POST $GW/auth/guest -H 'Content-Type: application/json' \
-  -d '{"name":"Demo Shopper"}' | jq -r .token)
-echo "$TOKEN"        # an eyJ... JWT — reuse it to keep the same cart
+TOKEN=$(curl -sk -X POST $GW/auth/register -H 'Content-Type: application/json' \
+  -d '{"identifier":"demo'"$RANDOM"'@example.com","password":"DemoPass123","displayName":"Demo Shopper"}' \
+  | jq -r .token)
+echo "$TOKEN"        # an eyJ... usr-<uuid> JWT — non-guest, so it can check out
 ```
 
-> A returning customer would instead `POST /auth/login` with `{ "identifier": "...", "password": "..." }` —
-> note the field is **`identifier`** (it accepts an email *or* a 10-digit Indian phone), not `email`.
+> The field is **`identifier`** (it accepts an email *or* a 10-digit Indian phone), not `email`; password
+> must be ≥ 8 chars. A returning customer uses `POST /auth/login` with the same `{ identifier, password }`.
 > Wrong creds and unknown users both return an identical generic 401 (so the API can't be used to
-> enumerate who has an account).
+> enumerate who has an account). A `POST /auth/guest` token still works for browsing + cart, but **403s at
+> checkout** — that's the gate.
 
 ### 1.3 Browse & filter
 
@@ -169,11 +188,14 @@ curl -sk $GW/api/cart "${AUTH[@]}" | jq '{itemCount,total}'    # view the cart
 ### 1.8 Check out — cash on delivery
 
 This is a **COD pilot**: you provide a delivery address and pay when the goods arrive — there's no online
-payment step for the customer. Two things matter on the wire:
-1. An **`Idempotency-Key` header is required** — resend the same key and you won't double-order.
-2. The three delivery fields (`customerName`, `customerPhone`, `deliveryAddress`) are required.
+payment step for the customer. Three things matter on the wire:
+1. **A non-guest token is required** — a guest token → **403** ("Please sign in to place an order").
+   `$AUTH` below carries the registered account from [§1.2](#12-identity--sign-in--do-i-have-to-log-in).
+2. An **`Idempotency-Key` header is required** — resend the same key and you won't double-order.
+3. The three delivery fields (`customerName`, `customerPhone`, `deliveryAddress`) are required.
 
-🖱 **In the UI:** open the cart, fill in name / phone / address, place the order.
+🖱 **In the UI:** open the cart — if you're a guest you'll see **Sign in to place your order** instead of
+the form; sign in (your cart carries over), then fill in name / phone / address and place the order.
 
 ⌨ **On the wire:**
 ```bash
@@ -357,10 +379,11 @@ the gateway):
 | Start everything | `docker compose up -d --build` |
 | Confirm it's healthy | `curl -k https://localhost:8443/actuator/health` |
 | Prove the whole journey works | `bash scripts/fullstack-smoke.sh` (expect all green on a warm stack) |
-| Shop without an account | `POST /auth/guest` → reuse the token |
+| Browse / cart without an account | `POST /auth/guest` → reuse the token (browse + cart only) |
 | Search the catalog | `GET /api/catalog/products/search?q=...` |
 | See a product's provenance | `GET /api/catalog/products/{id}` → `.attributes.provenance` |
-| Place an order | `POST /api/orders/checkout` with an `Idempotency-Key` header |
+| Get an account that can order | `POST /auth/register` `{identifier, password, displayName}` → token |
+| Place an order | `POST /api/orders/checkout` with an `Idempotency-Key` header (**non-guest token** — guest → 403) |
 | Track an order | `GET /api/orders/{id}` → poll `status` |
 | Open the admin console | `ssh -L 5174:127.0.0.1:5174 <host>` → `http://localhost:5174` |
 | Create/edit/delete a product | admin console `/products`, or the `/api/catalog/admin/products` API with an ADMIN token |

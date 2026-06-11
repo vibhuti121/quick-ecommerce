@@ -553,6 +553,13 @@ body {
   color: var(--muted, #5b5b76);
 }
 
+/* Guest cart: the "sign in to order" prompt that replaces the delivery form. */
+.signin-note {
+  margin: 0 0 10px;
+  line-height: 1.4;
+  font-weight: 500;
+}
+
 .delivery-input {
   width: 100%;
   padding: 9px 11px;

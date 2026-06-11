@@ -381,7 +381,7 @@ so the browser never sees the dev self-signed cert. Empty in production too (ser
 
 ## Auth model (read this before testing)
 
-1. **Get a guest token** — no Google login needed:
+1. **Get a guest token** — no Google login needed (lets you browse + build a cart):
    ```bash
    curl -sk -X POST https://localhost:8443/auth/guest \
      -H 'Content-Type: application/json' -d '{"name":"QA Tester"}'
@@ -390,6 +390,10 @@ so the browser never sees the dev self-signed cert. Empty in production too (ser
 2. **Send it on every protected call:** `Authorization: Bearer <token>`.
 3. The gateway validates the token **once** and injects `X-User-Id` downstream. Your cart and orders
    are scoped to that token's user — reuse the same token to keep the same cart.
+4. **Ordering requires a real (non-guest) account.** Browsing and cart-building stay guest-friendly, but
+   `POST /api/orders/checkout` **403s a guest token** (`X-User-Id` starting `guest-`) — register or log in
+   first (below) to get a `usr-<uuid>` token, then check out. (The storefront enforces the same gate in the
+   cart UI; order-service is the real boundary.)
 
 **Public paths** (no token): `/auth/guest`, `/auth/register`, `/auth/login`, `/auth/otp/**`
 (self-serve sign-up / sign-in), `/api/catalog/products` (browse), `/api/catalog/notify`
@@ -475,7 +479,7 @@ Base URL = the gateway, e.g. `https://localhost:8443` (HTTPS, dev self-signed �
 ### Orders — `/api/orders/**` (🔒)
 | Method | Path | Headers / Body | Notes |
 |---|---|---|---|
-| 🔒 POST | `/api/orders/checkout` | **`Idempotency-Key` header (required)** + `CheckoutRequest` | Returns **202** with order in `PENDING`; saga confirms async |
+| 🔒 POST | `/api/orders/checkout` | **`Idempotency-Key` header (required)** + `CheckoutRequest` | **Non-guest only** — a `guest-` token → **403** ("Please sign in to place an order"). Returns **202** with order in `PENDING`; saga confirms async |
 | 🔒 GET | `/api/orders/{orderId}` | — | Poll `status`: PENDING → CONFIRMED \| FAILED |
 | 🔒 GET | `/api/orders` | — | Current user's orders |
 
@@ -680,12 +684,16 @@ docker run --rm -i --network quick-ecommerce_default -e BASE_URL=https://gateway
 ### 2. Key acceptance scenarios (manual / exploratory)
 
 **Happy path (full journey):**
-1. `POST /auth/guest` → grab token.
+1. `POST /auth/register {identifier, password, displayName}` → grab token (a `usr-<uuid>` account;
+   ordering needs a non-guest token — a `POST /auth/guest` token can browse + cart but 403s at checkout).
 2. `GET /api/catalog/products` → see 5 seeded products.
 3. `POST /api/cart/items {productId, quantity:2}` → line appears, price snapshotted.
 4. `POST /api/orders/checkout` with an `Idempotency-Key` → **202**, order `PENDING`.
 5. Poll `GET /api/orders/{id}` → flips to **CONFIRMED** within a few seconds.
 6. `GET /api/payments/{id}` → **SUCCESS**; `GET /api/inventory/stock/{sku}` → decremented.
+
+**Guest is blocked from ordering:** `POST /auth/guest` → token → `POST /api/orders/checkout` → **403**
+("Please sign in to place an order"). Register/login and retry → **202**.
 
 **Payment failure path (built-in hook):** check out a cart whose **total ends in `.66`**
 (e.g. one unit of a 100.66 item) → payment **declines** → inventory **released** → order **FAILED**.

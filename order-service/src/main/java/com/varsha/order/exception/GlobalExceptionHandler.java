@@ -1,6 +1,7 @@
 package com.varsha.order.exception;
 
 import com.varsha.order.exception.OrderExceptions.BadRequestException;
+import com.varsha.order.exception.OrderExceptions.ForbiddenException;
 import com.varsha.order.exception.OrderExceptions.NotFoundException;
 import com.varsha.order.exception.OrderExceptions.UnauthorizedException;
 import org.springframework.http.HttpStatus;
@@ -22,6 +23,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(UnauthorizedException.class)
     public ProblemDetail handleUnauthorized(UnauthorizedException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, ex.getMessage());
+    }
+
+    @ExceptionHandler(ForbiddenException.class)
+    public ProblemDetail handleForbidden(ForbiddenException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.FORBIDDEN, ex.getMessage());
     }
 
     @ExceptionHandler(BadRequestException.class)

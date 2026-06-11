@@ -75,8 +75,12 @@ export default function App() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [orders, setOrders] = useState<OrderSummary[]>([]);
   const [ordersLoading, setOrdersLoading] = useState<boolean>(false);
-  // Our own sign-in (email/phone+password or phone-OTP), opened from the profile drawer's guest note.
+  // Our own sign-in (email/phone+password or phone-OTP), opened from the profile drawer's guest note
+  // AND from the cart when a guest tries to check out (placing an order requires a real account).
   const [authOpen, setAuthOpen] = useState<boolean>(false);
+  // When a guest hits "place order" we stash their delivery details here, open the auth modal, and
+  // resume the checkout automatically once they've signed in — so signing in feels like one step, not two.
+  const [pendingDelivery, setPendingDelivery] = useState<DeliveryDetails | null>(null);
   // Wishlist is client-side (localStorage) — seed from storage on mount so hearts render correctly.
   const [wishlist, setWishlist] = useState<WishlistItem[]>(() => getWishlist());
 
@@ -122,6 +126,16 @@ export default function App() {
     return () => {
       active = false;
     };
+  }, []);
+
+  // Load identity eagerly on mount so the cart knows whether the shopper is a guest BEFORE they reach
+  // checkout (ordering requires a real account). Guests resolve to {isGuest:true} via /auth/me's 404.
+  useEffect(() => {
+    let active = true;
+    getProfile()
+      .then((p) => { if (active) setProfile(p); })
+      .catch(() => { if (active) setProfile(null); });
+    return () => { active = false; };
   }, []);
 
   // Debounced search: wait 300ms after the last keystroke, then query. An empty term short-circuits
@@ -227,15 +241,55 @@ export default function App() {
       .catch(() => setProfile(null));
   }, [loadOrders]);
 
-  // A real (non-guest) JWT is now stored. Close the auth modal and refresh the identity + orders so the
-  // drawer immediately reflects the signed-in account.
-  const handleAuthed = useCallback(() => {
-    setAuthOpen(false);
-    getProfile()
-      .then(setProfile)
-      .catch(() => setProfile(null));
-    void loadOrders();
+  // Place the order against the live cart. Assumes the caller has already confirmed a real (non-guest)
+  // account — the guest gate lives in handleCheckout / handleAuthed, not here.
+  const doPlaceOrder = useCallback(async (delivery: DeliveryDetails) => {
+    setBusy(true);
+    try {
+      const placed = await placeOrder(delivery);
+      setOrder(placed);
+      setCart({ items: [], total: 0 });
+      // Refresh history so the just-placed PENDING order is present for the profile drawer to poll.
+      void loadOrders();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to place order.');
+    } finally {
+      setBusy(false);
+    }
   }, [loadOrders]);
+
+  // A real (non-guest) JWT is now stored. Close the auth modal, carry the guest cart over to the new
+  // identity, refresh the profile + orders, and — if the shopper was mid-checkout — resume placing
+  // the order they originally intended.
+  const handleAuthed = useCallback(async () => {
+    setAuthOpen(false);
+    // Carts are keyed on X-User-Id server-side; signing in changes identity (guest-… → usr-…), so the
+    // account's server cart won't hold the lines the guest just built. Re-add them under the new token
+    // (a best-effort merge) so the cart carries over instead of silently emptying.
+    const guestLines = cart?.items ?? [];
+    let merged: Cart | null = null;
+    for (const line of guestLines) {
+      try {
+        merged = await addToCart(line.product.id, line.quantity);
+      } catch {
+        /* a line that fails to re-add just isn't carried over — never block sign-in on it */
+      }
+    }
+    try {
+      setCart(merged ?? (await getCart()));
+    } catch {
+      /* keep whatever cart we already have */
+    }
+    const fresh = await getProfile().catch(() => null);
+    setProfile(fresh);
+    void loadOrders();
+    // Resume the checkout the guest was attempting before we asked them to sign in.
+    if (pendingDelivery && fresh && !fresh.isGuest) {
+      const delivery = pendingDelivery;
+      setPendingDelivery(null);
+      await doPlaceOrder(delivery);
+    }
+  }, [cart, loadOrders, pendingDelivery, doPlaceOrder]);
 
   // Drop the stored token; the next API call mints a fresh guest. Refresh the profile so the drawer
   // flips back to the guest view.
@@ -314,20 +368,17 @@ export default function App() {
     }
   }, []);
 
+  // Placing an order requires a real (signed-in) account — order-service rejects guest tokens with 403.
+  // So if the shopper is still a guest, stash their delivery details, open sign-in, and let handleAuthed
+  // resume the checkout once they're authenticated. Otherwise place the order directly.
   const handleCheckout = useCallback(async (delivery: DeliveryDetails) => {
-    setBusy(true);
-    try {
-      const placed = await placeOrder(delivery);
-      setOrder(placed);
-      setCart({ items: [], total: 0 });
-      // Refresh history so the just-placed PENDING order is present for the profile drawer to poll.
-      void loadOrders();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to place order.');
-    } finally {
-      setBusy(false);
+    if (!profile || profile.isGuest) {
+      setPendingDelivery(delivery);
+      setAuthOpen(true);
+      return;
     }
-  }, [loadOrders]);
+    await doPlaceOrder(delivery);
+  }, [profile, doPlaceOrder]);
 
   const handleDismissOrder = useCallback(() => {
     setOrder(null);
@@ -455,10 +506,12 @@ export default function App() {
         cart={cart}
         busy={busy}
         order={order}
+        isGuest={!profile || profile.isGuest}
         onClose={() => setCartOpen(false)}
         onChangeQuantity={handleChangeQuantity}
         onRemove={handleRemove}
         onCheckout={handleCheckout}
+        onRequireSignIn={() => setAuthOpen(true)}
         onDismissOrder={handleDismissOrder}
       />
 
