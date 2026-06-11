@@ -14,7 +14,11 @@ KEYSTORE=/app/keystore.p12
 
 # Regenerate the throwaway dev cert on every start so it always matches the current password (cheap,
 # ~1s). If an operator has mounted their own keystore, leave it untouched.
+# Remove any existing keystore first: keytool -genkeypair APPENDS to an existing PKCS12, so on a
+# container RESTART (the writable layer still holds the previous /app/keystore.p12) it would fail with
+# "alias <gateway> already exists" and set -eu would crash-loop the container. rm makes it idempotent.
 if [ ! -f "$KEYSTORE" ] || [ "${TLS_REGENERATE_KEYSTORE:-true}" = "true" ]; then
+  rm -f "$KEYSTORE"
   keytool -genkeypair -alias gateway -keyalg RSA -keysize 2048 -validity 825 \
     -storetype PKCS12 -keystore "$KEYSTORE" -storepass "$TLS_KEYSTORE_PASSWORD" \
     -dname "CN=localhost,OU=dev,O=quick-ecommerce,L=Bengaluru,C=IN" \
