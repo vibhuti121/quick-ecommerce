@@ -5,6 +5,16 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
+# Recording/alerting rules (Pillar 3): SLO burn-rate, error-rate, service-down, payment-failure.
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+# Route firing alerts to Alertmanager (in-network, plain HTTP on the compose bridge).
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
 scrape_configs:
   - job_name: spring-services
     metrics_path: /actuator/prometheus
@@ -21,6 +31,8 @@ scrape_configs:
         labels: { service: payment-service }
       - targets: ['order-service:8094']
         labels: { service: order-service }
+      - targets: ['videocall-service:8095']
+        labels: { service: videocall-service }
 
   # The gateway terminates TLS (Pillar 4), so it's scraped over HTTPS on 8443. The cert is a dev
   # self-signed one, so verification is skipped (in-network scrape, not a trust boundary here).

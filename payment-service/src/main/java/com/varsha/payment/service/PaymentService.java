@@ -9,22 +9,41 @@ import com.varsha.payment.model.PaymentStatus;
 import com.varsha.payment.provider.ChargeOutcome;
 import com.varsha.payment.provider.PaymentProvider;
 import com.varsha.payment.repository.PaymentRepository;
+import io.micrometer.core.instrument.MeterRegistry;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+
+import static net.logstash.logback.argument.StructuredArguments.kv;
 
 @Service
 public class PaymentService {
 
+    // Structured audit log (observability Pillar 2B): typed `event` + `payload` per charge outcome — the
+    // durable dispute trail (cold/1-year tier), the source of truth for "₹X deducted, no order". PII rule:
+    // payloads carry money + ids + provider ref/reason ONLY; this service never sees or logs card data (the
+    // pilot runs a COD/stub provider). The hashed user_id rides the request MDC set by UserIdMdcFilter.
+    private static final Logger log = LoggerFactory.getLogger(PaymentService.class);
+
     private final PaymentRepository payments;
     private final PaymentProvider provider;
+    // Business meter (Pillar 3): payment_attempts_total{provider,status}. The charge funnel's success/decline
+    // split per provider — feeds the "payment failure rate" SLO alert. Incremented once per FRESH charge (not
+    // on an idempotent replay, which performs no gateway call). Labels carry provider + outcome ONLY, no ids.
+    private final MeterRegistry meters;
 
     public PaymentService(PaymentRepository payments,
                           List<PaymentProvider> providers,
-                          @Value("${app.payment.provider}") String providerName) {
+                          @Value("${app.payment.provider}") String providerName,
+                          MeterRegistry meters) {
         this.payments = payments;
+        this.meters = meters;
         this.provider = providers.stream()
                 .filter(p -> p.name().equalsIgnoreCase(providerName))
                 .findFirst()
@@ -54,11 +73,33 @@ public class PaymentService {
         if (outcome.success()) {
             payment.setStatus(PaymentStatus.SUCCESS);
             payment.setProviderRef(outcome.providerRef());
+            meters.counter("payment.attempts", "provider", provider.name(), "status", "success").increment();
+            log.info("payment.succeeded {}", req.orderId(),
+                    kv("event", "payment.succeeded"), kv("payload", chargePayload(payment)));
         } else {
             payment.setStatus(PaymentStatus.FAILED);
             payment.setFailureReason(outcome.failureReason());
+            meters.counter("payment.attempts", "provider", provider.name(), "status", "failed").increment();
+            log.info("payment.declined {}", req.orderId(),
+                    kv("event", "payment.declined"), kv("payload", chargePayload(payment)));
         }
         return PaymentResponse.from(payments.save(payment));
+    }
+
+    /**
+     * Audit payload for a charge outcome (observability Pillar 2B). PII rule: orderId + money + provider +
+     * its ref/reason ONLY — no card data (never captured here) and no customer identity.
+     */
+    private Map<String, Object> chargePayload(Payment payment) {
+        Map<String, Object> p = new LinkedHashMap<>();
+        p.put("orderId", payment.getOrderId());
+        p.put("amount", payment.getAmount().toPlainString());
+        p.put("currency", payment.getCurrency());
+        p.put("provider", payment.getProvider());
+        p.put("status", payment.getStatus().name());
+        if (payment.getProviderRef() != null) p.put("providerRef", payment.getProviderRef());
+        if (payment.getFailureReason() != null) p.put("reason", payment.getFailureReason());
+        return p;
     }
 
     @Transactional(readOnly = true)

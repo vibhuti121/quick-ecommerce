@@ -38,6 +38,13 @@ DB_PASSWORD=$(rand_alnum)
 # JWT signing key (HS256, >= 32 bytes). Rotating this invalidates all issued tokens.
 JWT_SECRET=$(rand)
 
+# Log de-identification key (observability Pillar 2B). Each servlet service HMACs the gateway-forwarded
+# X-User-Id with this key into the MDC 'user_id' so logs are attributable but carry no raw id/email/phone.
+# Keep this STABLE across the fleet (so a user's id hashes the same everywhere for cross-service dispute
+# lookup) and DISTINCT from JWT_SECRET. Rotating it re-keys all future log identities (old logs stay on the
+# previous key — fine; lookups for a known user just re-hash with whatever key was live in that window).
+LOG_HASH_SECRET=$(rand)
+
 # Video-call GRANT signing key (HS256, >= 32 bytes) — DISTINCT from JWT_SECRET so a login token can
 # never be replayed as a call grant. Shared by videocall-service (signer) and signaling-service (verifier).
 VIDEOCALL_GRANT_SECRET=$(rand)

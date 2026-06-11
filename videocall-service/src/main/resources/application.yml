@@ -72,3 +72,21 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
+    distribution:
+      # Real percentile histograms so Prometheus computes true p50/p95/p99 for API latency (Pillar 3).
+      # SLO buckets straddle the checkout p99 < 800ms target; exemplars (trace_id stamped on a sample)
+      # are auto-attached by the Micrometer tracing bridge --> click a Grafana spike straight to its trace.
+      percentiles-histogram:
+        http.server.requests: true
+      slo:
+        http.server.requests: 50ms,100ms,200ms,300ms,500ms,800ms,1s,2s
+  tracing:
+    sampling:
+      # Head sampling ratio. Dev/pilot defaults to 1.0 (every journey captured for the trace
+      # demo); set TRACING_SAMPLE_PROBABILITY lower in prod. Always-sample on error/payment/order
+      # is a sampler refinement (deferred) layered on top of this ratio.
+      probability: ${TRACING_SAMPLE_PROBABILITY:1.0}
+  otlp:
+    tracing:
+      # Elastic APM Server OTLP/HTTP intake on the compose network; Kibana APM renders the waterfall.
+      endpoint: ${OTLP_TRACING_ENDPOINT:http://apm-server:8200/v1/traces}

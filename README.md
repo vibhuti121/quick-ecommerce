@@ -110,8 +110,13 @@ correct and you can start working. See [Verify your setup](#verify-your-setup) f
                            └──────────── Postgres 16 (one DB per service) ──────┘
                                          (all state on named volumes)
 
-  Observability:  Prometheus :9090  ──scrapes /actuator/prometheus──▶ all services
-                  Grafana    :3000  ──reads──▶ Prometheus (cache-hit & service dashboards)
+  Observability (trace · log · metric, joined by one W3C trace.id):
+    METRIC  Prometheus :9090 ──scrapes /actuator/prometheus──▶ all services; SLO rules + exemplars
+            Alertmanager :9093 ◀─fires── Prometheus (ServiceDown · error-rate · p99 · payment-fail)
+            Grafana :3000 ──reads──▶ Prometheus (Infra · API-SLO · Business + catalog-cache dashboards)
+    TRACE   services (OTel/Micrometer) ──OTLP──▶ APM-server :8200 ──▶ Elasticsearch ──▶ Kibana APM
+    LOG     stdout JSON ──▶ Filebeat ──▶ Elasticsearch :9200 ──▶ Kibana (PII-masked, hashed user_id)
+            └─ same trace.id stamped on every span, log line, and metric exemplar → one-click pivot
 
   Gated video call (Phase 3):
     /api/videocall ─▶ videocall-service :8095 (videocalldb + Redis cooldown) — mints a short-lived
@@ -183,12 +188,18 @@ Checkout is **asynchronous and crash-safe** — an outbox + poller **saga**, not
 | redis | 6379 | volume `redisdata` | Cart store **and** catalog read cache |
 | opensearch | 9200 | volume `opensearchdata` | Product full-text search index (secondary; Postgres stays source of truth). **Not published** — internal to catalog-service |
 | **minio** | 9000 API / 9001 console (both **published**) | volume `miniodata` | S3-compatible object storage for product images |
-| **prometheus** | 9090 (**published**) | volume `promdata` | Scrapes every service's `/actuator/prometheus` (15d retention) |
-| **grafana** | 3000 (**published**) | volume `grafanadata` | Dashboards over Prometheus (catalog cache-hit, per-service traffic/JVM) |
+| **prometheus** | 9090 (**published**) | volume `promdata` | Scrapes every service's `/actuator/prometheus` (15d retention); SLO/recording rules + exemplar storage |
+| **alertmanager** | 9093 (**published**) | volume `alertmanagerdata` | Routes/​dedupes Prometheus SLO alerts (ServiceDown, error-rate, checkout p99, payment-fail); receivers stubbed until go-live |
+| **grafana** | 3000 (**published**) | volume `grafanadata` | Dashboards over Prometheus + Elasticsearch: **Infra** (JVM/GC/pool), **API-SLO** (latency/errors + trace exemplars), **Business** (orders/GMV/saga), catalog cache-hit |
+| **elasticsearch** | 9200 | volume `esdata` | Store for **logs + traces** (`logs-quickcart` data stream + APM); single-node, capped heap. Not published — internal |
+| **kibana** | 5601 (**published**) | — | Logs Discover + **APM waterfall**; the "journey by trace.id / hashed user_id" forensic view |
+| **apm-server** | 8200 | — (writes to ES) | Receives OTLP spans from all services → Elasticsearch for the Kibana APM UI |
+| **filebeat** | — (no port) | volume `filebeatdata` | Tails container stdout (JSON) → Elasticsearch; ships the ECS-aligned, PII-masked log lines |
 
 > **Published to the host:** the **gateway** (8443), the **observability/admin consoles** —
-> Grafana (3000), Prometheus (9090), MinIO (9000/9001) — and **coturn** (3478 udp/tcp, the one service
-> that needs host ports for media relay). The seven commerce services (incl. videocall-service and
+> Grafana (3000), Prometheus (9090), Alertmanager (9093), Kibana (5601), MinIO (9000/9001) — and
+> **coturn** (3478 udp/tcp, the one service that needs host ports for media relay). Elasticsearch,
+> APM-server and Filebeat stay internal to the docker network. The seven commerce services (incl. videocall-service and
 > signaling-service) are **not** published; reach them **through** the gateway — that's the contract you
 > test against. (`backend/` is the retired in-memory monolith, kept for reference only.)
 
@@ -569,12 +580,40 @@ FAIL_ON= bash scripts/security-scan.sh        # report-only (triage), never fail
 > OWASP Dependency-Check is the heavier CI-grade alternative for the dependency half (full NVD mirror,
 > slow, needs an NVD API key); Trivy is the local-first choice and its DB covers the same CVEs.
 
-### 1c. Observability (Prometheus + Grafana)
-Every service exposes `/actuator/prometheus`; **Prometheus** (`http://localhost:9090`) scrapes them all
-every 15s, and **Grafana** (`http://localhost:3000`, login `admin` / `GRAFANA_PASSWORD`) ships with a
-provisioned datasource + the **catalog cache** dashboard — cache **hit ratio** (`cache_gets_total`
-hit/miss), gets/sec, HTTP req/sec, and JVM heap per service. To watch the cache fill, run the browse
-load test below and refresh the dashboard.
+### 1c. Observability — trace · log · metric
+End-to-end observability across three pillars, all stitched by **one W3C `trace.id`** so a single id
+surfaces the whole customer journey (browse → cart → checkout → order) as a span waterfall, every log
+line, and metric exemplars — pivot between them in one click.
+
+**Metrics & alerting (Prometheus + Grafana + Alertmanager).** Every service exposes
+`/actuator/prometheus`; **Prometheus** (`http://localhost:9090`) scrapes all of them every 15s with real
+percentile histograms (true p50/p95/p99) and **exemplar storage** (a `trace_id` stamped on latency
+samples). **Grafana** (`http://localhost:3000`, login `admin` / `GRAFANA_PASSWORD`) provisions four
+dashboards over a Prometheus **and** an Elasticsearch datasource:
+- **Infra** — JVM heap/GC, CPU, threads, HikariCP pool, scrape up/down per service.
+- **API-SLO** — RPS, p50/p95/p99 latency, 5xx error rate, top-10 slowest endpoints; latency exemplars
+  link straight out to the trace in Kibana.
+- **Business** — orders placed/confirmed, realized GMV (₹, CONFIRMED-only), signups, payment attempts,
+  checkout-saga latency. (Metric labels carry **no** user id / email / phone / card data.)
+- **catalog cache** — hit ratio (`cache_gets_total` hit/miss), gets/sec, req/sec, JVM heap (run the
+  browse load test below to watch the cache fill).
+
+**Alertmanager** (`http://localhost:9093`) receives SLO/burn-rate alerts from Prometheus rule files —
+`ServiceDown`, `HighErrorRate`, `CheckoutLatencyP99High` (>800ms), `PaymentFailureRateHigh`. Receivers
+are intentionally stubbed (no real pager) until go-live.
+
+**Tracing (OpenTelemetry → APM).** All 8 Java services + the Node signaling service emit OTLP spans
+(Boot 3 auto-instrumentation: WebFlux/WebMVC, `RestClient`, JDBC) to **apm-server**, stored in
+Elasticsearch and rendered as a waterfall in **Kibana → APM**. Error and payment/order paths are 100%
+sampled so a dispute trace is never dropped.
+
+**Logging & forensics (ELK).** Services log ECS-aligned JSON to stdout; **Filebeat** ships it to
+**Elasticsearch**, browsable in **Kibana** (`http://localhost:5601`). `user_id` is **hashed**, and
+card/phone/email are masked before persistence — no raw PII lands in the store. The "journey by
+`trace.id` / hashed `user_id`" saved view returns the full ordered timeline for dispute resolution.
+
+> First boot pulls/starts ES + Kibana + APM-server (RAM-hungry; single-node, capped heap by design).
+> Give the stack ~60–90s before the Kibana UI is ready.
 
 ### 1d. Load tests (k6)
 `loadtest/` holds three [k6](https://k6.io) scripts (run with the dockerized `grafana/k6` image — no host install):
@@ -701,8 +740,8 @@ between "working demo" and "real customers can buy":
   actual catalog content + images, not the 5 demo SKUs.
 - **Test coverage** — Testcontainers integration tests for the commerce services (only auth-service has
   unit tests today); the smoke scripts are the current regression gate.
-- **Secrets, backups & alerting** — managed secrets, automated Postgres backups, on-call alerting on the
-  Prometheus metrics (not just dashboards).
+- **Secrets & backups** — managed secrets and automated Postgres backups. (On-call **alerting** is now
+  in place via Alertmanager + Prometheus SLO rules; only the real pager receiver is stubbed until go-live.)
 
 The architecture (per-service DBs, the outbox saga, the resilient gateway edge, observability) is the
 hard part and it's in place — the list above is integration and operations work, not a redesign.
@@ -726,5 +765,9 @@ hard part and it's in place — the list above is integration and operations wor
   logged-in customers, two-token security (login JWT ≠ short-lived call grant), max-3 rooms, silent 5h
   cooldown, 10-min grant cap with a kill-timer. **Next:** admin-only shoppable **livestreams** (the mesh
   is peer-to-peer — real audience scale needs an SFU like mediasoup/LiveKit).
+- **Observability — DONE:** end-to-end **trace · log · metric** joined by one `trace.id` — OpenTelemetry
+  tracing → APM waterfall (Kibana), ECS-aligned PII-safe logs (hashed `user_id`, masked card/phone/email)
+  shipped via Filebeat → Elasticsearch, and Prometheus histograms/exemplars + business meters across
+  three Grafana dashboards (Infra · API-SLO · Business) with Alertmanager SLO alerting.
 - **Phase 4:** **AI shopping assistant** — Claude API: conversational discovery + semantic search.
 - **Phase 5:** Cloud deploy (same images, env-only changes; Caddy auto-TLS).

@@ -1,0 +1,32 @@
+# Alertmanager config for the quick-ecommerce stack (observability Pillar 3).
+#
+# Pilot tier: there is no real paging integration yet (PagerDuty/Opsgenie/email come at go-live — see the
+# strategy doc's "Deferred" list). Everything routes to a single null-ish webhook receiver so the routing
+# tree, grouping and inhibition are exercised and visible in the Alertmanager UI without sending anywhere.
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: default
+  group_by: ['alertname', 'service']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    # Critical alerts get their own (still-local) lane so go-live can point this at a pager without
+    # re-shaping the tree.
+    - matchers:
+        - severity = "critical"
+      receiver: critical
+
+receivers:
+  - name: default
+  - name: critical
+
+# Don't spam a latency warning while the service is already paging as fully down.
+inhibit_rules:
+  - source_matchers:
+      - alertname = "ServiceDown"
+    target_matchers:
+      - severity =~ "warning|critical"
+    equal: ['service']

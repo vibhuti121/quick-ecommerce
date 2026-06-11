@@ -106,6 +106,9 @@ services:
       # DEV STUB: echo the OTP in the request response so local/CI can verify without a real SMS.
       # MUST be false (or unset) in any real deployment — it would leak every code. Real SMS at go-live.
       OTP_DEV_ECHO: ${OTP_DEV_ECHO:-false}
+      # Observability Pillar 2B: HMAC key the service uses to de-identify X-User-Id into the log MDC
+      # ('user_id'). Stable across the fleet so a user hashes the same everywhere; never the raw id in logs.
+      LOG_HASH_SECRET: ${LOG_HASH_SECRET:?missing - run ./scripts/gen-secrets.sh to create .env}
     depends_on:
       postgres:
         condition: service_healthy
@@ -140,6 +143,8 @@ services:
       # short timeout and recs degrade to content-based/category — hence NO depends_on (a boot-order
       # coupling would defeat the degradation contract).
       ORDER_SERVICE_URL: http://order-service:8094
+      # Observability Pillar 2B: HMAC key to de-identify X-User-Id into the log MDC ('user_id'). See auth-service.
+      LOG_HASH_SECRET: ${LOG_HASH_SECRET:?missing - run ./scripts/gen-secrets.sh to create .env}
     depends_on:
       postgres:
         condition: service_healthy
@@ -161,6 +166,8 @@ services:
       # cart snapshots price/name from catalog when a new line is added — must be the in-network host,
       # not the localhost default (which would resolve to the cart container itself).
       CATALOG_SERVICE_URL: http://catalog-service:8090
+      # Observability Pillar 2B: HMAC key to de-identify X-User-Id into the log MDC ('user_id'). See auth-service.
+      LOG_HASH_SECRET: ${LOG_HASH_SECRET:?missing - run ./scripts/gen-secrets.sh to create .env}
     depends_on:
       redis:
         condition: service_healthy
@@ -175,6 +182,8 @@ services:
       DB_NAME: inventorydb
       DB_USER: postgres
       DB_PASSWORD: ${DB_PASSWORD:?missing - run ./scripts/gen-secrets.sh to create .env}
+      # Observability Pillar 2B: HMAC key to de-identify X-User-Id into the log MDC ('user_id'). See auth-service.
+      LOG_HASH_SECRET: ${LOG_HASH_SECRET:?missing - run ./scripts/gen-secrets.sh to create .env}
     depends_on:
       postgres:
         condition: service_healthy
@@ -188,6 +197,8 @@ services:
       DB_USER: postgres
       DB_PASSWORD: ${DB_PASSWORD:?missing - run ./scripts/gen-secrets.sh to create .env}
       PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-cod}
+      # Observability Pillar 2B: HMAC key to de-identify X-User-Id into the log MDC ('user_id'). See auth-service.
+      LOG_HASH_SECRET: ${LOG_HASH_SECRET:?missing - run ./scripts/gen-secrets.sh to create .env}
     depends_on:
       postgres:
         condition: service_healthy
@@ -203,6 +214,8 @@ services:
       INVENTORY_SERVICE_URL: http://inventory-service:8092
       PAYMENT_SERVICE_URL: http://payment-service:8093
       OUTBOX_POLL_INTERVAL_MS: ${OUTBOX_POLL_INTERVAL_MS:-2000}
+      # Observability Pillar 2B: HMAC key to de-identify X-User-Id into the log MDC ('user_id'). See auth-service.
+      LOG_HASH_SECRET: ${LOG_HASH_SECRET:?missing - run ./scripts/gen-secrets.sh to create .env}
     depends_on:
       postgres:
         condition: service_healthy
@@ -233,6 +246,8 @@ services:
       VIDEOCALL_TURN_URL: ${VIDEOCALL_TURN_URL:-}
       VIDEOCALL_TURN_USER: ${VIDEOCALL_TURN_USER:-webrtc}
       TURN_SECRET: ${TURN_SECRET:-}
+      # Observability Pillar 2B: HMAC key to de-identify X-User-Id into the log MDC ('user_id'). See auth-service.
+      LOG_HASH_SECRET: ${LOG_HASH_SECRET:?missing - run ./scripts/gen-secrets.sh to create .env}
     depends_on:
       postgres:
         condition: service_healthy
@@ -252,6 +267,10 @@ services:
       # edge is the origin; keep this aligned with the gateway's ALLOWED_ORIGIN.
       ALLOWED_ORIGIN: ${ALLOWED_ORIGIN:-http://localhost:5173}
       LOG_LEVEL: ${SIGNALING_LOG_LEVEL:-info}
+      # Distributed tracing (Pillar 1): label spans + export OTLP to the same APM Server the Java
+      # services use, so a call's socket handshake joins the journey trace. Untraced if apm-server down.
+      OTEL_SERVICE_NAME: signaling-service
+      OTLP_TRACING_ENDPOINT: ${OTLP_TRACING_ENDPOINT:-http://apm-server:8200/v1/traces}
     restart: unless-stopped
 
   # TURN/STUN relay. The ONE piece that needs host ports — TURN relays media from the public internet, so
@@ -340,13 +359,36 @@ services:
     command:
       - --config.file=/etc/prometheus/prometheus.yml
       - --storage.tsdb.retention.time=15d
+      # Store exemplars (trace_id stamped on a metric sample by the Micrometer tracing bridge) so a
+      # Grafana latency spike links straight to its trace; --web.enable-lifecycle allows a config/rules
+      # reload via POST /-/reload without a restart.
+      - --enable-feature=exemplar-storage
+      - --web.enable-lifecycle
     volumes:
       - ./observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/prometheus/rules:/etc/prometheus/rules:ro
       - promdata:/prometheus
     ports:
       - "${PROMETHEUS_PORT:-9090}:9090"
     depends_on:
       - gateway
+    restart: unless-stopped
+
+  # Alertmanager (Pillar 3): receives firing alerts from Prometheus and de-dupes/groups/routes them.
+  # Pilot tier has no real pager wired (see observability/alertmanager/alertmanager.yml); host-published
+  # so the on-call can see the routing tree + active alerts in its UI.
+  alertmanager:
+    image: prom/alertmanager:latest
+    command:
+      - --config.file=/etc/alertmanager/alertmanager.yml
+      - --storage.path=/alertmanager
+    volumes:
+      - ./observability/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanagerdata:/alertmanager
+    ports:
+      - "${ALERTMANAGER_PORT:-9093}:9093"
+    depends_on:
+      - prometheus
     restart: unless-stopped
 
   grafana:
@@ -365,6 +407,115 @@ services:
       - prometheus
     restart: unless-stopped
 
+  # ---- Observability Pillar 1 (distributed tracing): Elastic APM via OTLP ----
+  # Single-node Elasticsearch stores the trace spans (and, in Phase 2, the shipped logs). Security is
+  # OFF and the heap capped at 512m to stay light on the asset-light pilot box — a real deploy turns
+  # xpack.security on with TLS + creds (see docs/observability-strategy.md). Postgres/OpenSearch remain
+  # the source of truth; this is a debugging/forensics store. NOTE: ES + Kibana are RAM-hungry; this is
+  # the documented cost of the ELK split. The Java services export OTLP to apm-server with NO depends_on
+  # (the exporter degrades gracefully if the backend is down — services must boot regardless).
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      xpack.security.http.ssl.enabled: "false"
+      bootstrap.memory_lock: "true"
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 40
+    restart: unless-stopped
+
+  # Kibana renders the APM trace waterfall (and, in Phase 2, Discover over the shipped logs). Security
+  # off to match Elasticsearch. Host-published on 5601 so the on-call can open a journey by trace.id.
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.15.3
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    ports:
+      - "${KIBANA_PORT:-5601}:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # APM Server is the OTLP/HTTP intake on :8200 (the services post spans to /v1/traces) and writes them
+  # to Elasticsearch. Anonymous auth is enabled (no secret token) for the local pilot — a real deploy
+  # sets apm-server.auth.secret_token and injects it into each service's OTLP_TRACING_HEADERS.
+  apm-server:
+    image: docker.elastic.co/apm/apm-server:8.15.3
+    command:
+      - apm-server
+      - -e
+      - -E
+      - output.elasticsearch.hosts=["http://elasticsearch:9200"]
+      - -E
+      - apm-server.host=0.0.0.0:8200
+      - -E
+      - apm-server.auth.anonymous.enabled=true
+      - -E
+      - apm-server.rum.enabled=false
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # One-shot bootstrap: after ES is healthy, PUTs the masking ingest pipeline, the hot/warm/cold/delete
+  # ILM policy, and the `logs-quickcart` data-stream template, then exits. Idempotent (pure PUTs), so it
+  # is safe to leave wired into every `up`. Filebeat waits for it to complete before shipping.
+  es-init:
+    image: curlimages/curl:8.10.1
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    volumes:
+      - ./observability/elasticsearch/init-es.sh:/init-es.sh:ro
+    entrypoint: ["sh", "/init-es.sh"]
+    restart: "no"
+
+  # One-shot, best-effort: imports the forensic data view + "journey by trace.id" saved search into Kibana
+  # once its API is available, then exits. Nothing depends on it; a failure never blocks the stack.
+  kibana-init:
+    image: curlimages/curl:8.10.1
+    depends_on:
+      kibana:
+        condition: service_started
+    volumes:
+      - ./observability/kibana/init-kibana.sh:/init-kibana.sh:ro
+      - ./observability/kibana/forensic-objects.ndjson:/import/forensic-objects.ndjson:ro
+    entrypoint: ["sh", "/init-kibana.sh"]
+    restart: "no"
+
+  # Ships every service container's stdout JSON log line into the `logs-quickcart` data stream (Pillar 2).
+  # Runs as root + strict.perms=false because it bind-mounts the host docker log dir and socket (read-only).
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.15.3
+    user: root
+    command: ["filebeat", "-e", "--strict.perms=false"]
+    volumes:
+      - ./observability/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - filebeatdata:/usr/share/filebeat/data
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      es-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
 volumes:
   pgdata:
   redisdata:
@@ -372,3 +523,6 @@ volumes:
   opensearchdata:
   promdata:
   grafanadata:
+  esdata:
+  filebeatdata:
+  alertmanagerdata:

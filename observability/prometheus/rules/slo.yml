@@ -1,0 +1,70 @@
+# Prometheus alerting rules for the quick-ecommerce stack (observability Pillar 3).
+#
+# Two recording rules pre-aggregate the HTTP histogram into a per-service request and error rate so the
+# alert expressions (and the API-SLO Grafana dashboard) read cheaply; the alerts below are the on-call
+# SLO/burn-rate set. Thresholds are pilot-tier starting points — refine once a latency baseline exists.
+groups:
+  - name: quickcart-recording
+    interval: 15s
+    rules:
+      # Per-service request rate (all outcomes), 5m window.
+      - record: service:http_requests:rate5m
+        expr: sum by (service) (rate(http_server_requests_seconds_count[5m]))
+
+      # Per-service server-error (5xx) rate, 5m window. outcome="SERVER_ERROR" is the Micrometer tag.
+      - record: service:http_errors:rate5m
+        expr: sum by (service) (rate(http_server_requests_seconds_count{outcome="SERVER_ERROR"}[5m]))
+
+  - name: quickcart-slo
+    rules:
+      # --- Availability: a scrape target has been down for 2m -------------------------------------
+      - alert: ServiceDown
+        expr: up == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.service }} is down"
+          description: "Prometheus has failed to scrape {{ $labels.service }} ({{ $labels.instance }}) for >2m."
+
+      # --- Error budget: >5% of a service's requests are 5xx over 5m ------------------------------
+      - alert: HighErrorRate
+        expr: |
+          service:http_errors:rate5m
+            / clamp_min(service:http_requests:rate5m, 1e-9)
+            > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.service }} 5xx error rate >5%"
+          description: "{{ $labels.service }} is serving {{ $value | humanizePercentage }} server errors over the last 5m."
+
+      # --- Latency SLO: checkout/order p99 over the 800ms target for 5m --------------------------
+      # histogram_quantile over the per-le buckets of the order-service HTTP histogram (percentiles-
+      # histogram is enabled in each application.yml, so the _bucket series exist).
+      - alert: CheckoutLatencyP99High
+        expr: |
+          histogram_quantile(
+            0.99,
+            sum by (le) (rate(http_server_requests_seconds_bucket{service="order-service"}[5m]))
+          ) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "order-service p99 latency >800ms"
+          description: "order-service HTTP p99 is {{ $value | humanizeDuration }} (SLO 800ms) over the last 5m."
+
+      # --- Payment health: >20% of fresh charge attempts failing over 10m ------------------------
+      - alert: PaymentFailureRateHigh
+        expr: |
+          sum(rate(payment_attempts_total{status="failed"}[10m]))
+            / clamp_min(sum(rate(payment_attempts_total[10m])), 1e-9)
+            > 0.20
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Payment failure rate >20%"
+          description: "{{ $value | humanizePercentage }} of charge attempts failed over the last 10m — provider or saga issue."
