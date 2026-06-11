@@ -42,6 +42,11 @@ bash scripts/fullstack-smoke.sh
 If step 5 returns `{"status":"UP"}` and step 6 says **57 passed, 0 failed**, your environment is
 correct and you can start working. See [Verify your setup](#verify-your-setup) for a checklist.
 
+> **Want to *learn how to use* the app, not just run it?** Follow the hands-on, click-by-click
+> [User Guide](docs/USER-GUIDE.md) — it walks the full customer journey (browse → search → cart → COD
+> checkout → track), the admin console, video calling, and the dashboards, each shown both in the UI and
+> as `curl`. This README is the reference; the guide is the tour.
+
 > **Skipped step 3?** The stack is fail-closed — `docker compose up` will stop immediately with
 > `error while interpolating ... JWT_SECRET ... missing - run ./scripts/gen-secrets.sh`. That's by
 > design: no usable secret is committed to the repo. Run the generator once and retry.
@@ -67,6 +72,7 @@ correct and you can start working. See [Verify your setup](#verify-your-setup) f
 
 ## Table of contents
 - [New here? Start in 5 minutes](#-new-here-start-in-5-minutes)
+- [📖 User Guide — how to use the app (hands-on walkthrough)](docs/USER-GUIDE.md)
 - [Architecture](#architecture)
 - [Services & ports](#services--ports)
 - [Admin console](#admin-console)
