@@ -22,17 +22,24 @@ public class AppConfig {
                         .withReadTimeout(Duration.ofSeconds(5)));
     }
 
+    // NOTE: both beans take the Boot auto-configured RestClient.Builder by injection rather than
+    // the static RestClient.builder() factory. Only the injected builder carries the observation
+    // instrumentation that propagates the W3C traceparent header on every outbound hop — using the
+    // static factory would silently break the distributed trace at the order->inventory/payment
+    // boundary (Pillar 1). See docs/observability-strategy.md.
     @Bean
-    RestClient inventoryRestClient(@Value("${app.inventory-service-url}") String baseUrl) {
-        return RestClient.builder()
+    RestClient inventoryRestClient(RestClient.Builder builder,
+                                   @Value("${app.inventory-service-url}") String baseUrl) {
+        return builder
                 .baseUrl(baseUrl)
                 .requestFactory(shortTimeoutFactory())
                 .build();
     }
 
     @Bean
-    RestClient paymentRestClient(@Value("${app.payment-service-url}") String baseUrl) {
-        return RestClient.builder()
+    RestClient paymentRestClient(RestClient.Builder builder,
+                                 @Value("${app.payment-service-url}") String baseUrl) {
+        return builder
                 .baseUrl(baseUrl)
                 .requestFactory(shortTimeoutFactory())
                 .build();

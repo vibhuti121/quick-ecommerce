@@ -45,6 +45,18 @@
       <groupId>io.micrometer</groupId>
       <artifactId>micrometer-registry-prometheus</artifactId>
     </dependency>
+    <!-- Distributed tracing (observability Pillar 1): Micrometer Tracing -> OpenTelemetry
+         bridge + OTLP exporter. Versions managed by the Boot 3.5 BOM. Auto-instruments inbound
+         HTTP, outbound RestClient and JDBC (where present), and injects traceId/spanId into the
+         MDC -> JSON logs. -->
+    <dependency>
+      <groupId>io.micrometer</groupId>
+      <artifactId>micrometer-tracing-bridge-otel</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>io.opentelemetry</groupId>
+      <artifactId>opentelemetry-exporter-otlp</artifactId>
+    </dependency>
     <dependency>
       <groupId>net.logstash.logback</groupId>
       <artifactId>logstash-logback-encoder</artifactId>

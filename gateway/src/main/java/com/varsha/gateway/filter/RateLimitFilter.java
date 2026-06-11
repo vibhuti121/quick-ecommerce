@@ -79,7 +79,7 @@ public class RateLimitFilter implements GlobalFilter, Ordered {
 
     @Override
     public int getOrder() {
-        return -3; // before CorrelationIdFilter (-2) and AuthFilter (-1)
+        return -3; // before AuthFilter (-1); trace context is now propagated by Micrometer Tracing
     }
 
     private Bucket newBucket() {

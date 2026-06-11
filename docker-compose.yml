@@ -252,6 +252,10 @@ services:
       # edge is the origin; keep this aligned with the gateway's ALLOWED_ORIGIN.
       ALLOWED_ORIGIN: ${ALLOWED_ORIGIN:-http://localhost:5173}
       LOG_LEVEL: ${SIGNALING_LOG_LEVEL:-info}
+      # Distributed tracing (Pillar 1): label spans + export OTLP to the same APM Server the Java
+      # services use, so a call's socket handshake joins the journey trace. Untraced if apm-server down.
+      OTEL_SERVICE_NAME: signaling-service
+      OTLP_TRACING_ENDPOINT: ${OTLP_TRACING_ENDPOINT:-http://apm-server:8200/v1/traces}
     restart: unless-stopped
 
   # TURN/STUN relay. The ONE piece that needs host ports — TURN relays media from the public internet, so
@@ -365,6 +369,71 @@ services:
       - prometheus
     restart: unless-stopped
 
+  # ---- Observability Pillar 1 (distributed tracing): Elastic APM via OTLP ----
+  # Single-node Elasticsearch stores the trace spans (and, in Phase 2, the shipped logs). Security is
+  # OFF and the heap capped at 512m to stay light on the asset-light pilot box — a real deploy turns
+  # xpack.security on with TLS + creds (see docs/observability-strategy.md). Postgres/OpenSearch remain
+  # the source of truth; this is a debugging/forensics store. NOTE: ES + Kibana are RAM-hungry; this is
+  # the documented cost of the ELK split. The Java services export OTLP to apm-server with NO depends_on
+  # (the exporter degrades gracefully if the backend is down — services must boot regardless).
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.15.3
+    environment:
+      discovery.type: single-node
+      xpack.security.enabled: "false"
+      xpack.security.http.ssl.enabled: "false"
+      bootstrap.memory_lock: "true"
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+      nofile:
+        soft: 65536
+        hard: 65536
+    volumes:
+      - esdata:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fs http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 40
+    restart: unless-stopped
+
+  # Kibana renders the APM trace waterfall (and, in Phase 2, Discover over the shipped logs). Security
+  # off to match Elasticsearch. Host-published on 5601 so the on-call can open a journey by trace.id.
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.15.3
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+    ports:
+      - "${KIBANA_PORT:-5601}:5601"
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # APM Server is the OTLP/HTTP intake on :8200 (the services post spans to /v1/traces) and writes them
+  # to Elasticsearch. Anonymous auth is enabled (no secret token) for the local pilot — a real deploy
+  # sets apm-server.auth.secret_token and injects it into each service's OTLP_TRACING_HEADERS.
+  apm-server:
+    image: docker.elastic.co/apm/apm-server:8.15.3
+    command:
+      - apm-server
+      - -e
+      - -E
+      - output.elasticsearch.hosts=["http://elasticsearch:9200"]
+      - -E
+      - apm-server.host=0.0.0.0:8200
+      - -E
+      - apm-server.auth.anonymous.enabled=true
+      - -E
+      - apm-server.rum.enabled=false
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   pgdata:
   redisdata:
@@ -372,3 +441,4 @@ volumes:
   opensearchdata:
   promdata:
   grafanadata:
+  esdata:

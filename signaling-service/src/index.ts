@@ -1,3 +1,5 @@
+// MUST be first: starts the OpenTelemetry SDK before any instrumented module is imported.
+import "./tracing";
 import express from "express";
 import { createServer } from "http";
 import { Server } from "socket.io";

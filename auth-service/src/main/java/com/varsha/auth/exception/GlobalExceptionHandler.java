@@ -29,7 +29,7 @@ public class GlobalExceptionHandler {
         ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, "Validation failed");
         pd.setType(URI.create("https://api/errors/validation"));
         pd.setProperty("fieldErrors", fieldErrors);
-        pd.setProperty("correlationId", MDC.get("correlationId"));
+        pd.setProperty("traceId", MDC.get("traceId"));
         pd.setProperty("timestamp", Instant.now());
         return ResponseEntity.badRequest().body(pd);
     }
@@ -39,7 +39,7 @@ public class GlobalExceptionHandler {
         ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST,
                 "Missing required header: " + ex.getHeaderName());
         pd.setType(URI.create("https://api/errors/validation"));
-        pd.setProperty("correlationId", MDC.get("correlationId"));
+        pd.setProperty("traceId", MDC.get("traceId"));
         pd.setProperty("timestamp", Instant.now());
         return ResponseEntity.badRequest().body(pd);
     }
@@ -48,7 +48,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ProblemDetail> handleJwt(JwtException ex) {
         ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, "Invalid or expired token");
         pd.setType(URI.create("https://api/errors/authentication"));
-        pd.setProperty("correlationId", MDC.get("correlationId"));
+        pd.setProperty("traceId", MDC.get("traceId"));
         pd.setProperty("timestamp", Instant.now());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(pd);
     }
@@ -57,7 +57,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ProblemDetail> handleGeneric(Exception ex) {
         ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR, "Internal server error");
         pd.setType(URI.create("https://api/errors/internal"));
-        pd.setProperty("correlationId", MDC.get("correlationId"));
+        pd.setProperty("traceId", MDC.get("traceId"));
         pd.setProperty("timestamp", Instant.now());
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(pd);
     }

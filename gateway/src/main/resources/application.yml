@@ -337,6 +337,16 @@ management:
   metrics:
     tags:
       application: ${spring.application.name}
+  tracing:
+    sampling:
+      # Head sampling ratio. Dev/pilot defaults to 1.0 (every journey captured for the trace
+      # demo); set TRACING_SAMPLE_PROBABILITY lower in prod. Always-sample on error/payment/order
+      # is a sampler refinement (deferred) layered on top of this ratio.
+      probability: ${TRACING_SAMPLE_PROBABILITY:1.0}
+  otlp:
+    tracing:
+      # Elastic APM Server OTLP/HTTP intake on the compose network; Kibana APM renders the waterfall.
+      endpoint: ${OTLP_TRACING_ENDPOINT:http://apm-server:8200/v1/traces}
 
 app:
   auth-service-url: http://${AUTH_HOST:localhost}:8081

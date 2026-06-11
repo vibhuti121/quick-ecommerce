@@ -22,8 +22,13 @@ import java.time.Duration;
 @Configuration
 public class RecommendationConfig {
 
+    // Inject the Boot auto-configured RestClient.Builder (not the static RestClient.builder()
+    // factory): only the injected builder carries the observation instrumentation that propagates
+    // the W3C traceparent header, so the catalog->order co-purchase call stays on the same
+    // distributed trace (Pillar 1). See docs/observability-strategy.md.
     @Bean
     RestClient orderRestClient(
+            RestClient.Builder builder,
             @Value("${app.recommendations.order-service-url}") String baseUrl,
             @Value("${app.recommendations.connect-timeout-ms:1500}") long connectMs,
             @Value("${app.recommendations.response-timeout-ms:2000}") long readMs) {
@@ -31,7 +36,7 @@ public class RecommendationConfig {
                 ClientHttpRequestFactorySettings.DEFAULTS
                         .withConnectTimeout(Duration.ofMillis(connectMs))
                         .withReadTimeout(Duration.ofMillis(readMs)));
-        return RestClient.builder()
+        return builder
                 .baseUrl(baseUrl)
                 .requestFactory(factory)
                 .build();
