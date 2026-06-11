@@ -350,7 +350,10 @@ services:
       # Loopback only — never 0.0.0.0. Access via: ssh -L 5174:127.0.0.1:5174 <host>, then localhost:5174.
       - "127.0.0.1:${ADMIN_APP_PORT:-5174}:80"
     depends_on:
+      # nginx reverse-proxies /api/* + /auth/* to the gateway and /admin/orders to order-service; both
+      # must exist on the network before nginx starts or the proxy upstreams fail to resolve.
       - order-service
+      - gateway
     restart: unless-stopped
 
   # ---- Observability (Phase 2, Pillar 2) ----

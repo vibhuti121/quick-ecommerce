@@ -69,6 +69,7 @@ correct and you can start working. See [Verify your setup](#verify-your-setup) f
 - [New here? Start in 5 minutes](#-new-here-start-in-5-minutes)
 - [Architecture](#architecture)
 - [Services & ports](#services--ports)
+- [Admin console](#admin-console)
 - [Prerequisites](#prerequisites)
 - [Quick start](#quick-start-run-the-whole-stack)
 - [Verify your setup](#verify-your-setup)
@@ -184,6 +185,7 @@ Checkout is **asynchronous and crash-safe** — an outbox + poller **saga**, not
 | **videocall-service** | 8095 | `videocalldb` + Redis (5h cooldown) | Gated-call enforcement brain: eligibility gate + mints the short-lived **call grant** (separate secret from the login JWT) |
 | **signaling-service** | 3001 | — (no DB) | Node + Socket.IO WebRTC mesh signaling; admits a socket only on a valid grant (fail-closed), max 3 participants/room |
 | **coturn** | 3478 (published, udp/tcp) | — | TURN/STUN media relay for the video call (STUN-only locally) |
+| **admin-app** | 80 → `127.0.0.1:5174` (**loopback only**) | — | Internal admin SPA (React Router + TanStack); nginx basic-auth + same-origin reverse-proxy to the gateway. See [Admin console](#admin-console). |
 | postgres | 5432 | volume `pgdata` | One DB per service (created on first boot) |
 | redis | 6379 | volume `redisdata` | Cart store **and** catalog read cache |
 | opensearch | 9200 | volume `opensearchdata` | Product full-text search index (secondary; Postgres stays source of truth). **Not published** — internal to catalog-service |
@@ -201,7 +203,43 @@ Checkout is **asynchronous and crash-safe** — an outbox + poller **saga**, not
 > **coturn** (3478 udp/tcp, the one service that needs host ports for media relay). Elasticsearch,
 > APM-server and Filebeat stay internal to the docker network. The seven commerce services (incl. videocall-service and
 > signaling-service) are **not** published; reach them **through** the gateway — that's the contract you
-> test against. (`backend/` is the retired in-memory monolith, kept for reference only.)
+> test against. (`backend/` is the retired in-memory monolith, kept for reference only.) The **admin-app**
+> binds **loopback only** (`127.0.0.1:5174`) behind nginx basic-auth — never `0.0.0.0`; reach it over an
+> SSH tunnel. See [Admin console](#admin-console).
+
+---
+
+## Admin console
+
+A loopback-only internal admin SPA (`admin-app/`) for staff — distinct from the public storefront
+(`frontend/`). React Router v6 + Tailwind/shadcn + TanStack Query/Table + Zustand + React Hook Form/Zod
++ Axios; TypeScript strict. Reach it via an SSH tunnel, then `http://localhost:5174`:
+
+```bash
+ssh -L 5174:127.0.0.1:5174 <host>   # then open http://localhost:5174 (nginx basic-auth: ADMIN_USER / ADMIN_PASSWORD)
+```
+
+**Pages:** `/login` (email + password → `/auth/login`), `/dashboard` (product / orders-today / awaiting-delivery
+cards), `/products` (full CRUD over the catalog admin API — list, create, edit, delete, with SKU-conflict
+surfacing), `/orders` (list + mark-delivered).
+
+**Login & roles.** Sign in posts `{ identifier, password }` to `/auth/login`; only a **`role=ADMIN`** JWT is
+accepted (any other role is rejected client-side). In production an admin token comes from Google OAuth with
+an email in `ADMIN_EMAILS`, or from a password account whose email is on that allowlist. The token is held
+**in memory** (Zustand) — a refresh clears it and bounces to `/login` (accepted trade-off this round; no
+persisted session). A `<RoleGate>` hides actions the role can't use, but it is a **UI affordance only** — the
+real boundary is the gateway, which re-verifies the JWT signature + `role=ADMIN` on every `/api/**/admin/**`
+call.
+
+**Network posture.** The browser only ever speaks plain HTTP to its own loopback origin; nginx in the
+container reverse-proxies `/api/*` + `/auth/*` to the gateway **over TLS, terminated server-side** (and
+`/admin/orders` to order-service). This kills both the self-signed-cert prompt and any CORS preflight. Every
+request is additionally behind nginx basic-auth.
+
+**Audit trail.** Each admin write emits a structured log event — `admin.product.{created,updated,deleted}`
+(catalog-service) and `admin.stock.adjusted` (inventory-service) — carrying `trace.id` + a hashed `user_id`
+from the MDC and a PII-free payload (sku/name/price/qty). Queryable in Kibana via the existing LogstashEncoder
+pipeline; no new table or API.
 
 ---
 
