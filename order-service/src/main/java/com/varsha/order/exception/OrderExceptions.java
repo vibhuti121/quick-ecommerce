@@ -32,4 +32,22 @@ public final class OrderExceptions {
             super(message);
         }
     }
+
+    /**
+     * A SKU is out of stock at checkout, caught instantly by the Redis ATP pre-check before any order
+     * is created. Maps to 409 so the storefront shows "out of stock" immediately instead of the
+     * customer discovering a FAILED order ~2s later via the async saga. {@code sku} is the short item.
+     */
+    public static class InsufficientStockException extends RuntimeException {
+        private final String sku;
+
+        public InsufficientStockException(String sku, String message) {
+            super(message);
+            this.sku = sku;
+        }
+
+        public String getSku() {
+            return sku;
+        }
+    }
 }

@@ -18,6 +18,15 @@ spring:
       idle-timeout: 600000
       max-lifetime: 1800000
       keepalive-time: 60000
+  data:
+    redis:
+      # Available-to-promise (ATP) counters for instant oversell rejection at checkout. Optional:
+      # if Redis is unreachable the ATP pre-check degrades to a no-op and the DB pessimistic lock in
+      # reserve() remains the durable oversell guard (graceful degradation, same ethos as catalog cache).
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2s
+      connect-timeout: 2s
   jpa:
     open-in-view: false
     hibernate:

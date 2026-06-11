@@ -2,6 +2,7 @@ package com.varsha.order.exception;
 
 import com.varsha.order.exception.OrderExceptions.BadRequestException;
 import com.varsha.order.exception.OrderExceptions.ForbiddenException;
+import com.varsha.order.exception.OrderExceptions.InsufficientStockException;
 import com.varsha.order.exception.OrderExceptions.NotFoundException;
 import com.varsha.order.exception.OrderExceptions.UnauthorizedException;
 import org.springframework.http.HttpStatus;
@@ -33,6 +34,15 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BadRequestException.class)
     public ProblemDetail handleBadRequest(BadRequestException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
+    @ExceptionHandler(InsufficientStockException.class)
+    public ProblemDetail handleInsufficientStock(InsufficientStockException ex) {
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+        if (ex.getSku() != null) {
+            pd.setProperty("sku", ex.getSku());
+        }
+        return pd;
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

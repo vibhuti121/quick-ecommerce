@@ -79,6 +79,14 @@ export interface ProductWriteRequest {
   active: boolean;
 }
 
+// --- Inventory (mirror of inventory-service Dtos.StockListItem) ---
+export interface StockItem {
+  sku: string;
+  availableQty: number;
+  reservedQty: number;
+  updatedAt: string;
+}
+
 // Spring Page envelope (GET /api/catalog/products?size=N).
 export interface Page<T> {
   content: T[];
