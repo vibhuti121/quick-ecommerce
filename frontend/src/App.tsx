@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Header from './components/Header';
 import ProductGrid from './components/ProductGrid';
+import ProductCard from './components/ProductCard';
+import FilterSidebar from './components/FilterSidebar';
 import CartDrawer from './components/CartDrawer';
 import ProductDetail from './components/ProductDetail';
 import ProfileDrawer from './components/ProfileDrawer';
 import UpdatesCarousel from './components/UpdatesCarousel';
 import ComingSoonModal from './components/ComingSoonModal';
 import NotifyModal from './components/NotifyModal';
+import RainOverlay from './components/RainOverlay';
 import type { ProfileSection } from './components/ProfileDrawer';
 import type { NotifyTopic } from './lib/updates';
 import {
@@ -32,6 +35,112 @@ import type {
 } from './types';
 import { getWishlist, removeWishlist, toggleWishlist } from './lib/wishlist';
 import { isComingSoon, saveNotify } from './lib/comingSoon';
+import {
+  COLLECTIONS,
+  DEFAULT_FILTERS,
+  filterAndSort,
+  isBrandProduct,
+  isGiCertified,
+} from './lib/filters';
+import type { Filters } from './lib/filters';
+
+// Iteration 1: shimmer placeholders shown while the catalog/search loads. Reuses the real
+// .product-grid + .product-card box so the layout doesn't shift when products arrive. Purely
+// presentational — no props/state.
+const SKELETON_COUNT = 10;
+
+function SkeletonGrid() {
+  return (
+    <div className="product-grid" aria-busy="true" aria-label="Loading products">
+      {Array.from({ length: SKELETON_COUNT }).map((_, i) => (
+        <div className="product-card skeleton-card" key={i} aria-hidden="true">
+          <div className="skeleton skeleton-image" />
+          <div className="product-body">
+            <div className="skeleton skeleton-line skeleton-line--title" />
+            <div className="skeleton skeleton-line" />
+            <div className="skeleton skeleton-line skeleton-line--short" />
+            <div className="product-footer">
+              <div className="skeleton skeleton-price" />
+              <div className="skeleton skeleton-btn" />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Collection Experience (Iteration 7) — a horizontal-scroll merchandising row that reuses the
+// real ProductCard (and the grid's handlers), so cards stay identical everywhere. Renders only
+// when it has products. Mirrors the inline-component pattern of SkeletonGrid above.
+function CollectionRow({
+  title,
+  subtitle,
+  products,
+  onAdd,
+  onView,
+  addingId,
+  wishedIds,
+  onToggleWishlist,
+}: {
+  title: string;
+  subtitle: string;
+  products: Product[];
+  onAdd: (product: Product) => void;
+  onView: (product: Product) => void;
+  addingId: number | null;
+  wishedIds: Set<number>;
+  onToggleWishlist: (product: Product) => void;
+}) {
+  if (products.length === 0) return null;
+  return (
+    <section className="collection-section reveal">
+      <div className="collection-head">
+        <h2 className="collection-title">{title}</h2>
+        <p className="collection-sub">{subtitle}</p>
+      </div>
+      <div className="collection-row">
+        {products.map((p) => (
+          <div className="collection-item" key={p.id}>
+            <ProductCard
+              product={p}
+              onAdd={onAdd}
+              onView={onView}
+              adding={addingId === p.id}
+              wished={wishedIds.has(p.id)}
+              onToggleWishlist={onToggleWishlist}
+            />
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// Combos / Gift Packs have no bundle SKU or price in the catalog, so we never fake a purchasable
+// bundle — they show as an honest "coming soon" teaser instead.
+function CollectionTeaser({
+  title,
+  subtitle,
+  blurb,
+}: {
+  title: string;
+  subtitle: string;
+  blurb: string;
+}) {
+  return (
+    <section className="collection-section reveal">
+      <div className="collection-head">
+        <h2 className="collection-title">{title}</h2>
+        <p className="collection-sub">{subtitle}</p>
+      </div>
+      <div className="collection-teaser">
+        <span className="collection-teaser-badge">Coming soon</span>
+        <p className="collection-teaser-blurb">{blurb}</p>
+      </div>
+    </section>
+  );
+}
 
 export default function App() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -126,7 +235,25 @@ export default function App() {
   }, [query]);
 
   const isSearching = query.trim().length > 0;
-  const displayed = isSearching ? searchResults : products;
+
+  // Iteration 9 — scope the storefront to brand products (honey + fruit); hide the generic demo
+  // SKUs client-side (the backend still has them). Everything the UI shows derives from this.
+  const brandProducts = useMemo(() => products.filter(isBrandProduct), [products]);
+  const displayed = useMemo(
+    () => (isSearching ? searchResults.filter(isBrandProduct) : brandProducts),
+    [isSearching, searchResults, brandProducts],
+  );
+
+  // Sidebar filter/sort state + derived grid. Collection counts feed the sidebar "N / Soon" tags.
+  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
+  const visibleProducts = useMemo(() => filterAndSort(displayed, filters), [displayed, filters]);
+  const collectionCounts = useMemo(() => {
+    const m: Record<string, number> = { '': brandProducts.length };
+    for (const c of COLLECTIONS) m[c.key] = brandProducts.filter(c.match).length;
+    return m;
+  }, [brandProducts]);
+  const selectedCollectionEmpty =
+    filters.collection !== '' && (collectionCounts[filters.collection] ?? 0) === 0;
 
   const itemCount = useMemo(
     () => (cart?.items ?? []).reduce((sum, item) => sum + item.quantity, 0),
@@ -215,6 +342,21 @@ export default function App() {
 
   const wishedIds = useMemo(() => new Set(wishlist.map((w) => w.id)), [wishlist]);
 
+  // Homepage merchandising rows (Iteration 9) — curated from brand products (no fake items).
+  // Rows that resolve to [] won't render; the always-empty taxonomy rows (Exotic/Juices) are
+  // shown as "coming soon" teasers in the markup instead.
+  const merch = useMemo(() => {
+    const fruits = brandProducts.filter((p) => p.category?.toLowerCase() === 'fruit');
+    const honey = brandProducts.filter((p) => p.category?.toLowerCase() === 'honey');
+    const giFruits = fruits.filter(isGiCertified);
+    const premium = [...brandProducts].filter((p) => p.price >= 999).sort((a, b) => b.price - a.price);
+    const seen = new Set<number>();
+    const featured = [...giFruits, ...premium]
+      .filter((p) => (seen.has(p.id) ? false : (seen.add(p.id), true)))
+      .slice(0, 8);
+    return { featured, seasonal: fruits, giFruits, honey };
+  }, [brandProducts]);
+
   // Auto-poll order status while the drawer is open and any order is still PENDING (the saga settles
   // it to CONFIRMED/FAILED a moment after checkout). The interval clears the instant nothing is
   // pending, the drawer closes, or the component unmounts — no runaway timers. `active` guards a stale
@@ -300,46 +442,156 @@ export default function App() {
         <UpdatesCarousel onNotify={setNotifyTopic} />
 
         <section className="hero">
-          <h1>Everything you need, delivered quick.</h1>
-          <p>Browse our curated picks and check out in seconds.</p>
+          <div className="hero-content">
+            <p className="hero-eyebrow">
+              <span aria-hidden="true">🌿</span> GI-tagged · Lab-tested
+            </p>
+            <h1 className="hero-title">
+              Pure honey &amp; GI-tagged fruit,{' '}
+              <span className="hero-title-accent">traced to the source.</span>
+            </h1>
+            <p className="hero-subtitle">
+              Lab-tested honey and GI-certified produce — quality you can verify, delivered to your door.
+            </p>
+            <div className="hero-actions">
+              <a href="#products" className="btn btn-primary hero-cta">Shop now</a>
+              <a href="#products" className="hero-cta-secondary">Explore the collection →</a>
+            </div>
+            <ul className="hero-trust">
+              <li><span aria-hidden="true">🌿</span> GI-certified</li>
+              <li><span aria-hidden="true">🔬</span> Lab-tested purity</li>
+              <li><span aria-hidden="true">🚚</span> Cash on delivery</li>
+            </ul>
+          </div>
+          <span className="hero-float hero-float--honey" aria-hidden="true">🍯</span>
+          <span className="hero-float hero-float--leaf" aria-hidden="true">🌿</span>
+          <a href="#products" className="hero-scroll-cue" aria-label="Scroll to products">
+            <span className="hero-scroll-dot" aria-hidden="true" />
+          </a>
         </section>
 
         {error && (
-          <div className="banner banner-error">
+          <div className="toast toast-error" role="alert">
             <span>{error}</span>
-            <button className="icon-button" onClick={() => setError(null)}>
+            <button className="toast-close" onClick={() => setError(null)} aria-label="Dismiss">
               ✕
             </button>
           </div>
         )}
 
+        <div id="products" className="products-anchor" aria-hidden="true" />
+
+        <header className="section-head reveal">
+          <div className="section-head-row">
+            <h2 className="section-title">The collection</h2>
+            {!loading && brandProducts.length > 0 && (
+              <span className="filter-count">
+                {visibleProducts.length} {visibleProducts.length === 1 ? 'product' : 'products'}
+              </span>
+            )}
+          </div>
+          <p className="section-sub">Traceable honey &amp; GI-tagged fruit — pick yours.</p>
+        </header>
+
         {loading ? (
-          <div className="state-message">
-            <div className="spinner" />
-            <p>Loading products…</p>
-          </div>
-        ) : isSearching && searching && displayed.length === 0 ? (
-          <div className="state-message">
-            <div className="spinner" />
-            <p>Searching…</p>
-          </div>
-        ) : isSearching && !searching && displayed.length === 0 && !error ? (
-          <div className="state-message">
-            <p>No products match “{query.trim()}”.</p>
-          </div>
-        ) : !isSearching && products.length === 0 && !error ? (
-          <div className="state-message">
-            <p>No products available right now.</p>
-          </div>
+          <SkeletonGrid />
         ) : (
-          <ProductGrid
-            products={displayed}
-            onAdd={handleAdd}
-            onView={handleView}
-            addingId={addingId}
-            wishedIds={wishedIds}
-            onToggleWishlist={handleToggleWishlist}
-          />
+          <div className="shop-layout">
+            <FilterSidebar filters={filters} onChange={setFilters} counts={collectionCounts} />
+            <div className="shop-main">
+              {isSearching && searching && displayed.length === 0 ? (
+                <SkeletonGrid />
+              ) : isSearching && !searching && displayed.length === 0 && !error ? (
+                <div className="state-message">
+                  <p>No products match “{query.trim()}”.</p>
+                </div>
+              ) : !isSearching && brandProducts.length === 0 && !error ? (
+                <div className="state-message">
+                  <p>No products available right now.</p>
+                </div>
+              ) : selectedCollectionEmpty ? (
+                <div className="shop-coming-soon">
+                  <span className="collection-teaser-badge">Coming soon</span>
+                  <h3>This collection is on its way</h3>
+                  <p>We're sourcing traceable picks for this collection — check back soon.</p>
+                  <button className="btn btn-secondary" onClick={() => setFilters(DEFAULT_FILTERS)}>
+                    Browse all
+                  </button>
+                </div>
+              ) : visibleProducts.length === 0 ? (
+                <div className="state-message">
+                  <p>No products match these filters.</p>
+                  <button className="btn btn-secondary" onClick={() => setFilters(DEFAULT_FILTERS)}>
+                    Clear filters
+                  </button>
+                </div>
+              ) : (
+                <ProductGrid
+                  products={visibleProducts}
+                  onAdd={handleAdd}
+                  onView={handleView}
+                  addingId={addingId}
+                  wishedIds={wishedIds}
+                  onToggleWishlist={handleToggleWishlist}
+                />
+              )}
+            </div>
+          </div>
+        )}
+
+        {!isSearching && !loading && brandProducts.length > 0 && (
+          <div className="collections">
+            <CollectionRow
+              title="Featured Collection"
+              subtitle="Hand-picked — certified &amp; premium"
+              products={merch.featured}
+              onAdd={handleAdd}
+              onView={handleView}
+              addingId={addingId}
+              wishedIds={wishedIds}
+              onToggleWishlist={handleToggleWishlist}
+            />
+            <CollectionRow
+              title="Seasonal Picks"
+              subtitle="Peak-season fruit, cold-chained"
+              products={merch.seasonal}
+              onAdd={handleAdd}
+              onView={handleView}
+              addingId={addingId}
+              wishedIds={wishedIds}
+              onToggleWishlist={handleToggleWishlist}
+            />
+            <CollectionRow
+              title="GI Certified Fruits"
+              subtitle="Geographical-Indication tagged"
+              products={merch.giFruits}
+              onAdd={handleAdd}
+              onView={handleView}
+              addingId={addingId}
+              wishedIds={wishedIds}
+              onToggleWishlist={handleToggleWishlist}
+            />
+            <CollectionRow
+              title="Honey Collection"
+              subtitle="Raw, single-origin — launching soon"
+              products={merch.honey}
+              onAdd={handleAdd}
+              onView={handleView}
+              addingId={addingId}
+              wishedIds={wishedIds}
+              onToggleWishlist={handleToggleWishlist}
+            />
+            <CollectionTeaser
+              title="Exotic Fruits"
+              subtitle="Rare &amp; seasonal imports"
+              blurb="Hand-sourced exotic fruit are coming soon."
+            />
+            <CollectionTeaser
+              title="Fruit Juices"
+              subtitle="Cold-pressed, nothing added"
+              blurb="Cold-pressed juices are launching soon."
+            />
+          </div>
         )}
       </main>
 
@@ -408,6 +660,8 @@ export default function App() {
         onCheckout={handleCheckout}
         onDismissOrder={handleDismissOrder}
       />
+
+      <RainOverlay />
     </div>
   );
 }

@@ -1,22 +1,71 @@
 :root {
-  --accent: #4f46e5;
-  --accent-dark: #4338ca;
-  --bg: #f5f6fa;
-  --surface: #ffffff;
-  --text: #1f2430;
-  --muted: #6b7280;
-  --border: #e5e7eb;
+  /* Brand palette (Iteration 5 — "Warm Luxe Gold") — deep gold + espresso on a
+     warm cream, evolving the original honey/amber for a premium editorial feel.
+     MaLLADE (GI-tagged honey & fruit). */
+  --accent: #b8860b;          /* deep luxe gold — buttons, links, accents */
+  --accent-dark: #8c6308;     /* darker gold — hover / pressed */
+  --accent-soft: rgba(184, 134, 11, 0.14); /* focus rings, tints */
+  --green: #2d5016;           /* deep complementary green (forest pop) */
+  --bg: #fbf7ef;              /* warm cream page background */
+  --surface: #ffffff;         /* pure white — pops against the cream */
+  --text: #2a2118;            /* espresso (warm near-black) */
+  --muted: #7c715c;           /* warm taupe secondary text (~4:1 on cream) */
+  --border: #eae1cf;          /* soft warm hairline on the cream bg */
   --danger: #dc2626;
   --success: #16a34a;
-  --radius: 14px;
-  --shadow: 0 4px 16px rgba(17, 24, 39, 0.08);
-  --shadow-lg: 0 12px 40px rgba(17, 24, 39, 0.18);
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial,
-    sans-serif;
+  --radius: 16px;             /* slightly softer / editorial (global) */
+  --shadow: 0 6px 20px rgba(42, 33, 24, 0.07);     /* soft, espresso-tinted */
+  --shadow-lg: 0 18px 50px rgba(42, 33, 24, 0.16); /* deep elevation: drawers/modals */
+  --skeleton-base: #ece3d3;       /* warm shimmer base (matches new cream) */
+  --skeleton-highlight: #f8f2e6;  /* warm shimmer sweep */
+
+  /* Luxe + motion layer (Iteration 5) — added now, referenced in Steps 2–4.
+     Unused tokens are inert (no visual change). */
+  --accent-2: #d8a13a;            /* lighter gold highlight for gradients/sheen */
+  --accent-gradient: linear-gradient(135deg, #d8a13a 0%, #b8860b 55%, #8c6308 100%);
+  --shadow-gold: 0 10px 30px rgba(184, 134, 11, 0.18); /* warm glow under CTA */
+  --surface-alt: #f5efe2;         /* warm panel bg for alternating sections */
+  --gold-line: rgba(184, 134, 11, 0.25); /* hairline gold dividers */
+  --radius-sm: 10px;              /* chips / small controls */
+  --radius-lg: 24px;             /* hero / large panels */
+  --radius-pill: 999px;          /* pills / CTAs */
+  --ease-lux: cubic-bezier(0.22, 0.61, 0.36, 1);  /* shared premium easing */
+  --ease-out-soft: cubic-bezier(0.16, 1, 0.3, 1); /* soft settle for reveals */
+  --reveal-dist: 28px;            /* scroll-reveal travel distance */
+  --reveal-dur: 0.7s;             /* scroll-reveal duration */
+
+  /* Typography — Inter for UI/body, Fraunces for display headings. */
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica,
+    Arial, sans-serif;
+  --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 2rem;
+  --text-3xl: 2.75rem;
+  --text-4xl: 3.5rem;                      /* oversized editorial */
+  --text-5xl: clamp(2.75rem, 7vw, 5rem);   /* hero display (Gen-Z big type) */
+
+  /* Spacing scale (4px base). */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  color-scheme: light;
+  font-family: var(--font-sans);
 }
 
 * {
   box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 html,
@@ -28,7 +77,20 @@ body {
 body {
   background: var(--bg);
   color: var(--text);
+  font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+}
+
+/* Display headings use Fraunces; product-card names (h3) intentionally stay Inter.
+   Iteration 5 (Step 2 — typography): tighter editorial tracking + controlled
+   display rhythm; balanced wrapping where supported (degrades gracefully). */
+h1,
+h2 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  line-height: 1.12;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
 }
 
 .app {
@@ -46,9 +108,9 @@ body {
 }
 
 .header-inner {
-  max-width: 1180px;
+  max-width: 1600px;
   margin: 0 auto;
-  padding: 14px 20px;
+  padding: 14px 40px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -67,6 +129,7 @@ body {
 }
 
 .brand-name {
+  font-family: var(--font-display);
   letter-spacing: -0.02em;
 }
 
@@ -125,7 +188,7 @@ body {
 
 .search-bar:focus-within {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .search-icon {
@@ -175,30 +238,756 @@ body {
   }
   .header-inner {
     flex-wrap: wrap;
+    padding: 14px 18px;
+  }
+  .main {
+    padding: 22px 18px 48px;
   }
 }
 
 /* Main */
 .main {
-  max-width: 1180px;
+  max-width: 1600px;
   margin: 0 auto;
-  padding: 28px 20px 64px;
+  padding: 28px 40px 64px;
 }
 
+/* Hero (Iteration 5, Step 4 — glow-up): layered warm gradient + gold wash,
+   gold hairline edge, deeper elevation, room for a scroll cue. */
 .hero {
-  margin-bottom: 28px;
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 40px;
+  padding: clamp(40px, 7vw, 76px) clamp(20px, 5vw, 56px) clamp(48px, 7vw, 80px);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--gold-line);
+  background:
+    radial-gradient(120% 140% at 100% 0%, rgba(45, 80, 22, 0.12), transparent 58%),
+    radial-gradient(90% 120% at 0% 100%, rgba(184, 134, 11, 0.14), transparent 60%),
+    linear-gradient(135deg, #fff6e0 0%, #ffe6b3 46%, #f6cd83 100%);
+  box-shadow: var(--shadow-lg);
 }
 
-.hero h1 {
-  margin: 0 0 8px;
-  font-size: 2rem;
-  letter-spacing: -0.03em;
+.hero-content {
+  position: relative;
+  z-index: 1;
+  max-width: 640px;
 }
 
-.hero p {
+/* Pill label above the headline — small-caps, gold hairline. */
+.hero-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 18px;
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid var(--gold-line);
+  color: #6b4a0c;
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+}
+
+.hero-title {
+  margin: 0 0 16px;
+  font-size: var(--text-5xl);     /* oversized editorial / Gen-Z big type */
+  line-height: 1.04;
+  letter-spacing: -0.035em;        /* tight luxe tracking at large size */
+  color: #5a3d09;
+}
+
+/* Gradient-gold accent fragment of the headline (graceful fallback to solid gold). */
+.hero-title-accent {
+  color: var(--accent-dark);
+}
+@supports ((-webkit-background-clip: text) or (background-clip: text)) {
+  .hero-title-accent {
+    background: var(--accent-gradient);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    color: transparent;
+  }
+}
+
+.hero-subtitle {
+  margin: 0 0 24px;
+  max-width: 46ch;
+  font-size: clamp(1.05rem, 1.7vw, 1.25rem);
+  line-height: 1.55;
+  color: #7a5a1e;
+}
+
+.hero-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 26px;
+}
+
+/* Primary CTA — gold-gradient pill with a warm glow (Step 4). */
+.hero-cta {
+  display: inline-block;
+  text-decoration: none;
+  font-size: 1.02rem;
+  padding: 14px 30px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-gradient);
+  box-shadow: var(--shadow-gold);
+  transition: transform 0.12s var(--ease-lux), box-shadow 0.2s ease, filter 0.2s ease;
+}
+.hero-cta:hover {
+  filter: brightness(1.05);
+  box-shadow: 0 14px 38px rgba(184, 134, 11, 0.32);
+  transform: translateY(-2px);
+}
+
+.hero-cta-secondary {
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 0.98rem;
+  color: var(--accent-dark);
+  border-bottom: 1.5px solid var(--gold-line);
+  padding-bottom: 2px;
+  transition: border-color 0.2s ease, color 0.2s ease;
+}
+.hero-cta-secondary:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+/* Trust row — conversion proof points under the CTA. */
+.hero-trust {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 22px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.hero-trust li {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.86rem;
+  font-weight: 500;
+  color: #6b4a0c;
+}
+
+/* Scroll cue — gentle bob pulling the eye down into the grid. */
+.hero-scroll-cue {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  width: 24px;
+  height: 38px;
+  display: flex;
+  justify-content: center;
+  padding-top: 7px;
+  border: 2px solid rgba(107, 74, 12, 0.4);
+  border-radius: var(--radius-pill);
+  z-index: 1;
+}
+.hero-scroll-dot {
+  width: 4px;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: #6b4a0c;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .hero-scroll-dot {
+    animation: scroll-bob 1.6s var(--ease-lux) infinite;
+  }
+}
+@keyframes scroll-bob {
+  0% { opacity: 0; transform: translateY(-4px); }
+  40% { opacity: 1; }
+  80% { opacity: 0; transform: translateY(8px); }
+  100% { opacity: 0; }
+}
+
+/* Floating decorations (CSS-only, cosmetic) — sit behind the copy, hidden from a11y. */
+.hero-float {
+  position: absolute;
+  z-index: 0;
+  font-size: clamp(2.6rem, 6vw, 4.5rem);
+  filter: drop-shadow(0 6px 10px rgba(60, 42, 8, 0.18));
+  animation: hero-float 6s ease-in-out infinite;
+  pointer-events: none;
+  user-select: none;
+}
+
+.hero-float--honey {
+  top: 16px;
+  right: 6%;
+}
+
+.hero-float--leaf {
+  bottom: 14px;
+  right: 22%;
+  font-size: clamp(1.8rem, 4vw, 3rem);
+  animation-duration: 7.5s;
+  animation-delay: -2s;
+}
+
+@keyframes hero-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-3deg);
+  }
+  50% {
+    transform: translateY(-12px) rotate(3deg);
+  }
+}
+
+/* Scroll target for the hero "Shop now" CTA; offset clears the sticky header. */
+.products-anchor {
+  scroll-margin-top: 84px;
+}
+
+/* Editorial section header above the product grid. */
+.section-head {
+  margin: 0 0 18px;
+}
+.section-head-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.section-title {
+  margin: 0 0 6px;
+  font-size: var(--text-2xl);
+}
+.filter-count {
+  flex: 0 0 auto;
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.section-sub {
   margin: 0;
   color: var(--muted);
-  font-size: 1.05rem;
+  font-size: 0.98rem;
+}
+
+/* ===== Filter & Sort toolbar (Iteration 8) — luxury pills + Price/Sort dropdowns;
+   collapses to [Filter] [Sort] → bottom sheet on mobile. Tokens only, no sidebar. ===== */
+.filter-bar {
+  margin-bottom: 26px;
+}
+
+/* Pill chip — cream by default, gold-gradient when active. */
+.filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--gold-line);
+  background: var(--surface-alt);
+  color: var(--text);
+  font-size: 0.86rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease,
+    transform 0.12s var(--ease-lux), box-shadow 0.2s ease;
+}
+.filter-chip:hover {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+.filter-chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.filter-chip--active {
+  background: var(--accent-gradient);
+  border-color: transparent;
+  color: #fff;
+  box-shadow: var(--shadow-gold);
+}
+
+.filter-bar-desktop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.filter-chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.filter-divider {
+  width: 1px;
+  height: 22px;
+  background: var(--gold-line);
+  margin: 0 2px;
+}
+.filter-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Price / Sort dropdown — button reuses .filter-chip; menu is a soft luxe popover. */
+.filter-dropdown {
+  position: relative;
+}
+.filter-dropdown-caret {
+  font-size: 0.7rem;
+  opacity: 0.75;
+}
+.filter-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  min-width: 210px;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  z-index: 25;
+  animation: filter-menu-in 0.16s var(--ease-out-soft);
+}
+.filter-dropdown-menu--right {
+  right: 0;
+}
+.filter-dropdown-menu--left {
+  left: 0;
+}
+@keyframes filter-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.filter-dropdown-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 12px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font-size: 0.88rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.filter-dropdown-option:hover {
+  background: var(--surface-alt);
+}
+.filter-dropdown-option.is-selected {
+  color: var(--accent-dark);
+  font-weight: 700;
+}
+
+/* Mobile [Filter] [Sort] triggers (shown only ≤640px). */
+.filter-bar-mobile {
+  display: none;
+  gap: 10px;
+}
+.filter-mobile-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 16px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--gold-line);
+  background: var(--surface-alt);
+  color: var(--text);
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.filter-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+/* Mobile bottom sheet — slides up over the shared .overlay. */
+.filter-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 45;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-top-left-radius: var(--radius-lg);
+  border-top-right-radius: var(--radius-lg);
+  box-shadow: 0 -18px 50px rgba(42, 33, 24, 0.22);
+  transform: translateY(100%);
+  transition: transform 0.28s var(--ease-lux);
+}
+.filter-sheet-open {
+  transform: translateY(0);
+}
+.filter-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.filter-sheet-head h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+.filter-sheet-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 4px 20px 12px;
+}
+.filter-sheet-section {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+.filter-sheet-section:last-child {
+  border-bottom: none;
+}
+.filter-sheet-label {
+  margin: 0 0 12px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.filter-sheet-foot {
+  display: flex;
+  gap: 12px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+}
+.filter-sheet-foot .btn {
+  flex: 1;
+}
+
+@media (max-width: 640px) {
+  .filter-bar-desktop {
+    display: none;
+  }
+  .filter-bar-mobile {
+    display: flex;
+  }
+}
+
+/* ===== Shop layout: luxury left sidebar + product grid (Iteration 9) ===== */
+.shop-layout {
+  display: grid;
+  grid-template-columns: 248px 1fr;
+  gap: 32px;
+  align-items: start;
+}
+.shop-main {
+  min-width: 0;
+}
+
+/* Sidebar — premium beige card, airy, sticky under the header. */
+.shop-sidebar {
+  position: sticky;
+  top: 84px;
+  background: var(--surface-alt);
+  border: 1px solid var(--gold-line);
+  border-radius: var(--radius-lg);
+  padding: 22px 20px;
+}
+
+.filter-group {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--gold-line);
+}
+.filter-group:first-child {
+  padding-top: 0;
+}
+.filter-group-title {
+  margin: 0 0 10px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--accent-dark);
+}
+
+/* Soft radio (○) / checkbox (▢) option rows. */
+.filter-option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 8px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.18s ease, color 0.18s ease;
+}
+.filter-option:hover {
+  background: rgba(184, 134, 11, 0.07);
+}
+.filter-option:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.filter-option.is-active {
+  color: var(--accent-dark);
+  font-weight: 600;
+}
+.filter-radio,
+.filter-check {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  position: relative;
+  border: 1.5px solid var(--gold-line);
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+.filter-radio {
+  border-radius: 50%;
+}
+.filter-check {
+  border-radius: 5px;
+}
+.filter-option.is-active .filter-radio {
+  border-color: var(--accent);
+}
+.filter-option.is-active .filter-radio::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.filter-option.is-active .filter-check {
+  border-color: var(--accent);
+  background: var(--accent);
+}
+.filter-option.is-active .filter-check::after {
+  content: '✓';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+.filter-option-label {
+  flex: 1;
+  min-width: 0;
+}
+.filter-option-count {
+  flex: 0 0 auto;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+.filter-option-count--soon {
+  color: var(--accent-dark);
+  background: var(--accent-soft);
+  padding: 1px 8px;
+  border-radius: var(--radius-pill);
+  font-size: 0.62rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.filter-clear {
+  margin-top: 14px;
+  width: 100%;
+  padding: 9px;
+  border: 1px solid var(--gold-line);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--accent-dark);
+  font-weight: 600;
+  font-size: 0.84rem;
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease;
+}
+.filter-clear:hover {
+  border-color: var(--accent);
+  background: rgba(184, 134, 11, 0.06);
+}
+
+/* Empty-collection "coming soon" state in the grid column. */
+.shop-coming-soon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+  padding: 64px 28px;
+  background: var(--surface-alt);
+  border: 1px dashed var(--gold-line);
+  border-radius: var(--radius-lg);
+}
+.shop-coming-soon h3 {
+  margin: 6px 0 0;
+  font-size: 1.2rem;
+}
+.shop-coming-soon p {
+  margin: 0 0 6px;
+  max-width: 40ch;
+  color: var(--muted);
+}
+
+/* Mobile (≤900px): drop the sidebar, show [Filters][Sort] → bottom sheet. */
+.shop-mobile-bar {
+  display: none;
+  gap: 10px;
+  margin-bottom: 18px;
+}
+@media (max-width: 900px) {
+  .shop-layout {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  .shop-sidebar {
+    display: none;
+  }
+  .shop-mobile-bar {
+    display: flex;
+  }
+}
+
+/* Scroll-reveal (Iteration 5, Step 3) — pure-CSS, scroll-driven: elements rise + fade
+   as they enter the viewport. No JS. Guarded by @supports + reduced-motion: where
+   animation-timeline is unsupported or the user prefers less motion, the element simply
+   stays fully visible (graceful, never hidden). */
+@keyframes reveal-rise {
+  from {
+    opacity: 0;
+    transform: translateY(var(--reveal-dist));
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  @supports (animation-timeline: view()) {
+    .reveal {
+      animation: reveal-rise var(--reveal-dur) var(--ease-out-soft) both;
+      animation-timeline: view();
+      animation-range: entry 5% cover 30%;
+    }
+  }
+}
+
+/* Collection Experience (Iteration 7) — horizontal merchandising rows on the home view.
+   Each row reuses the real ProductCard inside a scroll-snap track. */
+.collections {
+  margin-top: 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 44px;
+}
+.collection-head {
+  margin-bottom: 16px;
+}
+.collection-title {
+  margin: 0 0 4px;
+  font-size: var(--text-xl);
+}
+.collection-sub {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+.collection-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(240px, 260px);
+  gap: 20px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding: 8px 4px 16px;
+  margin: 0 -4px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.collection-item {
+  scroll-snap-align: start;
+}
+.collection-row::-webkit-scrollbar {
+  height: 8px;
+}
+.collection-row::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: var(--radius-pill);
+}
+.collection-row::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Coming-soon teaser — Combos / Gift Packs have no bundle SKU/price, so never faked. */
+.collection-teaser {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 36px;
+  border-radius: var(--radius-lg);
+  border: 1px dashed var(--gold-line);
+  background:
+    radial-gradient(90% 120% at 0% 0%, rgba(184, 134, 11, 0.08), transparent 60%),
+    var(--surface-alt);
+}
+.collection-teaser-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 12px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  color: var(--accent-dark);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+}
+.collection-teaser-blurb {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.96rem;
 }
 
 /* Banner */
@@ -219,6 +1008,80 @@ body {
   border: 1px solid #fecaca;
 }
 
+/* Toast (Iteration 4) — fixed, slide-in notification; replaces the inline error banner. */
+.toast {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(360px, calc(100vw - 48px));
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  animation: toast-in 0.3s ease;
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.toast-error {
+  border-left: 4px solid var(--danger);
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.toast-close {
+  flex-shrink: 0;
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1;
+  padding: 2px 4px;
+  cursor: pointer;
+}
+
+.toast-close:hover {
+  color: var(--text);
+}
+
+/* Cart icon wobble (Iteration 4) — replays on each cart change via a changing React key on the icon. */
+.cart-icon {
+  display: inline-block;
+  animation: cart-wobble 0.5s ease;
+}
+
+@keyframes cart-wobble {
+  0%,
+  100% {
+    transform: rotate(0);
+  }
+  20% {
+    transform: rotate(-14deg) scale(1.12);
+  }
+  45% {
+    transform: rotate(10deg) scale(1.12);
+  }
+  65% {
+    transform: rotate(-6deg);
+  }
+  85% {
+    transform: rotate(3deg);
+  }
+}
+
 /* Product grid */
 .product-grid {
   display: grid;
@@ -227,24 +1090,58 @@ body {
 }
 
 .product-card {
+  position: relative;
   background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition: transform 0.25s var(--ease-lux), box-shadow 0.25s ease, border-color 0.25s ease;
 }
 
 .product-card:hover {
-  transform: translateY(-4px);
+  transform: translateY(-6px);
   box-shadow: var(--shadow-lg);
+  border-color: var(--gold-line);
 }
+
+/* Staggered slide-up entrance. Smooth ease-out glide (not a quick fade) so it reads as a swipe,
+   not a blink. `backwards` fill keeps a card invisible during its stagger delay but releases the
+   transform afterwards so the :hover lift keeps working. Skeletons are excluded so they don't
+   animate in only to be replaced by real cards animating in again (which looked like a flash). */
+.product-card:not(.skeleton-card) {
+  animation: card-fade-up 0.6s cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
+}
+
+@keyframes card-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.product-grid .product-card:nth-child(1) { animation-delay: 0ms; }
+.product-grid .product-card:nth-child(2) { animation-delay: 45ms; }
+.product-grid .product-card:nth-child(3) { animation-delay: 90ms; }
+.product-grid .product-card:nth-child(4) { animation-delay: 135ms; }
+.product-grid .product-card:nth-child(5) { animation-delay: 180ms; }
+.product-grid .product-card:nth-child(6) { animation-delay: 225ms; }
+.product-grid .product-card:nth-child(7) { animation-delay: 270ms; }
+.product-grid .product-card:nth-child(8) { animation-delay: 315ms; }
+.product-grid .product-card:nth-child(9) { animation-delay: 360ms; }
+.product-grid .product-card:nth-child(10) { animation-delay: 405ms; }
+.product-grid .product-card:nth-child(n + 11) { animation-delay: 450ms; }
 
 .product-image {
   position: relative;
   aspect-ratio: 4 / 3;
-  background: #eef0f5;
+  background: var(--surface-alt);
   overflow: hidden;
 }
 
@@ -253,35 +1150,58 @@ body {
   height: 100%;
   object-fit: cover;
   display: block;
+  transition: transform 0.6s var(--ease-lux);
 }
 
+.product-card:hover .product-image img {
+  transform: scale(1.06);
+}
+
+/* Bottom gradient (Iteration 6) — depth + keeps the tag legible; deepens on hover. */
+.product-img-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(to top, rgba(42, 33, 24, 0.28), transparent 42%);
+  opacity: 0.55;
+  transition: opacity 0.25s ease;
+}
+.product-card:hover .product-img-overlay {
+  opacity: 1;
+}
+
+/* Category "tag" — glassy gold-tinted chip (Iteration 6). */
 .category-badge {
   position: absolute;
-  top: 10px;
-  left: 10px;
-  background: rgba(31, 36, 48, 0.78);
-  color: #fff;
-  font-size: 0.72rem;
-  font-weight: 600;
+  top: 12px;
+  left: 12px;
+  z-index: 1;
+  background: rgba(255, 251, 240, 0.82);
+  color: #6b4a0c;
+  font-size: 0.68rem;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 4px 10px;
-  border-radius: 999px;
-  backdrop-filter: blur(2px);
+  letter-spacing: 0.08em;
+  padding: 5px 11px;
+  border: 1px solid var(--gold-line);
+  border-radius: var(--radius-pill);
+  backdrop-filter: blur(4px);
 }
 
 .product-body {
-  padding: 16px;
+  padding: 16px 16px 18px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   flex: 1;
 }
 
 .product-name {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: 1.08rem;
   font-weight: 650;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
 }
 
 .product-description {
@@ -297,12 +1217,61 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-top: 6px;
+  margin-top: auto;     /* bottom-align price/Add across cards of varying chip-row height */
+  padding-top: 4px;
 }
 
 .product-price {
-  font-size: 1.15rem;
+  font-size: 1.22rem;
   font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+/* Trust row (Iteration 6) — honest provenance proof in place of a star rating.
+   Chips render only when the real data is present (see ProductCard.tsx). */
+.product-trust {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.trust-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+  font-size: 0.72rem;
+  font-weight: 600;
+  background: var(--surface-alt);
+  border: 1px solid var(--gold-line);
+  color: var(--text);
+  white-space: nowrap;
+}
+.trust-chip--gi {
+  color: var(--green);
+  background: rgba(45, 80, 22, 0.08);
+  border-color: rgba(45, 80, 22, 0.22);
+}
+.trust-chip--lab {
+  color: var(--accent-dark);
+  background: var(--accent-soft);
+  border-color: var(--gold-line);
+}
+.trust-chip--origin {
+  color: var(--muted);
+}
+
+/* Compact gold "Add" pill (Iteration 6) — card-level Quick Add; reuses the global
+   .btn busy spinner + .btn:active scale-pop. */
+.product-add {
+  padding: 8px 16px;
+  border-radius: var(--radius-pill);
+  font-size: 0.85rem;
+  background: var(--accent);
+  box-shadow: 0 4px 12px rgba(184, 134, 11, 0.22);
+}
+.product-add:hover:not(:disabled) {
+  background: var(--accent-dark);
 }
 
 /* Buttons */
@@ -313,7 +1282,12 @@ body {
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s ease, opacity 0.15s ease;
+  transition: background 0.15s ease, opacity 0.15s ease, transform 0.1s ease;
+}
+
+/* Scale "pop" on click (Iteration 4). */
+.btn:active:not(:disabled) {
+  transform: scale(0.95);
 }
 
 .btn-primary {
@@ -328,6 +1302,19 @@ body {
 .btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* Inline spinner for the "Add to cart" busy state (Iteration 2) — no label swap. */
+.btn-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: 7px;
+  border: 2px solid rgba(255, 255, 255, 0.45);
+  border-top-color: #fff;
+  border-radius: 50%;
+  vertical-align: -2px;
+  animation: spin 0.7s linear infinite;
 }
 
 .btn-block {
@@ -369,6 +1356,97 @@ body {
 @keyframes spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+/* Skeleton loaders (Iteration 1) — shimmer placeholders that mirror the product card. */
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--skeleton-base) 25%,
+    var(--skeleton-highlight) 50%,
+    var(--skeleton-base) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  border-radius: 8px;
+}
+
+@keyframes skeleton-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Skeleton cards reuse the .product-card box but must not lift or react to hover. */
+.skeleton-card {
+  pointer-events: none;
+}
+
+.skeleton-card:hover {
+  transform: none;
+  box-shadow: var(--shadow);
+}
+
+.skeleton-image {
+  aspect-ratio: 4 / 3;
+  width: 100%;
+  border-radius: 0;
+}
+
+.skeleton-line {
+  height: 12px;
+}
+
+.skeleton-line--title {
+  height: 16px;
+  width: 70%;
+}
+
+.skeleton-line--short {
+  width: 45%;
+}
+
+.skeleton-price {
+  width: 64px;
+  height: 22px;
+}
+
+.skeleton-btn {
+  width: 112px;
+  height: 34px;
+  border-radius: 999px;
+}
+
+/* Respect users who prefer less motion — show static placeholders, no shimmer. */
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .skeleton,
+  .product-card,
+  .hero-float,
+  .toast,
+  .cart-icon {
+    animation: none;
+  }
+  .product-card:hover .product-image img {
+    transform: none;
+  }
+  .detail-image:hover img {
+    transform: none;
+  }
+  .filter-chip:hover {
+    transform: none;
+  }
+  .filter-dropdown-menu {
+    animation: none;
+  }
+  .filter-sheet {
+    transition: none;
   }
 }
 
@@ -639,6 +1717,7 @@ body {
 .gi-badge {
   display: inline-flex;
   align-items: center;
+  gap: 3px;
   background: var(--success);
   color: #fff;
   font-size: 0.72rem;
@@ -648,10 +1727,13 @@ body {
   border-radius: 999px;
 }
 
+/* Card GI badge gets a gold ring (Iteration 2) — a "certified / premium" cue for the authorized tag. */
 .gi-badge-card {
   position: absolute;
   top: 10px;
   right: 10px;
+  border: 1.5px solid #e8c25a;
+  box-shadow: 0 2px 8px rgba(60, 42, 8, 0.25);
 }
 
 /* Product-detail overlay — slide-over mirroring .cart-drawer, a touch wider for content. */
@@ -681,13 +1763,23 @@ body {
   padding: 16px 20px;
 }
 
-.detail-image {
+/* PDP gallery (Iteration 7) — premium single-image viewer; click to open the lightbox.
+   .detail-gallery is the positioning context for the category tag + wishlist heart. */
+.detail-gallery {
   position: relative;
+  margin-bottom: 16px;
+}
+
+.detail-image {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 1px solid var(--gold-line);
   aspect-ratio: 4 / 3;
-  background: #eef0f5;
-  border-radius: var(--radius);
+  background: var(--surface-alt);
+  border-radius: var(--radius-lg);
   overflow: hidden;
-  margin-bottom: 14px;
+  cursor: zoom-in;
 }
 
 .detail-image img {
@@ -695,18 +1787,54 @@ body {
   height: 100%;
   object-fit: cover;
   display: block;
+  transition: transform 0.6s var(--ease-lux);
+}
+
+.detail-image:hover img {
+  transform: scale(1.05);
+}
+
+.detail-zoom-cue {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 251, 240, 0.9);
+  border: 1px solid var(--gold-line);
+  color: #6b4a0c;
+  font-size: 0.95rem;
 }
 
 .detail-name {
   margin: 0 0 6px;
-  font-size: 1.35rem;
-  letter-spacing: -0.01em;
+  font-size: 1.5rem;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  line-height: 1.2;
 }
 
 .detail-price {
-  font-size: 1.3rem;
+  font-size: 1.5rem;
   font-weight: 700;
-  margin-bottom: 4px;
+  letter-spacing: -0.01em;
+  margin-bottom: 10px;
+}
+
+/* Trust badge row (Iteration 7) — bigger version of the card trust chips. */
+.detail-trust {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.detail-trust .trust-chip {
+  font-size: 0.8rem;
+  padding: 5px 12px;
 }
 
 .detail-sku {
@@ -717,9 +1845,182 @@ body {
 
 .detail-description {
   margin: 0 0 18px;
-  color: var(--muted);
-  line-height: 1.55;
+  color: var(--text);
+  line-height: 1.6;
+  font-size: 0.95rem;
+}
+
+/* PDP content blocks (Iteration 7): benefits / ingredients / verified. */
+.pdp-block {
+  margin-bottom: 18px;
+}
+.pdp-block-title {
+  margin: 0 0 10px;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.pdp-benefits {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pdp-benefits li {
+  position: relative;
+  padding-left: 26px;
   font-size: 0.92rem;
+  line-height: 1.4;
+}
+.pdp-benefits li::before {
+  content: '✓';
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-pill);
+  background: rgba(45, 80, 22, 0.1);
+  color: var(--green);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+.pdp-ingredients {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+/* "Verified, not reviewed" — real lab/GI proof in place of reviews. */
+.pdp-verified {
+  background: var(--surface-alt);
+  border: 1px solid var(--gold-line);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 18px;
+}
+.pdp-verified-tag {
+  margin: 0 0 12px;
+  font-size: 0.84rem;
+  color: var(--muted);
+  font-style: italic;
+}
+.pdp-proof {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 12px;
+  margin-bottom: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+}
+.pdp-proof-icon {
+  font-size: 1.3rem;
+  line-height: 1.2;
+}
+.pdp-proof-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pdp-proof-label {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--green);
+}
+.pdp-proof-value {
+  font-size: 0.86rem;
+}
+.pdp-proof-ref {
+  font-size: 0.76rem;
+  color: var(--muted);
+}
+/* Provenance list when nested inside the verified card — drop its own chrome. */
+.prov-panel--bare {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  margin-bottom: 0;
+}
+
+/* Sticky PDP buy bar (Iteration 7) — its own class so the cart drawer's .cart-footer is
+   untouched. Pinned at the drawer bottom; persistent price + Add. */
+.detail-footer {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: 0 -8px 24px rgba(42, 33, 24, 0.08);
+}
+.detail-footer-info {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+.detail-footer-name {
+  font-size: 0.8rem;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.detail-footer-price {
+  font-size: 1.2rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.detail-add {
+  flex: 0 0 auto;
+  padding: 12px 26px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-gradient);
+  box-shadow: var(--shadow-gold);
+}
+
+/* Image lightbox (full-screen zoom). */
+.lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(20, 17, 13, 0.88);
+}
+.lightbox-img {
+  max-width: min(92vw, 900px);
+  max-height: 88vh;
+  object-fit: contain;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+}
+.lightbox-close {
+  position: absolute;
+  top: 18px;
+  right: 20px;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-pill);
+  border: 1px solid rgba(255, 251, 240, 0.4);
+  background: rgba(255, 251, 240, 0.12);
+  color: #fff;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+.lightbox-close:hover {
+  background: rgba(255, 251, 240, 0.24);
 }
 
 /* Provenance + variant panels */
@@ -787,8 +2088,14 @@ body {
 }
 
 @media (max-width: 600px) {
-  .hero h1 {
-    font-size: 1.55rem;
+  .hero {
+    padding: 36px 22px 40px;
+  }
+  .hero-float--leaf {
+    display: none;
+  }
+  .hero-scroll-cue {
+    display: none;
   }
 }
 
@@ -1365,14 +2672,14 @@ body {
 
 .wishlist-heart {
   position: absolute;
-  top: 10px;
-  right: 10px;
-  width: 34px;
-  height: 34px;
+  top: 12px;
+  right: 12px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  border: none;
-  background: rgba(255, 255, 255, 0.9);
-  color: #9ca3af;
+  border: 1px solid var(--gold-line);
+  background: rgba(255, 251, 240, 0.85);
+  color: var(--muted);
   font-size: 1.15rem;
   line-height: 1;
   cursor: pointer;
@@ -1380,17 +2687,19 @@ body {
   align-items: center;
   justify-content: center;
   box-shadow: var(--shadow);
-  transition: color 0.15s ease, transform 0.1s ease;
-  z-index: 2;
+  backdrop-filter: blur(4px);
+  transition: color 0.2s ease, transform 0.12s var(--ease-lux), background 0.2s ease;
+  z-index: 3;
 }
 
 .wishlist-heart:hover {
-  transform: scale(1.1);
-  color: #ef4444;
+  transform: scale(1.12);
+  color: var(--accent);
+  background: #fff;
 }
 
 .wishlist-heart--active {
-  color: #ef4444;
+  color: var(--accent);
 }
 
 /* ============================================================================
@@ -1433,7 +2742,19 @@ body {
 .updates-slide {
   position: absolute;
   inset: 0;
-  animation: updates-slide-in 0.5s ease;
+}
+
+/* Smooth swipe: the incoming slide glides in from the right while the outgoing one glides out to the
+   left. Both are on-screen together for the whole transition, so there's never a transparent gap
+   (the old "blink"). Pure horizontal motion (no opacity flash) reads as a clean carousel swipe. */
+.updates-slide--in {
+  z-index: 1;
+  animation: updates-swipe-in 0.55s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
+
+.updates-slide--out {
+  z-index: 0;
+  animation: updates-swipe-out 0.55s cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
 .updates-slide-img {
@@ -1491,7 +2812,7 @@ body {
 }
 
 .updates-notify:hover {
-  background: #4338ca;
+  background: var(--accent-dark);
   transform: translateY(-1px);
 }
 
@@ -1512,14 +2833,21 @@ body {
   text-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
 }
 
-@keyframes updates-slide-in {
+@keyframes updates-swipe-in {
   from {
-    opacity: 0;
-    transform: translateX(24px);
+    transform: translateX(100%);
   }
   to {
-    opacity: 1;
     transform: translateX(0);
+  }
+}
+
+@keyframes updates-swipe-out {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-100%);
   }
 }
 
@@ -1613,7 +2941,7 @@ body {
 .coming-soon-input:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
 
 .coming-soon-input[aria-invalid='true'] {
@@ -1632,4 +2960,273 @@ body {
   background: #ecfdf5;
   color: var(--success);
   font-weight: 600;
+}
+
+/* ============================================================================
+   Dark mode (Iteration 10) — "Dark Editorial": espresso bg, cream text, brighter
+   honey-gold. Most of the UI is token-driven and flips via the block below; the
+   rest is a targeted sweep of the hardcoded light colors so every surface reads
+   correctly in dark too.
+   ========================================================================= */
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.1s ease;
+}
+.theme-toggle:hover {
+  border-color: var(--accent);
+}
+.theme-toggle:active {
+  transform: scale(0.94);
+}
+.theme-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Manual rain toggle (Iteration 11 refined) — mirrors .theme-toggle; gold when rain is on. */
+.rain-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1.05rem;
+  line-height: 1;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, transform 0.1s ease;
+}
+.rain-toggle:hover {
+  border-color: var(--accent);
+}
+.rain-toggle:active {
+  transform: scale(0.94);
+}
+.rain-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.rain-toggle--on {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+
+/* Smooth page-level swap (gated under reduced-motion below). Only the base backdrop
+   transitions, so component-specific transitions aren't clobbered. */
+body {
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* (a) Dark token palette — overrides win over `:root` by specificity, order-independent. */
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --accent: #e0a938;
+  --accent-dark: #c8902a;
+  --accent-soft: rgba(224, 169, 56, 0.16);
+  --green: #6fae3f;
+  --bg: #14110d;
+  --surface: #1e1812;
+  --text: #f3ead8;
+  --muted: #b0a288;
+  --border: #38301f;
+  --danger: #f87171;
+  --success: #34d27b;
+  --shadow: 0 6px 20px rgba(0, 0, 0, 0.40);
+  --shadow-lg: 0 18px 50px rgba(0, 0, 0, 0.55);
+  --skeleton-base: #271f17;
+  --skeleton-highlight: #322820;
+  --accent-2: #f0c264;
+  --accent-gradient: linear-gradient(135deg, #f0c264 0%, #e0a938 55%, #c8902a 100%);
+  --shadow-gold: 0 10px 30px rgba(224, 169, 56, 0.22);
+  --surface-alt: #271f17;
+  --gold-line: rgba(224, 169, 56, 0.26);
+}
+
+/* (b) Hardcoded-light sweep — hero */
+[data-theme='dark'] .hero {
+  background:
+    radial-gradient(120% 140% at 100% 0%, rgba(224, 169, 56, 0.12), transparent 58%),
+    radial-gradient(90% 120% at 0% 100%, rgba(45, 80, 22, 0.22), transparent 60%),
+    linear-gradient(135deg, #221a12 0%, #2c2114 46%, #181209 100%);
+}
+[data-theme='dark'] .hero-eyebrow {
+  background: rgba(255, 255, 255, 0.06);
+  color: #f0c264;
+}
+[data-theme='dark'] .hero-title {
+  color: #f3ead8;
+}
+[data-theme='dark'] .hero-subtitle {
+  color: #cdbfa3;
+}
+[data-theme='dark'] .hero-trust li {
+  color: #e7d9bf;
+}
+[data-theme='dark'] .hero-scroll-cue {
+  border-color: rgba(243, 234, 216, 0.4);
+}
+[data-theme='dark'] .hero-scroll-dot {
+  background: #f0c264;
+}
+
+/* (b) Glass chips (light frosted → dark frosted) */
+[data-theme='dark'] .category-badge {
+  background: rgba(20, 17, 13, 0.72);
+  color: #f3ead8;
+}
+[data-theme='dark'] .wishlist-heart {
+  background: rgba(20, 17, 13, 0.78);
+}
+[data-theme='dark'] .detail-zoom-cue {
+  background: rgba(20, 17, 13, 0.82);
+  color: #f3ead8;
+}
+
+/* (b) GI green tints that would vanish on dark */
+[data-theme='dark'] .trust-chip--gi {
+  color: #9ed46e;
+  background: rgba(111, 174, 63, 0.16);
+  border-color: rgba(111, 174, 63, 0.30);
+}
+[data-theme='dark'] .pdp-benefits li::before {
+  background: rgba(111, 174, 63, 0.20);
+  color: #9ed46e;
+}
+[data-theme='dark'] .pdp-proof-label {
+  color: #9ed46e;
+}
+
+/* (b) Profile note + order/delivery status badges (light pastels → dark tints) */
+[data-theme='dark'] .profile-guest-note {
+  background: rgba(224, 169, 56, 0.12);
+  border-color: var(--gold-line);
+  color: #f0c264;
+}
+[data-theme='dark'] .status-badge--pending {
+  background: rgba(234, 179, 8, 0.18);
+  color: #f5d98a;
+}
+[data-theme='dark'] .status-badge--confirmed,
+[data-theme='dark'] .status-badge--delivered {
+  background: rgba(52, 211, 123, 0.18);
+  color: #86efac;
+}
+[data-theme='dark'] .status-badge--failed {
+  background: rgba(248, 113, 113, 0.18);
+  color: #fca5a5;
+}
+[data-theme='dark'] .status-badge--awaiting {
+  background: rgba(129, 140, 248, 0.20);
+  color: #c7d2fe;
+}
+[data-theme='dark'] .status-badge--cancelled {
+  background: rgba(148, 163, 184, 0.20);
+  color: #cbd5e1;
+}
+
+/* (b) Error / success surfaces + coming-soon accents */
+[data-theme='dark'] .banner-error {
+  background: rgba(248, 113, 113, 0.12);
+  border-color: rgba(248, 113, 113, 0.30);
+  color: #fca5a5;
+}
+[data-theme='dark'] .coming-soon-confirm {
+  background: rgba(52, 211, 123, 0.12);
+}
+[data-theme='dark'] .coming-soon-headline {
+  color: #f0a93a;
+}
+
+/* (d) Reduced motion — no theme-swap transition. */
+@media (prefers-reduced-motion: reduce) {
+  body {
+    transition: none;
+  }
+  .rain-chip {
+    animation: none;
+  }
+}
+
+/* ============================================================================
+   Live-weather rain (Iteration 11) — realistic canvas rain + a dismissible chip.
+   Canvas never blocks clicks (pointer-events:none); works in light & dark.
+   ========================================================================= */
+.rain-canvas {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 60;
+  opacity: 0.6;
+}
+
+.rain-chip {
+  position: fixed;
+  left: 18px;
+  bottom: 18px;
+  z-index: 35;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 8px 8px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  border: 1px solid var(--gold-line);
+  box-shadow: var(--shadow-lg);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 600;
+  animation: rain-chip-in 0.4s var(--ease-out-soft) both;
+}
+@keyframes rain-chip-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.rain-chip-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-pill);
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: color 0.15s ease, background 0.15s ease;
+}
+.rain-chip-close:hover {
+  color: var(--text);
+  background: var(--surface-alt);
+}
+
+@media (max-width: 600px) {
+  .rain-chip {
+    left: 12px;
+    bottom: 12px;
+    font-size: 0.8rem;
+  }
 }

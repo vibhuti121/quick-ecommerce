@@ -26,6 +26,11 @@ export default function ProductCard({
   const comingSoon = isComingSoon(product);
   // Honey's catalog imageUrl is a placeholder until launch — show the real MaLLADE jar shot instead.
   const imgSrc = comingSoon ? HONEY_IMAGE : product.imageUrl;
+  // "Rating" row → honest provenance proof (no rating data exists in the catalog). Lab-tested
+  // shows only on a real passed lab cert; GI only on an authorized GI (compliance-honest).
+  const giAuthorized = gi?.status === 'authorized';
+  const labTested = product.provenance?.labCert?.status?.toLowerCase() === 'passed';
+  const hasTrust = giAuthorized || labTested || Boolean(origin);
   return (
     <article className="product-card">
       <button
@@ -35,12 +40,12 @@ export default function ProductCard({
         aria-label={comingSoon ? `Coming soon: ${product.name}` : `View details for ${product.name}`}
       >
         <img src={imgSrc} alt={product.name} loading="lazy" />
+        <span className="product-img-overlay" aria-hidden="true" />
         {comingSoon ? (
           <span className="coming-soon-badge">Coming Soon</span>
         ) : (
           <span className="category-badge">{product.category}</span>
         )}
-        {gi?.status === 'authorized' && <span className="gi-badge gi-badge-card">GI ✓</span>}
       </button>
       <button
         type="button"
@@ -58,8 +63,13 @@ export default function ProductCard({
         <h3 className="product-name product-view-text" onClick={() => onView(product)}>
           {product.name}
         </h3>
-        {origin && <span className="product-origin">📍 {origin}</span>}
-        <p className="product-description">{product.description}</p>
+        {hasTrust && (
+          <div className="product-trust">
+            {giAuthorized && <span className="trust-chip trust-chip--gi">🌿 GI-certified</span>}
+            {labTested && <span className="trust-chip trust-chip--lab">🔬 Lab-tested</span>}
+            {origin && <span className="trust-chip trust-chip--origin">📍 {origin}</span>}
+          </div>
+        )}
         {comingSoon ? (
           <div className="product-footer">
             <button
@@ -76,14 +86,16 @@ export default function ProductCard({
           <div className="product-footer">
             <span className="product-price">{formatPrice(product.price)}</span>
             <button
-              className="btn btn-primary"
+              className="btn btn-primary product-add"
               onClick={(e) => {
                 e.stopPropagation(); // add to cart without opening the detail drawer
                 onAdd(product);
               }}
               disabled={adding}
+              aria-busy={adding}
             >
-              {adding ? 'Adding…' : 'Add to cart'}
+              {adding && <span className="btn-spinner" aria-hidden="true" />}
+              Add to cart
             </button>
           </div>
         )}

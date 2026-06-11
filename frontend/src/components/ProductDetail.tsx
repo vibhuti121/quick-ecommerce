@@ -2,6 +2,17 @@ import { useEffect, useState } from 'react';
 import type { Product, Provenance } from '../types';
 import { formatPrice, getRecommendations } from '../api';
 
+// Static, range-true brand copy (Iteration 7). There is no per-product benefits/ingredients
+// data in the catalog, so these are honest editorial lines for the MaLLADE range — worded
+// generically so they never over-claim for a specific SKU. Easy to refine.
+const BENEFITS = [
+  'Raw & unprocessed — never overheated',
+  'No added sugar or syrups',
+  'Lab-tested for adulteration',
+  'Single-origin & fully traceable',
+];
+const INGREDIENTS = '100% pure, single-origin — nothing added. No preservatives, no additives.';
+
 interface ProductDetailProps {
   open: boolean;
   product: Product | null;
@@ -64,6 +75,28 @@ export default function ProductDetail({
   const labCert = provenance?.labCert;
   const variants = product?.variants ?? [];
 
+  // Real trust signals (same honesty rules as the card): each shows only when backed by data.
+  const gi = provenance?.gi;
+  const giAuthorized = gi?.status === 'authorized';
+  const labTested = labCert?.status?.toLowerCase() === 'passed';
+  const traceable = Boolean(provenance?.farm || provenance?.origin);
+  const hasTrust = giAuthorized || labTested || traceable;
+
+  // Premium single-image viewer: click the image to open a full-screen lightbox (internal
+  // state only — no prop-contract change). Only one product image exists in the catalog.
+  const [zoomOpen, setZoomOpen] = useState(false);
+  useEffect(() => {
+    if (!open) setZoomOpen(false);
+  }, [open]);
+  useEffect(() => {
+    if (!zoomOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setZoomOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [zoomOpen]);
+
   // Hybrid "you may also like" recs for the anchored product. Best-effort & non-blocking: the
   // endpoint never 503s, so any failure (or none related) simply leaves an empty row. `active`
   // guards against a stale response from a previous anchor overwriting the current one.
@@ -113,8 +146,16 @@ export default function ProductDetail({
         ) : (
           <>
             <div className="detail-body">
-              <div className="detail-image">
-                <img src={product.imageUrl} alt={product.name} />
+              <div className="detail-gallery">
+                <button
+                  type="button"
+                  className="detail-image"
+                  onClick={() => setZoomOpen(true)}
+                  aria-label={`Zoom image of ${product.name}`}
+                >
+                  <img src={product.imageUrl} alt={product.name} />
+                  <span className="detail-zoom-cue" aria-hidden="true">⤢</span>
+                </button>
                 <span className="category-badge">{product.category}</span>
                 <button
                   type="button"
@@ -133,23 +174,57 @@ export default function ProductDetail({
 
               <h3 className="detail-name">{product.name}</h3>
               <div className="detail-price">{formatPrice(product.price)}</div>
+
+              {hasTrust && (
+                <div className="detail-trust">
+                  {giAuthorized && <span className="trust-chip trust-chip--gi">🌿 GI-certified</span>}
+                  {labTested && <span className="trust-chip trust-chip--lab">🔬 Lab-tested</span>}
+                  {traceable && (
+                    <span className="trust-chip trust-chip--origin">📍 Traceable to farm</span>
+                  )}
+                </div>
+              )}
+
               {product.sku && <div className="detail-sku">SKU: {product.sku}</div>}
-              <p className="detail-description">{product.description}</p>
+              {product.description && <p className="detail-description">{product.description}</p>}
+
+              <section className="pdp-block">
+                <h4 className="pdp-block-title">Why you'll love it</h4>
+                <ul className="pdp-benefits">
+                  {BENEFITS.map((b) => (
+                    <li key={b}>{b}</li>
+                  ))}
+                </ul>
+              </section>
+
+              <section className="pdp-block">
+                <h4 className="pdp-block-title">Ingredients</h4>
+                <p className="pdp-ingredients">{INGREDIENTS}</p>
+              </section>
 
               {provenance && (
-                <section className="prov-panel">
-                  <h4 className="prov-title">Provenance &amp; traceability</h4>
-                  <Field label="Farm" value={provenance.farm} />
-                  <Field label="Origin" value={provenance.origin} />
-                  <Field label="Harvest" value={provenance.harvest} />
-                  <Field label="Batch" value={provenance.batch} />
+                <section className="pdp-verified">
+                  <h4 className="pdp-block-title">Verified, not reviewed</h4>
+                  <p className="pdp-verified-tag">
+                    We earn trust with lab proof &amp; full traceability — not stranger ratings.
+                  </p>
                   {labCert && (
-                    <Field
-                      label="Lab test"
-                      value={`${labCert.test} — ${labCert.status} (${labCert.ref})`}
-                    />
+                    <div className="pdp-proof">
+                      <span className="pdp-proof-icon" aria-hidden="true">🔬</span>
+                      <div className="pdp-proof-text">
+                        <span className="pdp-proof-label">Lab tested · {labCert.status}</span>
+                        <span className="pdp-proof-value">{labCert.test}</span>
+                        <span className="pdp-proof-ref">Ref: {labCert.ref}</span>
+                      </div>
+                    </div>
                   )}
-                  {provenance.gi && <GiLine gi={provenance.gi} />}
+                  <div className="prov-panel prov-panel--bare">
+                    <Field label="Farm" value={provenance.farm} />
+                    <Field label="Origin" value={provenance.origin} />
+                    <Field label="Harvest" value={provenance.harvest} />
+                    <Field label="Batch" value={provenance.batch} />
+                    {provenance.gi && <GiLine gi={provenance.gi} />}
+                  </div>
                 </section>
               )}
 
@@ -194,18 +269,44 @@ export default function ProductDetail({
               )}
             </div>
 
-            <div className="cart-footer">
+            <div className="detail-footer">
+              <div className="detail-footer-info">
+                <span className="detail-footer-name">{product.name}</span>
+                <span className="detail-footer-price">{formatPrice(product.price)}</span>
+              </div>
               <button
-                className="btn btn-primary btn-block"
+                className="btn btn-primary detail-add"
                 onClick={() => onAdd(product)}
                 disabled={adding}
+                aria-busy={adding}
               >
+                {adding && <span className="btn-spinner" aria-hidden="true" />}
                 {adding ? 'Adding…' : 'Add to cart'}
               </button>
             </div>
           </>
         )}
       </aside>
+
+      {zoomOpen && product && (
+        <div
+          className="lightbox"
+          onClick={() => setZoomOpen(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${product.name} image`}
+        >
+          <button className="lightbox-close" onClick={() => setZoomOpen(false)} aria-label="Close zoom">
+            ✕
+          </button>
+          <img
+            className="lightbox-img"
+            src={product.imageUrl}
+            alt={product.name}
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </>
   );
 }
