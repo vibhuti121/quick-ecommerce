@@ -23,6 +23,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 /**
  * Drives one outbox event through the checkout saga:
  *   reserve inventory -> charge payment -> commit inventory (success) | release inventory (failure).
@@ -82,12 +84,14 @@ public class SagaOrchestrator {
             if (paid) {
                 inventory.commit(orderId);
                 order.setStatus(OrderStatus.CONFIRMED);
-                log.info("Order {} CONFIRMED", orderId);
+                log.info("Order {} CONFIRMED", orderId,
+                        kv("event", "order.confirmed"), kv("payload", lifecycle(order, null)));
             } else {
                 inventory.release(orderId);
                 order.setStatus(OrderStatus.FAILED);
                 order.setFailureReason("Payment declined");
-                log.info("Order {} FAILED: payment declined", orderId);
+                log.info("Order {} FAILED: payment declined", orderId,
+                        kv("event", "order.payment_declined"), kv("payload", lifecycle(order, "Payment declined")));
             }
             closeProcessed(ev);
 
@@ -98,7 +102,8 @@ public class SagaOrchestrator {
             safeRelease(orderId);
             order.setStatus(OrderStatus.FAILED);
             order.setFailureReason(e.getMessage());
-            log.info("Order {} FAILED: {}", orderId, e.getMessage());
+            log.info("Order {} FAILED: {}", orderId, e.getMessage(),
+                    kv("event", "order.rejected"), kv("payload", lifecycle(order, e.getMessage())));
             closeProcessed(ev);
 
         } catch (ServiceUnavailableException e) {
@@ -110,7 +115,9 @@ public class SagaOrchestrator {
                 order.setFailureReason("Saga exhausted retries: " + e.getMessage());
                 ev.setStatus(OutboxStatus.FAILED);
                 ev.setProcessedAt(Instant.now());
-                log.error("Order {} FAILED after {} attempts: {}", orderId, ev.getAttempts(), e.getMessage());
+                log.error("Order {} FAILED after {} attempts: {}", orderId, ev.getAttempts(), e.getMessage(),
+                        kv("event", "order.retries_exhausted"),
+                        kv("payload", lifecycle(order, "Saga exhausted retries: " + e.getMessage())));
             } else {
                 log.warn("Order {} saga attempt {} transient failure, will retry: {}",
                         orderId, ev.getAttempts(), e.getMessage());
@@ -122,6 +129,22 @@ public class SagaOrchestrator {
     private void closeProcessed(OutboxEvent ev) {
         ev.setStatus(OutboxStatus.PROCESSED);
         ev.setProcessedAt(Instant.now());
+    }
+
+    /**
+     * Audit payload for an order lifecycle event (observability Pillar 2B) — the durable dispute trail,
+     * joined by orderId (this runs on the outbox-poller thread, off any servlet request, so the MDC
+     * carries no hashed user_id/trace here; orderId is the join key). PII rule: money + ids + saga
+     * status ONLY — never the customer name/phone/address on the Order, never card data.
+     */
+    private Map<String, Object> lifecycle(Order order, String reason) {
+        Map<String, Object> p = new LinkedHashMap<>();
+        p.put("orderId", order.getOrderId());
+        p.put("amount", order.getTotalAmount().toPlainString());
+        p.put("currency", order.getCurrency());
+        p.put("status", order.getStatus().name());
+        if (reason != null) p.put("reason", reason);
+        return p;
     }
 
     /** Collapse order items to (sku, total qty) reservation lines. */

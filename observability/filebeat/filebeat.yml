@@ -1,0 +1,53 @@
+# Filebeat — ships every QuickCart container's stdout JSON logs into Elasticsearch (observability Pillar 2).
+#
+# Path: container -> docker json-file driver (/var/lib/docker/containers/*/*.log) -> Filebeat -> ES data
+# stream `logs-quickcart`. The services already emit one-line JSON (LogstashEncoder / Winston) carrying
+# `service`, `level`, `traceId`/`spanId` (Phase 1 MDC) — Filebeat unwraps the docker envelope, parses that
+# inner JSON to top-level fields, and the ES default_pipeline (quickcart-pii-mask) masks any stray PII.
+#
+# We deliberately do NOT let Filebeat manage its own ILM/template (setup.*.enabled: false) — the es-init
+# service owns the `logs-quickcart` template, policy and masking pipeline so retention + masking are one
+# source of truth, not split between Filebeat defaults and our policy.
+
+filebeat.inputs:
+  - type: filestream
+    id: quickcart-container-logs
+    paths:
+      - /var/lib/docker/containers/*/*.log
+    parsers:
+      # Strips the docker json-file envelope ({"log":"...","stream":"...","time":"..."}) and sets the app's
+      # own log line as `message`, plus container.id.
+      - container:
+          stream: all
+          format: docker
+
+processors:
+  # Tag each event with the compose service name (container.labels / container.name) so an on-call can
+  # filter by service in Kibana without a brittle path regex.
+  - add_docker_metadata:
+      host: "unix:///var/run/docker.sock"
+  # Parse the application JSON line (now in `message`) up to the document root: service/level/traceId/etc.
+  # become real fields. add_error_key tags lines that aren't JSON so the drop below can shed infra noise.
+  - decode_json_fields:
+      fields: ["message"]
+      target: ""
+      overwrite_keys: true
+      add_error_key: true
+  # Keep ONLY our application logs. Every QuickCart JSON line carries a `service` field (logback customField
+  # / Winston). Elasticsearch/Kibana/Filebeat/Postgres/Redis emit plain-text (or non-`service`) lines —
+  # those fail the JSON decode, have no `service`, and are dropped here so the store stays app-only + lean.
+  - drop_event:
+      when:
+        not:
+          has_fields: ["service"]
+
+output.elasticsearch:
+  hosts: ["http://elasticsearch:9200"]
+  # Write into the pre-created data stream; its template supplies the ILM policy + masking default_pipeline.
+  index: "logs-quickcart"
+
+setup.ilm.enabled: false
+setup.template.enabled: false
+
+logging.level: warning
+logging.metrics.enabled: false

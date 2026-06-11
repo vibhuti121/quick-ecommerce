@@ -12,6 +12,8 @@ import com.varsha.order.model.OutboxEvent;
 import com.varsha.order.model.OutboxStatus;
 import com.varsha.order.repository.OrderRepository;
 import com.varsha.order.repository.OutboxRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,8 +22,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static net.logstash.logback.argument.StructuredArguments.kv;
+
 @Service
 public class CheckoutService {
+
+    // Structured audit log (observability Pillar 2B): a typed `event` + `payload` per order lifecycle step.
+    // These lines are the durable dispute trail routed to the cold/1-year log tier and are queried by
+    // trace.id / hashed user_id (MDC) / orderId. PII rule: payloads carry money + ids ONLY — never the
+    // customer name/phone/address held on the Order, and never any card data.
+    private static final Logger log = LoggerFactory.getLogger(CheckoutService.class);
 
     private final OrderRepository orders;
     private final OutboxRepository outbox;
@@ -75,6 +85,14 @@ public class CheckoutService {
         event.setStatus(OutboxStatus.PENDING);
         event.setAttempts(0);
         outbox.save(event);
+
+        log.info("order.placed {}", orderId,
+                kv("event", "order.placed"),
+                kv("payload", Map.of(
+                        "orderId", orderId,
+                        "amount", total.toPlainString(),
+                        "currency", req.currency(),
+                        "itemCount", req.items().size())));
 
         return OrderResponse.from(order);
     }

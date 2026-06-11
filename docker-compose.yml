@@ -106,6 +106,9 @@ services:
       # DEV STUB: echo the OTP in the request response so local/CI can verify without a real SMS.
       # MUST be false (or unset) in any real deployment — it would leak every code. Real SMS at go-live.
       OTP_DEV_ECHO: ${OTP_DEV_ECHO:-false}
+      # Observability Pillar 2B: HMAC key the service uses to de-identify X-User-Id into the log MDC
+      # ('user_id'). Stable across the fleet so a user hashes the same everywhere; never the raw id in logs.
+      LOG_HASH_SECRET: ${LOG_HASH_SECRET:?missing - run ./scripts/gen-secrets.sh to create .env}
     depends_on:
       postgres:
         condition: service_healthy
@@ -140,6 +143,8 @@ services:
       # short timeout and recs degrade to content-based/category — hence NO depends_on (a boot-order
       # coupling would defeat the degradation contract).
       ORDER_SERVICE_URL: http://order-service:8094
+      # Observability Pillar 2B: HMAC key to de-identify X-User-Id into the log MDC ('user_id'). See auth-service.
+      LOG_HASH_SECRET: ${LOG_HASH_SECRET:?missing - run ./scripts/gen-secrets.sh to create .env}
     depends_on:
       postgres:
         condition: service_healthy
@@ -161,6 +166,8 @@ services:
       # cart snapshots price/name from catalog when a new line is added — must be the in-network host,
       # not the localhost default (which would resolve to the cart container itself).
       CATALOG_SERVICE_URL: http://catalog-service:8090
+      # Observability Pillar 2B: HMAC key to de-identify X-User-Id into the log MDC ('user_id'). See auth-service.
+      LOG_HASH_SECRET: ${LOG_HASH_SECRET:?missing - run ./scripts/gen-secrets.sh to create .env}
     depends_on:
       redis:
         condition: service_healthy
@@ -175,6 +182,8 @@ services:
       DB_NAME: inventorydb
       DB_USER: postgres
       DB_PASSWORD: ${DB_PASSWORD:?missing - run ./scripts/gen-secrets.sh to create .env}
+      # Observability Pillar 2B: HMAC key to de-identify X-User-Id into the log MDC ('user_id'). See auth-service.
+      LOG_HASH_SECRET: ${LOG_HASH_SECRET:?missing - run ./scripts/gen-secrets.sh to create .env}
     depends_on:
       postgres:
         condition: service_healthy
@@ -188,6 +197,8 @@ services:
       DB_USER: postgres
       DB_PASSWORD: ${DB_PASSWORD:?missing - run ./scripts/gen-secrets.sh to create .env}
       PAYMENT_PROVIDER: ${PAYMENT_PROVIDER:-cod}
+      # Observability Pillar 2B: HMAC key to de-identify X-User-Id into the log MDC ('user_id'). See auth-service.
+      LOG_HASH_SECRET: ${LOG_HASH_SECRET:?missing - run ./scripts/gen-secrets.sh to create .env}
     depends_on:
       postgres:
         condition: service_healthy
@@ -203,6 +214,8 @@ services:
       INVENTORY_SERVICE_URL: http://inventory-service:8092
       PAYMENT_SERVICE_URL: http://payment-service:8093
       OUTBOX_POLL_INTERVAL_MS: ${OUTBOX_POLL_INTERVAL_MS:-2000}
+      # Observability Pillar 2B: HMAC key to de-identify X-User-Id into the log MDC ('user_id'). See auth-service.
+      LOG_HASH_SECRET: ${LOG_HASH_SECRET:?missing - run ./scripts/gen-secrets.sh to create .env}
     depends_on:
       postgres:
         condition: service_healthy
@@ -233,6 +246,8 @@ services:
       VIDEOCALL_TURN_URL: ${VIDEOCALL_TURN_URL:-}
       VIDEOCALL_TURN_USER: ${VIDEOCALL_TURN_USER:-webrtc}
       TURN_SECRET: ${TURN_SECRET:-}
+      # Observability Pillar 2B: HMAC key to de-identify X-User-Id into the log MDC ('user_id'). See auth-service.
+      LOG_HASH_SECRET: ${LOG_HASH_SECRET:?missing - run ./scripts/gen-secrets.sh to create .env}
     depends_on:
       postgres:
         condition: service_healthy
@@ -434,6 +449,50 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # One-shot bootstrap: after ES is healthy, PUTs the masking ingest pipeline, the hot/warm/cold/delete
+  # ILM policy, and the `logs-quickcart` data-stream template, then exits. Idempotent (pure PUTs), so it
+  # is safe to leave wired into every `up`. Filebeat waits for it to complete before shipping.
+  es-init:
+    image: curlimages/curl:8.10.1
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    volumes:
+      - ./observability/elasticsearch/init-es.sh:/init-es.sh:ro
+    entrypoint: ["sh", "/init-es.sh"]
+    restart: "no"
+
+  # One-shot, best-effort: imports the forensic data view + "journey by trace.id" saved search into Kibana
+  # once its API is available, then exits. Nothing depends on it; a failure never blocks the stack.
+  kibana-init:
+    image: curlimages/curl:8.10.1
+    depends_on:
+      kibana:
+        condition: service_started
+    volumes:
+      - ./observability/kibana/init-kibana.sh:/init-kibana.sh:ro
+      - ./observability/kibana/forensic-objects.ndjson:/import/forensic-objects.ndjson:ro
+    entrypoint: ["sh", "/init-kibana.sh"]
+    restart: "no"
+
+  # Ships every service container's stdout JSON log line into the `logs-quickcart` data stream (Pillar 2).
+  # Runs as root + strict.perms=false because it bind-mounts the host docker log dir and socket (read-only).
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:8.15.3
+    user: root
+    command: ["filebeat", "-e", "--strict.perms=false"]
+    volumes:
+      - ./observability/filebeat/filebeat.yml:/usr/share/filebeat/filebeat.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - filebeatdata:/usr/share/filebeat/data
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      es-init:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
 volumes:
   pgdata:
   redisdata:
@@ -442,3 +501,4 @@ volumes:
   promdata:
   grafanadata:
   esdata:
+  filebeatdata:

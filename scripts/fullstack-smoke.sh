@@ -230,9 +230,12 @@ curl -fs "$GW/api/catalog/products/search?q=shrt" | grep -q "Cotton Round-Neck T
   && ok "search is typo-tolerant (q=shrt -> shirt)" || bad "search is typo-tolerant (q=shrt -> shirt)"
 # Dual-write + cache-bypass: the per-run SKU created in step 3 is findable. Poll to absorb the
 # OpenSearch refresh interval (~1s) — search is deliberately NOT cached, so no eviction lag.
+# size=200: q=Smoke matches every accumulated "Smoke Widget" from prior local runs; the default
+# page (20) is the oldest docs, so the just-created (high-id) SKU is paginated out on a dirty
+# volume (false negative). Fresh CI has one match so this is moot there — same fix as browse.
 SRCH_OK=""
 for i in $(seq 1 10); do
-  curl -fs "$GW/api/catalog/products/search?q=Smoke" | grep -q "$SKU" && { SRCH_OK=1; break; }
+  curl -fs "$GW/api/catalog/products/search?q=Smoke&size=200" | grep -q "$SKU" && { SRCH_OK=1; break; }
   sleep 1
 done
 [ -n "$SRCH_OK" ] && ok "just-created SKU findable via search (dual-write, q=Smoke)" || bad "just-created SKU findable via search (dual-write, q=Smoke)"
