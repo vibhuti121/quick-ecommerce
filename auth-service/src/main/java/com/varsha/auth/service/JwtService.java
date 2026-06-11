@@ -27,11 +27,14 @@ public class JwtService {
     }
 
     public String generate(String userId, String email, String displayName, String role) {
+        // email may be null for a phone-OTP / phone-password account. Map.of is null-hostile and the
+        // gateway's /auth/validate also Map.of's the email claim, so coerce null → "" at the source.
+        String safeEmail = email != null ? email : "";
         return Jwts.builder()
                 .setSubject(userId)
                 .addClaims(Map.of(
-                        "email", email,
-                        "displayName", displayName != null ? displayName : email,
+                        "email", safeEmail,
+                        "displayName", displayName != null ? displayName : safeEmail,
                         "role", role != null ? role : "USER"))
                 .setIssuedAt(new Date())
                 .setExpiration(new Date(System.currentTimeMillis() + expirationMs))

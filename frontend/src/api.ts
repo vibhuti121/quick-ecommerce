@@ -380,6 +380,77 @@ export async function getProfile(): Promise<UserProfile> {
   }
 }
 
+// ---- self-service auth (email/phone + password, and phone OTP) --------------
+// These mint a REAL (non-guest) JWT and store it under the SAME TOKEN_KEY as the guest token, so the
+// rest of the app (cart, orders, profile, the videocall non-guest gate) immediately treats the browser
+// as logged in and getProfile() reflects the real identity. Unlike request(), they do NOT attach a
+// bearer or auto-mint a guest token — they ARE the login. The backend keeps failures generic
+// (anti-enumeration): we surface whatever {error} message it returns verbatim.
+interface AuthTokenResponse {
+  token: string;
+  displayName: string;
+}
+
+async function postAuth<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const text = await res.text();
+  const data = (text ? JSON.parse(text) : {}) as Record<string, unknown>;
+  if (!res.ok) {
+    const msg = typeof data.error === 'string' ? data.error : `Request failed (${res.status})`;
+    const err = new Error(msg) as Error & { status?: number };
+    err.status = res.status;
+    throw err;
+  }
+  return data as T;
+}
+
+export async function register(
+  identifier: string,
+  password: string,
+  displayName?: string,
+): Promise<void> {
+  const { token } = await postAuth<AuthTokenResponse>('/auth/register', {
+    identifier: identifier.trim(),
+    password,
+    displayName: displayName?.trim() ? displayName.trim() : undefined,
+  });
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+export async function login(identifier: string, password: string): Promise<void> {
+  const { token } = await postAuth<AuthTokenResponse>('/auth/login', {
+    identifier: identifier.trim(),
+    password,
+  });
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+export interface OtpRequestResult {
+  sent: boolean;
+  devCode?: string; // present ONLY when the backend runs with OTP_DEV_ECHO=true (dev/CI)
+}
+
+export async function requestOtp(phone: string): Promise<OtpRequestResult> {
+  return postAuth<OtpRequestResult>('/auth/otp/request', { phone: phone.trim() });
+}
+
+export async function verifyOtp(phone: string, code: string): Promise<void> {
+  const { token } = await postAuth<AuthTokenResponse>('/auth/otp/verify', {
+    phone: phone.trim(),
+    code: code.trim(),
+  });
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+// Drop the stored token; the next API call mints a fresh guest session. Used by "Sign out".
+export function logout(): void {
+  localStorage.removeItem(TOKEN_KEY);
+}
+
 export function formatPrice(value: number): string {
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',

@@ -21,6 +21,14 @@ bad() { echo "  FAIL: $1"; FAIL=$((FAIL+1)); }
 assert_eq() { [ "$1" = "$2" ] && ok "$3 (=$2)" || bad "$3 (expected '$1' got '$2')"; }
 jget() { sed -n "s/.*\"$2\":\"\\([^\"]*\\)\".*/\\1/p" <<<"$1"; }      # string field
 jnum() { sed -n "s/.*\"$2\":\\([0-9]*\\).*/\\1/p" <<<"$1"; }          # numeric field
+# Decode a base64url JWT segment (re-pad, map URL alphabet) — used to read the token's sub claim.
+b64url_decode() {
+  local s="$1" m
+  m=$(( ${#s} % 4 ))
+  [ "$m" -eq 2 ] && s="${s}=="
+  [ "$m" -eq 3 ] && s="${s}="
+  printf '%s' "$s" | tr '_-' '/+' | openssl base64 -d -A 2>/dev/null
+}
 
 # --- admin JWT (test harness only) -------------------------------------------
 # Phase-3 Pillar-1 RBAC gates /api/*/admin/** on the ADMIN role. The only PRODUCTION
@@ -263,6 +271,75 @@ assert_eq "200" "$(curl -fs -o /dev/null -w '%{http_code}' "$GW/api/catalog/prod
   "recs still 200 with order-service DOWN (degrade, never 503)"
 echo "  restarting order-service..."
 docker compose start order-service >/dev/null 2>&1
+
+echo
+echo "== 8e. our own sign-in (email/phone + password, and phone OTP) =="
+# auth-service is the only thing that knows HOW a user logged in; everything downstream trusts the JWT.
+# These new front doors (POST /auth/register, /auth/login, /auth/otp/*) all end in the SAME mint as the
+# guest/Google paths. Security posture proven here: self-registered ids are namespaced usr-<uuid> (non-
+# guest), wrong creds + unknown identifier give the SAME generic 401 (anti-enumeration), a dup register
+# 409s, and the OTP request is neutral. The OTP happy path can only mint a token when the backend runs
+# with OTP_DEV_ECHO=true (it echoes the code) — otherwise we assert the neutral envelope + generic reject
+# only, so this block stays green regardless of that flag.
+# Dotted TLD: the backend identifier guard requires ^...@...\..+$ (a real email shape), so @local 400s.
+AEMAIL="smoke-$$-${RANDOM}@smoke.local"
+APASS="SmokePass$$word"
+APHONE=$(printf '9%09d' $(( (RANDOM*RANDOM) % 1000000000 )))   # 10-digit, starts 9 -> passes ^\+?[0-9]{8,15}$
+
+# register -> 201 + token; token sub is namespaced usr- (a real, non-guest account) with role USER.
+REG=$(curl -fs -w '\n%{http_code}' -X POST $GW/auth/register -H 'Content-Type: application/json' \
+  -d "{\"identifier\":\"$AEMAIL\",\"password\":\"$APASS\",\"displayName\":\"Smoke Auth\"}")
+assert_eq "201" "$(tail -1 <<<"$REG")" "POST /auth/register -> 201"
+REG_TOK=$(jget "$(sed '$d' <<<"$REG")" token)
+[ -n "$REG_TOK" ] && ok "register issued a token" || bad "register issued a token"
+REG_SUB=$(jget "$(b64url_decode "$(cut -d. -f2 <<<"$REG_TOK")")" sub)
+case "$REG_SUB" in usr-*) ok "register sub is namespaced usr- (non-guest): $REG_SUB";; *) bad "register sub usr- (got: $REG_SUB)";; esac
+
+# duplicate register -> 409 (registration intentionally reveals existence; login does NOT).
+# NB: capture the body (-w + tail), do NOT use `curl -f -o /dev/null` on these error-path asserts.
+# With --fail+discard, curl tears down the TLS connection the instant it sees the 4xx status line,
+# before the gateway finishes streaming the (tiny) error body; reactor-netty then logs a failed
+# write and HttpWebHandlerAdapter completes the exchange 500, so -w reports a spurious 500. Reading
+# the body keeps the connection open through the full response — the endpoint itself returns 409.
+DUP=$(curl -sk -w '\n%{http_code}' -X POST $GW/auth/register -H 'Content-Type: application/json' \
+  -d "{\"identifier\":\"$AEMAIL\",\"password\":\"$APASS\"}")
+assert_eq "409" "$(tail -1 <<<"$DUP")" "re-register same identifier -> 409"
+
+# login right creds -> 200 + token.
+LOG=$(curl -fs -w '\n%{http_code}' -X POST $GW/auth/login -H 'Content-Type: application/json' \
+  -d "{\"identifier\":\"$AEMAIL\",\"password\":\"$APASS\"}")
+assert_eq "200" "$(tail -1 <<<"$LOG")" "POST /auth/login correct creds -> 200"
+[ -n "$(jget "$(sed '$d' <<<"$LOG")" token)" ] && ok "login issued a token" || bad "login issued a token"
+
+# Anti-enumeration: wrong password AND unknown identifier must both yield the SAME generic 401.
+# Capture the body (see the dup-register note above) — `curl -f -o /dev/null` on a 4xx spuriously
+# reports 500 by closing the connection mid-error-body.
+WRONGPW=$(curl -sk -w '\n%{http_code}' -X POST $GW/auth/login -H 'Content-Type: application/json' \
+  -d "{\"identifier\":\"$AEMAIL\",\"password\":\"definitely-wrong\"}")
+WRONGPW=$(tail -1 <<<"$WRONGPW")
+UNKNOWN=$(curl -sk -w '\n%{http_code}' -X POST $GW/auth/login -H 'Content-Type: application/json' \
+  -d "{\"identifier\":\"nobody-$$-${RANDOM}@smoke.local\",\"password\":\"$APASS\"}")
+UNKNOWN=$(tail -1 <<<"$UNKNOWN")
+assert_eq "401" "$WRONGPW" "login wrong password -> 401"
+assert_eq "$WRONGPW" "$UNKNOWN" "unknown identifier returns SAME status as wrong password (no enumeration)"
+
+# OTP request is neutral {sent:true}. If dev-echo is on, complete the happy path to a non-guest token.
+OTP_REQ=$(curl -fs -X POST $GW/auth/otp/request -H 'Content-Type: application/json' -d "{\"phone\":\"$APHONE\"}")
+echo "$OTP_REQ" | grep -q '"sent":true' && ok "POST /auth/otp/request -> {sent:true} (neutral)" || bad "otp/request neutral (got: $OTP_REQ)"
+DEVCODE=$(jget "$OTP_REQ" devCode)
+# wrong code -> generic 401 (NO_CODE/MISMATCH collapse; never an oracle).
+OVW=$(curl -sk -w '\n%{http_code}' -X POST $GW/auth/otp/verify -H 'Content-Type: application/json' \
+  -d "{\"phone\":\"$APHONE\",\"code\":\"000000\"}")
+assert_eq "401" "$(tail -1 <<<"$OVW")" "otp/verify wrong code -> 401 (generic)"
+if [ -n "$DEVCODE" ]; then
+  OTP_V=$(curl -fs -w '\n%{http_code}' -X POST $GW/auth/otp/verify -H 'Content-Type: application/json' \
+    -d "{\"phone\":\"$APHONE\",\"code\":\"$DEVCODE\"}")
+  assert_eq "200" "$(tail -1 <<<"$OTP_V")" "otp/verify correct dev-echo code -> 200"
+  OTP_SUB=$(jget "$(b64url_decode "$(cut -d. -f2 <<<"$(jget "$(sed '$d' <<<"$OTP_V")" token)")")" sub)
+  case "$OTP_SUB" in usr-*) ok "otp login sub is namespaced usr- (non-guest): $OTP_SUB";; *) bad "otp sub usr- (got: $OTP_SUB)";; esac
+else
+  echo "  SKIP: OTP happy-path verify (OTP_DEV_ECHO not enabled — no code to read)"
+fi
 
 echo
 echo "== 9. PERSISTENCE: full stack down -> up, data survives =="
