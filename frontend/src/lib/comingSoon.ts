@@ -19,6 +19,28 @@ export function isComingSoon(product: Pick<Product, 'category'>): boolean {
 // (ProductCard) so the two never drift. Honey's catalog imageUrl is a placeholder until launch.
 export const HONEY_IMAGE = '/updates/honey.jpg';
 
+// ---- launch-date seam ("The Drop" framing) --------------------------------------------------
+// The first honey drop has NO firm date yet (compliance/sourcing is the long pole). null ⇒ the
+// no-date "The Drop" framing (current). Set this to an ISO date string later to switch ON the
+// countdown-clock path (the touchpoints already branch on it). This single constant is the seam.
+export const HONEY_LAUNCH_DATE: string | null = null;
+
+// ---- honest in-line count (real launch-list signups, ≥25 floor) ------------------------------
+// Minimum signups before we show the "X already in line" social-proof line. Below this we render
+// NOTHING (an honest, un-fabricated count). Crucial: never hard-code a fake number here.
+export const HONEY_INLINE_FLOOR = 25;
+
+// The REAL count of honey launch-list signups, or null when we can't show one. Today the only
+// list-read endpoint is ADMIN-gated (GET /api/catalog/admin/notify) so the public storefront has
+// no live count source — the local list is the only real client-side signal, and a single browser
+// will essentially never cross the floor, so in practice this stays hidden (honest, not fabricated).
+// FOLLOW-UP (backend, out of /frontend scope): a PUBLIC GET /api/catalog/notify/count?topic=honey
+// would let this return the true cross-browser count; swap the source here when it lands.
+export function honeyInLineCount(): number | null {
+  const real = getNotifyList().filter((e) => e.topic === 'honey').length;
+  return real >= HONEY_INLINE_FLOOR ? real : null;
+}
+
 // ---- phone validation (Indian 10-digit mobile) ----------------------------------------------
 // Phone is the compulsory contact for the launch list (email is optional). Strip everything but
 // digits, drop a leading +91 / 91 country code or a 0 trunk prefix, then require a 10-digit number

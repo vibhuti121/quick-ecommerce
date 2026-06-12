@@ -1370,6 +1370,27 @@ textarea:focus-visible,
   color: var(--muted);
 }
 
+/* Honest in-line count under the lede — only rendered when honeyInLineCount() clears the ≥25 floor.
+   Small copy → --forest (AA on cream), the trust/green voice; never a brand fill. */
+.honey-teaser-count {
+  margin: 0 0 20px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.92rem;
+  color: var(--forest);
+}
+
+/* Launch-date seam placeholder — only rendered when HONEY_LAUNCH_DATE is set (the countdown path).
+   TODO: full countdown-clock styling deferred (fe-lead follow-up); this is the minimal stub so the
+   seam is visible/greppable today without committing the clock design. */
+.honey-teaser-countdown {
+  margin: 0 0 20px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--forest);
+}
+
 /* The teaser's notify form sits inline (not in a modal) — give it room but keep the shared field
    styling from .coming-soon-* untouched. */
 .honey-teaser-form {
@@ -2130,6 +2151,29 @@ textarea:focus-visible,
   padding: 4px 10px;
   border-radius: 999px;
   box-shadow: 0 2px 8px rgba(217, 119, 6, 0.35);
+}
+
+/* "The Drop" eyebrow on the honey card — small intriguing drop-framing line above the CTA. Small
+   copy on cream, so --forest (AA-safe) not the honey/litchi fills. Display face for brand voice. */
+.honey-drop-eyebrow {
+  display: block;
+  margin: 2px 0 2px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.78rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--forest);
+}
+
+/* Honest in-line count (shared by card + modal) — renders only when honeyInLineCount() clears the
+   ≥25 floor. Small copy → --text (AA on cream), never a brand fill. */
+.honey-inline-count {
+  display: block;
+  margin: 0 0 6px;
+  font-size: 0.84rem;
+  font-weight: 500;
+  color: var(--text);
 }
 
 /* The card footer for a coming-soon product is a single full-width CTA (no price/Add). */
