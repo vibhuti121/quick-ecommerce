@@ -530,9 +530,9 @@ export default function App() {
       {/* The honey hook lives below the catalogue: the storefront sells litchi today and teases the
           honey launch. Same launch list as the card/carousel/modal — saveNotify('honey') + notify. */}
       <HoneyTeaser
-        onNotify={(phone, email) => {
-          saveNotify('honey', phone, email);
-          void notify('honey', phone, email).catch(() => {});
+        onNotify={(phone, email, pincode, city, state) => {
+          saveNotify('honey', phone, email, pincode, city, state);
+          void notify('honey', phone, email, pincode, city, state).catch(() => {});
         }}
       />
 
@@ -558,14 +558,14 @@ export default function App() {
         open={comingSoonOpen}
         product={comingSoonProduct}
         onClose={handleCloseComingSoon}
-        onNotify={(phone, email) => {
+        onNotify={(phone, email, pincode, city, state) => {
           // Honey is the only isComingSoon category — store all honey-card signups under one topic so
           // they dedupe with the honey carousel banner's signups into a single launch list. Persist to
           // the backend (source of truth) AND localStorage (offline fallback); the POST is best-effort
           // so a backend outage never surfaces an error — the form already showed its confirmation.
           if (comingSoonProduct) {
-            saveNotify('honey', phone, email);
-            void notify('honey', phone, email).catch(() => {});
+            saveNotify('honey', phone, email, pincode, city, state);
+            void notify('honey', phone, email, pincode, city, state).catch(() => {});
           }
         }}
       />
@@ -574,11 +574,11 @@ export default function App() {
         open={notifyTopic != null}
         topic={notifyTopic}
         onClose={() => setNotifyTopic(null)}
-        onNotify={(phone, email) => {
+        onNotify={(phone, email, pincode, city, state) => {
           // Backend (source of truth) + localStorage (offline fallback); POST is best-effort.
           if (notifyTopic) {
-            saveNotify(notifyTopic.key, phone, email);
-            void notify(notifyTopic.key, phone, email).catch(() => {});
+            saveNotify(notifyTopic.key, phone, email, pincode, city, state);
+            void notify(notifyTopic.key, phone, email, pincode, city, state).catch(() => {});
           }
         }}
       />

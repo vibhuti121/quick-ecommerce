@@ -1,12 +1,19 @@
 import { useRef } from 'react';
 import { motion, useReducedMotion, useScroll, useTransform } from 'motion/react';
-import { HONEY_IMAGE, HONEY_LAUNCH_DATE, honeyInLineCount } from '../lib/comingSoon';
+import { HONEY_IMAGE, HONEY_LAUNCH_DATE } from '../lib/comingSoon';
 import NotifyForm from './NotifyForm';
 
 interface HoneyTeaserProps {
-  // Persist interest for the 'honey' launch list. Phone required & validated; email optional.
-  // The parent owns the topic ('honey') so card + carousel + this section all dedupe into one list.
-  onNotify: (phone: string, email?: string) => void;
+  // Persist interest for the 'honey' launch list. Phone required & validated; email optional; pincode
+  // + auto-filled-editable city/state for the serviceability pilot. The parent owns the topic
+  // ('honey') so card + carousel + this section all dedupe into one list.
+  onNotify: (
+    phone: string,
+    email: string | undefined,
+    pincode: string,
+    city: string,
+    state: string,
+  ) => void;
 }
 
 // The hero hook: a full-width scrollytelling section that builds desire for the not-yet-launched
@@ -28,10 +35,6 @@ export default function HoneyTeaser({ onNotify }: HoneyTeaserProps) {
   const jarY = useTransform(scrollYProgress, [0, 0.5, 1], [60, 0, -40]);
   const jarOpacity = useTransform(scrollYProgress, [0, 0.25, 1], [0.4, 1, 1]);
   const jarStyle = reduce ? undefined : { scale: jarScale, y: jarY, opacity: jarOpacity };
-
-  // "The Drop" honest social-proof: the real signup count, or null below the ≥25 floor / when
-  // unavailable. Renders nothing when null — never a fabricated number.
-  const inLine = honeyInLineCount();
 
   return (
     <section className="honey-teaser" id="honey-teaser" ref={ref} aria-label="Litchi honey — coming soon">
@@ -67,11 +70,6 @@ export default function HoneyTeaser({ onNotify }: HoneyTeaserProps) {
           {HONEY_LAUNCH_DATE !== null && (
             // TODO: full countdown-clock styling deferred (fe-lead follow-up)
             <p className="honey-teaser-countdown">Dropping {HONEY_LAUNCH_DATE}</p>
-          )}
-
-          {/* Honest in-line count — only when honeyInLineCount() clears the ≥25 floor. */}
-          {inLine !== null && (
-            <p className="honey-teaser-count">{inLine} already in line for batch 1</p>
           )}
 
           <div className="honey-teaser-form">

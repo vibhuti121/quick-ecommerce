@@ -15,4 +15,7 @@ public interface NotifySignupRepository extends JpaRepository<NotifySignup, Long
 
     /** Admin list — newest signups first. */
     List<NotifySignup> findAllByOrderByCreatedAtDesc();
+
+    /** Public, read-only count of signups for a topic (e.g. the honey drop list size). */
+    long countByTopic(String topic);
 }

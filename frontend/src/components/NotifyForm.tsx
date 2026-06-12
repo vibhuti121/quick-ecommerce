@@ -1,26 +1,59 @@
 import { useState } from 'react';
 import { isValidIndianMobile } from '../lib/comingSoon';
+import { resolvePincode } from '../lib/pincode';
 
 // Very light email sanity check — we're not the source of truth, just avoiding obvious typos before
 // we store the address. A real launch list would validate server-side.
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 interface NotifyFormProps {
-  // Persist interest (browser-local). Phone is required & validated; email is optional (passed only
-  // when the user filled a valid one). The parent owns WHAT subject this is for.
-  onNotify: (phone: string, email?: string) => void;
+  // Persist interest (browser-local + backend). Phone is required & validated; email is optional
+  // (passed only when valid). pincode (6-digit, required) + city/state (auto-filled, editable, both
+  // required) feed the serviceability pilot. The parent owns WHAT subject this is for.
+  onNotify: (
+    phone: string,
+    email: string | undefined,
+    pincode: string,
+    city: string,
+    state: string,
+  ) => void;
 }
 
-// The shared notify-me capture: a required Indian mobile + an optional email, with per-field
-// validation, swapping to a confirmation on submit. Used by both the honey product popup
-// (ComingSoonModal) and the per-banner carousel popup (NotifyModal) so the validation/normalization
-// lives in exactly one place. The parent remounts this (via a `key`) to reset it on reopen.
+// The shared notify-me capture: a required Indian mobile + an optional email + a required pincode that
+// auto-fills an editable city/state, swapping to a confirmation on submit. Used by the honey product
+// popup (ComingSoonModal), the honey teaser (HoneyTeaser), and the per-banner carousel popup
+// (NotifyModal) so the validation/normalization lives in exactly one place. The parent remounts this
+// (via a `key`) to reset it on reopen.
 export default function NotifyForm({ onNotify }: NotifyFormProps) {
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
+  const [pincode, setPincode] = useState('');
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('');
+  const [resolving, setResolving] = useState(false);
   const [phoneError, setPhoneError] = useState('');
   const [emailError, setEmailError] = useState('');
+  const [pincodeError, setPincodeError] = useState('');
   const [submitted, setSubmitted] = useState(false);
+
+  // On reaching 6 digits, resolve city/state (API → offline fallback, never throws). Keep the digits
+  // only and cap at 6 so the field is strictly numeric. City/state stay editable for correction.
+  function handlePincodeChange(raw: string) {
+    const digits = raw.replace(/\D/g, '').slice(0, 6);
+    setPincode(digits);
+    if (pincodeError) setPincodeError('');
+    if (digits.length === 6) {
+      setResolving(true);
+      void resolvePincode(digits)
+        .then((res) => {
+          if (res) {
+            setCity(res.city);
+            setState(res.state);
+          }
+        })
+        .finally(() => setResolving(false));
+    }
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -39,8 +72,17 @@ export default function NotifyForm({ onNotify }: NotifyFormProps) {
       ok = false;
     }
 
+    // Pincode is compulsory (6 digits). City/state must end up filled (auto or typed).
+    if (!/^\d{6}$/.test(pincode)) {
+      setPincodeError('Enter a valid 6-digit pincode.');
+      ok = false;
+    } else if (!city.trim() || !state.trim()) {
+      setPincodeError('Please fill in your city and state.');
+      ok = false;
+    }
+
     if (!ok) return;
-    onNotify(phone, emailValue || undefined);
+    onNotify(phone, emailValue || undefined, pincode, city.trim(), state.trim());
     setSubmitted(true);
   }
 
@@ -101,6 +143,59 @@ export default function NotifyForm({ onNotify }: NotifyFormProps) {
           {emailError}
         </span>
       )}
+
+      <label className="coming-soon-label" htmlFor="notify-pincode">
+        Pincode <span className="coming-soon-req">*</span>
+        {resolving && (
+          <span className="coming-soon-resolving" aria-live="polite">
+            {' '}resolving…
+          </span>
+        )}
+      </label>
+      <input
+        id="notify-pincode"
+        type="text"
+        inputMode="numeric"
+        autoComplete="postal-code"
+        maxLength={6}
+        className="coming-soon-input"
+        placeholder="e.g. 560001"
+        value={pincode}
+        onChange={(e) => handlePincodeChange(e.target.value)}
+        aria-invalid={!!pincodeError}
+        aria-describedby={pincodeError ? 'notify-pincode-error' : undefined}
+      />
+      {pincodeError && (
+        <span className="coming-soon-error" id="notify-pincode-error">
+          {pincodeError}
+        </span>
+      )}
+
+      <label className="coming-soon-label" htmlFor="notify-city">
+        City <span className="coming-soon-req">*</span>
+      </label>
+      <input
+        id="notify-city"
+        type="text"
+        autoComplete="address-level2"
+        className="coming-soon-input"
+        placeholder="City"
+        value={city}
+        onChange={(e) => setCity(e.target.value)}
+      />
+
+      <label className="coming-soon-label" htmlFor="notify-state">
+        State <span className="coming-soon-req">*</span>
+      </label>
+      <input
+        id="notify-state"
+        type="text"
+        autoComplete="address-level1"
+        className="coming-soon-input"
+        placeholder="State"
+        value={state}
+        onChange={(e) => setState(e.target.value)}
+      />
 
       <button type="submit" className="btn btn-primary coming-soon-submit">
         🔔 Notify me

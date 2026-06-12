@@ -25,22 +25,6 @@ export const HONEY_IMAGE = '/updates/honey.jpg';
 // countdown-clock path (the touchpoints already branch on it). This single constant is the seam.
 export const HONEY_LAUNCH_DATE: string | null = null;
 
-// ---- honest in-line count (real launch-list signups, ≥25 floor) ------------------------------
-// Minimum signups before we show the "X already in line" social-proof line. Below this we render
-// NOTHING (an honest, un-fabricated count). Crucial: never hard-code a fake number here.
-export const HONEY_INLINE_FLOOR = 25;
-
-// The REAL count of honey launch-list signups, or null when we can't show one. Today the only
-// list-read endpoint is ADMIN-gated (GET /api/catalog/admin/notify) so the public storefront has
-// no live count source — the local list is the only real client-side signal, and a single browser
-// will essentially never cross the floor, so in practice this stays hidden (honest, not fabricated).
-// FOLLOW-UP (backend, out of /frontend scope): a PUBLIC GET /api/catalog/notify/count?topic=honey
-// would let this return the true cross-browser count; swap the source here when it lands.
-export function honeyInLineCount(): number | null {
-  const real = getNotifyList().filter((e) => e.topic === 'honey').length;
-  return real >= HONEY_INLINE_FLOOR ? real : null;
-}
-
 // ---- phone validation (Indian 10-digit mobile) ----------------------------------------------
 // Phone is the compulsory contact for the launch list (email is optional). Strip everything but
 // digits, drop a leading +91 / 91 country code or a 0 trunk prefix, then require a 10-digit number
@@ -71,6 +55,11 @@ export interface NotifyEntry {
   topic: string; // stable subject id: 'honey' | 'litchi' | 'gi' | 'delivery' (see lib/updates NotifyTopic)
   phone: string; // normalized 10-digit Indian mobile — the required contact
   email?: string; // optional secondary contact
+  // Serviceability fields (added for the pilot). Optional on the stored entry so a returning browser
+  // with older (pre-pincode) entries still reads back cleanly — see the lenient guard in getNotifyList.
+  pincode?: string;
+  city?: string;
+  state?: string;
 }
 
 export function getNotifyList(): NotifyEntry[] {
@@ -79,13 +68,18 @@ export function getNotifyList(): NotifyEntry[] {
     if (!raw) return [];
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return [];
+    const isOptString = (v: unknown): boolean => v === undefined || typeof v === 'string';
     return parsed.filter(
       (e): e is NotifyEntry =>
         !!e &&
         typeof e === 'object' &&
         typeof (e as NotifyEntry).topic === 'string' &&
         typeof (e as NotifyEntry).phone === 'string' &&
-        ((e as NotifyEntry).email === undefined || typeof (e as NotifyEntry).email === 'string'),
+        isOptString((e as NotifyEntry).email) &&
+        // Backward-compatible: pre-pincode entries simply lack these (undefined) and still pass.
+        isOptString((e as NotifyEntry).pincode) &&
+        isOptString((e as NotifyEntry).city) &&
+        isOptString((e as NotifyEntry).state),
     );
   } catch {
     return [];
@@ -96,7 +90,14 @@ export function getNotifyList(): NotifyEntry[] {
 // (topic, phone) so re-submitting the same number for the same subject is idempotent. Returns the new
 // list. (Older productId-keyed entries from a returning browser fail the topic guard above and are
 // dropped — acceptable; this is best-effort browser-local interest, not a system of record.)
-export function saveNotify(topic: string, phone: string, email?: string): NotifyEntry[] {
+export function saveNotify(
+  topic: string,
+  phone: string,
+  email?: string,
+  pincode?: string,
+  city?: string,
+  state?: string,
+): NotifyEntry[] {
   const normalizedPhone = normalizeMobile(phone);
   const normalizedEmail = email?.trim().toLowerCase() || undefined;
   const current = getNotifyList();
@@ -105,6 +106,9 @@ export function saveNotify(topic: string, phone: string, email?: string): Notify
   }
   const entry: NotifyEntry = { topic, phone: normalizedPhone };
   if (normalizedEmail) entry.email = normalizedEmail;
+  if (pincode?.trim()) entry.pincode = pincode.trim();
+  if (city?.trim()) entry.city = city.trim();
+  if (state?.trim()) entry.state = state.trim();
   const next = [entry, ...current];
   try {
     localStorage.setItem(NOTIFY_KEY, JSON.stringify(next));

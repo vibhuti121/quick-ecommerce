@@ -58,6 +58,15 @@ public class Order {
     @Column(name = "delivery_address", nullable = false, length = 1024)
     private String deliveryAddress;
 
+    @Column(nullable = false, length = 6)
+    private String pincode;
+
+    @Column(nullable = false, length = 128)
+    private String city;
+
+    @Column(nullable = false, length = 128)
+    private String state;
+
     @Enumerated(EnumType.STRING)
     @Column(name = "delivery_status", nullable = false, length = 20)
     private DeliveryStatus deliveryStatus;
@@ -117,6 +126,15 @@ public class Order {
 
     public String getDeliveryAddress() { return deliveryAddress; }
     public void setDeliveryAddress(String deliveryAddress) { this.deliveryAddress = deliveryAddress; }
+
+    public String getPincode() { return pincode; }
+    public void setPincode(String pincode) { this.pincode = pincode; }
+
+    public String getCity() { return city; }
+    public void setCity(String city) { this.city = city; }
+
+    public String getState() { return state; }
+    public void setState(String state) { this.state = state; }
 
     public DeliveryStatus getDeliveryStatus() { return deliveryStatus; }
     public void setDeliveryStatus(DeliveryStatus deliveryStatus) { this.deliveryStatus = deliveryStatus; }

@@ -135,15 +135,17 @@ echo "$MAL" | grep -q 'Coorg (Kodagu), Karnataka' && ok "provenance.origin round
 echo "$MAL" | grep -q '"status":"authorized"' && ok "GI-authorized example present (badge-eligible)" || bad "GI-authorized example present (badge-eligible)"
 
 echo
-echo "== 4c. notify-me launch-interest capture (public POST + admin-gated read; Flyway V4) =="
+echo "== 4c. notify-me launch-interest capture (public POST + admin-gated read; Flyway V4+V5) =="
 # The storefront "🔔 Notify me" popups POST here; rows land in catalog's notify_signups table (Flyway
-# V4 — build-gate-blind, so this is the ONLY check the migration applied) and the founder reads them via
-# the admin GET. Public write, admin-only read. Idempotent on (topic, phone): a re-submit returns the
+# V4 created it, V5 added pincode/city/state — both build-gate-blind, so this is the ONLY check the
+# migrations applied) and the founder reads them via the admin GET. The body now carries pincode/city/
+# state (the pincode->city/state resolver fills them client-side); a successful insert proves V5's
+# columns exist. Public write, admin-only read. Idempotent on (topic, phone): a re-submit returns the
 # same row, mirroring the client's localStorage dedupe. Unique-ish valid 10-digit Indian mobile per run
 # (leading 9 satisfies the [6-9] server @Pattern) so reruns don't accumulate distinct rows.
 NPHONE="9$(printf '%09d' $((RANDOM * RANDOM % 1000000000)))"
 NRESP=$(curl -fs -w '\n%{http_code}' -X POST $GW/api/catalog/notify -H 'Content-Type: application/json' \
-  -d "{\"topic\":\"honey\",\"phone\":\"$NPHONE\"}")
+  -d "{\"topic\":\"honey\",\"phone\":\"$NPHONE\",\"pincode\":\"560001\",\"city\":\"Bengaluru\",\"state\":\"Karnataka\"}")
 NCODE=$(tail -1 <<<"$NRESP"); NBODY=$(sed '$d' <<<"$NRESP")
 assert_eq "201" "$NCODE" "POST /api/catalog/notify without token -> 201 (public, in PUBLIC_PATHS)"
 NID=$(jnum "$NBODY" id)
@@ -154,7 +156,7 @@ NID=$(jnum "$NBODY" id)
 NID2=""
 for i in $(seq 1 10); do
   NRR=$(curl -s -w '\n%{http_code}' -X POST $GW/api/catalog/notify -H 'Content-Type: application/json' \
-    -d "{\"topic\":\"honey\",\"phone\":\"$NPHONE\"}")
+    -d "{\"topic\":\"honey\",\"phone\":\"$NPHONE\",\"pincode\":\"560001\",\"city\":\"Bengaluru\",\"state\":\"Karnataka\"}")
   if [ "$(tail -1 <<<"$NRR")" = "201" ]; then
     NID2=$(jnum "$(sed '$d' <<<"$NRR")" id)
     [ -n "$NID2" ] && break
@@ -164,13 +166,19 @@ done
 assert_eq "$NID" "$NID2" "re-POST same (topic,phone) -> same id (idempotent, no dup row)"
 # Validation: a junk phone is rejected by the server @Pattern (defence in depth on a public endpoint).
 assert_eq "400" "$(curl -fs -o /dev/null -w '%{http_code}' -X POST $GW/api/catalog/notify \
-  -H 'Content-Type: application/json' -d '{"topic":"honey","phone":"12345"}')" "POST invalid phone -> 400 (validation)"
+  -H 'Content-Type: application/json' -d '{"topic":"honey","phone":"12345","pincode":"560001","city":"Bengaluru","state":"Karnataka"}')" "POST invalid phone -> 400 (validation)"
 # Admin read is gated by BOTH the gateway ADMIN_PATHS prefix and the in-service AdminRoleFilter.
 assert_eq "401" "$(curl -fs -o /dev/null -w '%{http_code}' $GW/api/catalog/admin/notify)" \
   "GET /api/catalog/admin/notify without token -> 401"
 NADM=$(curl -fs -w '\n%{http_code}' $GW/api/catalog/admin/notify "${ADMIN[@]}")
 assert_eq "200" "$(tail -1 <<<"$NADM")" "GET admin/notify with ADMIN token -> 200"
 sed '$d' <<<"$NADM" | grep -q "$NPHONE" && ok "admin list contains the signup (phone $NPHONE)" || bad "admin list contains the signup"
+# Public count endpoint: a read-only aggregate (topic + integer, no PII) on the same PUBLIC_PATHS prefix
+# as the notify POST, so no admin token. Surfaced to the founder/admin only — NEVER shown to customers.
+NCNT=$(curl -fs -w '\n%{http_code}' "$GW/api/catalog/notify/count?topic=honey")
+assert_eq "200" "$(tail -1 <<<"$NCNT")" "GET /api/catalog/notify/count?topic=honey without token -> 200 (public)"
+NCOUNT=$(jnum "$(sed '$d' <<<"$NCNT")" count)
+{ [ -n "$NCOUNT" ] && [ "$NCOUNT" -ge 1 ]; } && ok "honey signup count >= 1 (=$NCOUNT)" || bad "honey signup count >= 1 (got '$NCOUNT')"
 
 echo
 echo "== 5. seed inventory stock (admin, token) =="
@@ -185,10 +193,37 @@ echo "  cart: $CART"
 echo "$CART" | grep -q "\"$PID\"" && ok "item added to user cart" || bad "item added to user cart"
 
 echo
+echo "== 6b. honey is not buyable (server-side gate; cart-service 400) =="
+# Honey renders in the catalog as a "coming soon" drop but can never enter a cart. The storefront routes it
+# to the notify list (UI half); cart-service rejects category==honey on the new-line snapshot (API half).
+# Build-gate-blind: only a live cart-service + catalog round-trip proves it (the add above proves non-honey
+# still works — this proves honey does not). We SEED our own category=honey product via the admin token
+# rather than relying on the MAL-HONEY seed: search (q=honey) can surface OpenSearch ghost docs (rows the
+# catalog DB no longer has → cart 404, not the gate) [[search-opensearch-pillar]], and a polluted local
+# volume may lack the seed entirely. Seeding makes the gate deterministic + fetchable. We assert BOTH the
+# 400 AND that the body is the honey ProblemDetail ("coming soon"), so a Jackson parse-error 400 can never
+# false-pass. category is sent capital-"Honey" to also prove the gate is case-insensitive.
+HSKU="SMOKE-HONEYGATE-$$-${RANDOM}"
+HPROD=$(curl -fs -X POST $GW/api/catalog/admin/products "${ADMIN[@]}" -H 'Content-Type: application/json' \
+  -d "{\"sku\":\"$HSKU\",\"name\":\"Smoke Honey Gate\",\"productType\":\"PHYSICAL\",\"category\":\"Honey\",\"basePrice\":499.00,\"currency\":\"INR\"}")
+HONEY_PID=$(jnum "$HPROD" id)
+if [ -z "$HONEY_PID" ]; then
+  bad "honey product seeded for gate test (admin create returned no id)"
+else
+  ok "honey product seeded for gate test (id=$HONEY_PID, category=Honey)"
+  HREJ=$(curl -s -w '\n%{http_code}' -X POST $GW/api/cart/items "${AUTH[@]}" -H 'Content-Type: application/json' \
+    -d "{\"productId\":$HONEY_PID,\"quantity\":1}")
+  assert_eq "400" "$(tail -1 <<<"$HREJ")" "POST honey product to cart -> 400 (coming soon, not buyable)"
+  grep -qi 'coming soon' <<<"$(sed '$d' <<<"$HREJ")" \
+    && ok "honey reject body is the honey gate ProblemDetail (not a parse error)" \
+    || bad "honey reject body is the honey gate ProblemDetail (got: $(sed '$d' <<<"$HREJ" | head -c 160))"
+fi
+
+echo
 echo "== 7. checkout saga (token + Idempotency-Key) =="
 CO=$(curl -fs -w '\n%{http_code}' -X POST $GW/api/orders/checkout "${AUTH[@]}" \
   -H 'Content-Type: application/json' -H 'Idempotency-Key: '"$IDEM"'' \
-  -d "{\"currency\":\"INR\",\"customerName\":\"Smoke Tester\",\"customerPhone\":\"9990000002\",\"deliveryAddress\":\"1 Test Lane, Bengaluru\",\"items\":[{\"productId\":$PID,\"sku\":\"$SKU\",\"name\":\"Smoke Widget\",\"unitPrice\":199.00,\"quantity\":2}]}")
+  -d "{\"currency\":\"INR\",\"customerName\":\"Smoke Tester\",\"customerPhone\":\"9990000002\",\"deliveryAddress\":\"1 Test Lane, Bengaluru\",\"pincode\":\"560001\",\"city\":\"Bengaluru\",\"state\":\"Karnataka\",\"items\":[{\"productId\":$PID,\"sku\":\"$SKU\",\"name\":\"Smoke Widget\",\"unitPrice\":199.00,\"quantity\":2}]}")
 CODE=$(tail -1 <<<"$CO"); BODY=$(sed '$d' <<<"$CO")
 assert_eq "202" "$CODE" "checkout -> 202 ACCEPTED"
 OID=$(jget "$BODY" orderId)
@@ -211,7 +246,7 @@ echo "== 7b. guest checkout is rejected (login required to order) =="
 # server-side half of the "sign in to order" rule; the storefront also hides the button (UI half).
 GCO=$(curl -s -o /dev/null -w '%{http_code}' -X POST $GW/api/orders/checkout "${GUEST_AUTH[@]}" \
   -H 'Content-Type: application/json' -H 'Idempotency-Key: guest-'"$IDEM"'' \
-  -d "{\"currency\":\"INR\",\"customerName\":\"Guest Tester\",\"customerPhone\":\"9990000003\",\"deliveryAddress\":\"1 Test Lane, Bengaluru\",\"items\":[{\"productId\":$PID,\"sku\":\"$SKU\",\"name\":\"Smoke Widget\",\"unitPrice\":199.00,\"quantity\":1}]}")
+  -d "{\"currency\":\"INR\",\"customerName\":\"Guest Tester\",\"customerPhone\":\"9990000003\",\"deliveryAddress\":\"1 Test Lane, Bengaluru\",\"pincode\":\"560001\",\"city\":\"Bengaluru\",\"state\":\"Karnataka\",\"items\":[{\"productId\":$PID,\"sku\":\"$SKU\",\"name\":\"Smoke Widget\",\"unitPrice\":199.00,\"quantity\":1}]}")
 assert_eq "403" "$GCO" "guest checkout -> 403 (must sign in to order)"
 
 echo
@@ -222,7 +257,7 @@ OID2=""
 for i in $(seq 1 10); do
   RESP=$(curl -s -w '\n%{http_code}' -X POST $GW/api/orders/checkout "${AUTH[@]}" -H 'Content-Type: application/json' \
     -H "Idempotency-Key: $IDEM" \
-    -d "{\"currency\":\"INR\",\"customerName\":\"Smoke Tester\",\"customerPhone\":\"9990000002\",\"deliveryAddress\":\"1 Test Lane, Bengaluru\",\"items\":[{\"productId\":$PID,\"sku\":\"$SKU\",\"name\":\"Smoke Widget\",\"unitPrice\":199.00,\"quantity\":2}]}")
+    -d "{\"currency\":\"INR\",\"customerName\":\"Smoke Tester\",\"customerPhone\":\"9990000002\",\"deliveryAddress\":\"1 Test Lane, Bengaluru\",\"pincode\":\"560001\",\"city\":\"Bengaluru\",\"state\":\"Karnataka\",\"items\":[{\"productId\":$PID,\"sku\":\"$SKU\",\"name\":\"Smoke Widget\",\"unitPrice\":199.00,\"quantity\":2}]}")
   RC=$(tail -1 <<<"$RESP")
   if [ "$RC" = "202" ]; then
     OID2=$(sed '$d' <<<"$RESP" | grep -o '"orderId":"[^"]*"' | head -1 | cut -d'"' -f4)
@@ -279,7 +314,7 @@ place_pair_order() { # $1 = idempotency key
   local co code body oid st
   co=$(curl -fs -w '\n%{http_code}' -X POST $GW/api/orders/checkout "${AUTH[@]}" \
     -H 'Content-Type: application/json' -H "Idempotency-Key: $1" \
-    -d "{\"currency\":\"INR\",\"customerName\":\"Smoke Tester\",\"customerPhone\":\"9990000002\",\"deliveryAddress\":\"1 Test Lane, Bengaluru\",\"items\":[{\"productId\":$PID_A2,\"sku\":\"$SKU_A2\",\"name\":\"Smoke Rec Anchor\",\"unitPrice\":299.00,\"quantity\":1},{\"productId\":$PID_B2,\"sku\":\"$SKU_B2\",\"name\":\"Smoke Rec Companion\",\"unitPrice\":149.00,\"quantity\":1}]}")
+    -d "{\"currency\":\"INR\",\"customerName\":\"Smoke Tester\",\"customerPhone\":\"9990000002\",\"deliveryAddress\":\"1 Test Lane, Bengaluru\",\"pincode\":\"560001\",\"city\":\"Bengaluru\",\"state\":\"Karnataka\",\"items\":[{\"productId\":$PID_A2,\"sku\":\"$SKU_A2\",\"name\":\"Smoke Rec Anchor\",\"unitPrice\":299.00,\"quantity\":1},{\"productId\":$PID_B2,\"sku\":\"$SKU_B2\",\"name\":\"Smoke Rec Companion\",\"unitPrice\":149.00,\"quantity\":1}]}")
   code=$(tail -1 <<<"$co"); body=$(sed '$d' <<<"$co")
   [ "$code" = "202" ] || { echo "    checkout $1 -> $code"; return 1; }
   oid=$(jget "$body" orderId)

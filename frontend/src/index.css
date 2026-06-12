@@ -1370,16 +1370,6 @@ textarea:focus-visible,
   color: var(--muted);
 }
 
-/* Honest in-line count under the lede — only rendered when honeyInLineCount() clears the ≥25 floor.
-   Small copy → --forest (AA on cream), the trust/green voice; never a brand fill. */
-.honey-teaser-count {
-  margin: 0 0 20px;
-  font-family: var(--font-display);
-  font-weight: 600;
-  font-size: 0.92rem;
-  color: var(--forest);
-}
-
 /* Launch-date seam placeholder — only rendered when HONEY_LAUNCH_DATE is set (the countdown path).
    TODO: full countdown-clock styling deferred (fe-lead follow-up); this is the minimal stub so the
    seam is visible/greppable today without committing the clock design. */
@@ -2166,16 +2156,6 @@ textarea:focus-visible,
   color: var(--forest);
 }
 
-/* Honest in-line count (shared by card + modal) — renders only when honeyInLineCount() clears the
-   ≥25 floor. Small copy → --text (AA on cream), never a brand fill. */
-.honey-inline-count {
-  display: block;
-  margin: 0 0 6px;
-  font-size: 0.84rem;
-  font-weight: 500;
-  color: var(--text);
-}
-
 /* The card footer for a coming-soon product is a single full-width CTA (no price/Add). */
 .coming-soon-cta {
   width: 100%;
@@ -2356,6 +2336,13 @@ textarea:focus-visible,
 
 .coming-soon-optional {
   font-weight: 400;
+  color: var(--muted);
+}
+
+/* Subtle "resolving…" affordance while the pincode → city/state lookup is in flight. */
+.coming-soon-resolving {
+  font-weight: 400;
+  font-style: italic;
   color: var(--muted);
 }
 

@@ -192,10 +192,12 @@ payment step for the customer. Three things matter on the wire:
 1. **A non-guest token is required** — a guest token → **403** ("Please sign in to place an order").
    `$AUTH` below carries the registered account from [§1.2](#12-identity--sign-in--do-i-have-to-log-in).
 2. An **`Idempotency-Key` header is required** — resend the same key and you won't double-order.
-3. The three delivery fields (`customerName`, `customerPhone`, `deliveryAddress`) are required.
+3. The delivery fields (`customerName`, `customerPhone`, `deliveryAddress`, `pincode`, `city`, `state`)
+   are required. Enter the 6-digit `pincode` and the form auto-fills `city`/`state` (editable).
 
 🖱 **In the UI:** open the cart — if you're a guest you'll see **Sign in to place your order** instead of
-the form; sign in (your cart carries over), then fill in name / phone / address and place the order.
+the form; sign in (your cart carries over), then fill in name / phone / address / pincode (city + state
+auto-fill) and place the order.
 
 ⌨ **On the wire:**
 ```bash
@@ -203,7 +205,8 @@ curl -sk -X POST $GW/api/orders/checkout "${AUTH[@]}" \
   -H 'Content-Type: application/json' \
   -H "Idempotency-Key: $(uuidgen)" \
   -d "{\"currency\":\"INR\",\"customerName\":\"Demo Shopper\",\"customerPhone\":\"9876543210\",
-       \"deliveryAddress\":\"12 MG Road, Bengaluru 560001\",
+       \"deliveryAddress\":\"12 MG Road, Bengaluru\",\"pincode\":\"560001\",
+       \"city\":\"Bengaluru\",\"state\":\"Karnataka\",
        \"items\":[{\"productId\":$PID,\"sku\":\"MAL-LITCHI-SHAHI-BOX\",\"name\":\"Shahi Litchi Box\",
                    \"unitPrice\":899,\"quantity\":1}]}" | jq
 # → HTTP 202, order in PENDING; the saga confirms it asynchronously

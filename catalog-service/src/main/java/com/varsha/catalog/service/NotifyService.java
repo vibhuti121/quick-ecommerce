@@ -28,6 +28,9 @@ public class NotifyService {
         String topic = req.topic().trim();
         String phone = req.phone().trim();
         String email = normalizeEmail(req.email());
+        String pincode = trimToNull(req.pincode());
+        String city = trimToNull(req.city());
+        String state = trimToNull(req.state());
 
         return repo.findByTopicAndPhone(topic, phone)
                 .map(NotifyResponse::from)
@@ -36,6 +39,9 @@ public class NotifyService {
                     s.setTopic(topic);
                     s.setPhone(phone);
                     s.setEmail(email);
+                    s.setPincode(pincode);
+                    s.setCity(city);
+                    s.setState(state);
                     return NotifyResponse.from(repo.save(s));
                 });
     }
@@ -47,9 +53,21 @@ public class NotifyService {
                 .toList();
     }
 
+    /** Public, read-only signup count for a topic — surfaces drop-list demand without exposing any PII. */
+    @Transactional(readOnly = true)
+    public long countByTopic(String topic) {
+        return repo.countByTopic(topic.trim());
+    }
+
     private static String normalizeEmail(String email) {
         if (email == null) return null;
         String trimmed = email.trim().toLowerCase();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null) return null;
+        String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
     }
 }

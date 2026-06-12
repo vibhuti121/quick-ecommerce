@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Cart, DeliveryDetails, Order } from '../types';
 import { formatPrice } from '../api';
+import { resolvePincode } from '../lib/pincode';
 
 interface CartDrawerProps {
   open: boolean;
@@ -34,14 +35,40 @@ export default function CartDrawer({
   const items = cart?.items ?? [];
   const isEmpty = items.length === 0;
 
-  // COD pilot: capture where the order goes. Checkout is blocked until all three are filled.
+  // COD pilot: capture where the order goes. Checkout is blocked until all fields are filled.
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [deliveryAddress, setDeliveryAddress] = useState('');
+  // Serviceability pilot: a required 6-digit pincode auto-fills an editable city/state (lib/pincode,
+  // API → offline fallback, never throws). City/state stay editable so a coarse resolve is correctable.
+  const [pincode, setPincode] = useState('');
+  const [city, setCity] = useState('');
+  const [state, setState] = useState('');
+  const [resolving, setResolving] = useState(false);
   const deliveryReady =
     customerName.trim() !== '' &&
     customerPhone.trim() !== '' &&
-    deliveryAddress.trim() !== '';
+    deliveryAddress.trim() !== '' &&
+    /^\d{6}$/.test(pincode) &&
+    city.trim() !== '' &&
+    state.trim() !== '';
+
+  // On reaching 6 digits, resolve city/state. Keep digits only, cap at 6 (strictly numeric).
+  function handlePincodeChange(raw: string) {
+    const digits = raw.replace(/\D/g, '').slice(0, 6);
+    setPincode(digits);
+    if (digits.length === 6) {
+      setResolving(true);
+      void resolvePincode(digits)
+        .then((res) => {
+          if (res) {
+            setCity(res.city);
+            setState(res.state);
+          }
+        })
+        .finally(() => setResolving(false));
+    }
+  }
 
   return (
     <>
@@ -158,6 +185,43 @@ export default function CartDrawer({
                       rows={3}
                       aria-label="Delivery address"
                     />
+                    <input
+                      className="delivery-input"
+                      type="text"
+                      inputMode="numeric"
+                      autoComplete="postal-code"
+                      maxLength={6}
+                      placeholder="Pincode"
+                      value={pincode}
+                      onChange={(e) => handlePincodeChange(e.target.value)}
+                      disabled={busy}
+                      aria-label="Pincode"
+                    />
+                    {resolving && (
+                      <span className="coming-soon-resolving" aria-live="polite">
+                        resolving…
+                      </span>
+                    )}
+                    <input
+                      className="delivery-input"
+                      type="text"
+                      autoComplete="address-level2"
+                      placeholder="City"
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                      disabled={busy}
+                      aria-label="City"
+                    />
+                    <input
+                      className="delivery-input"
+                      type="text"
+                      autoComplete="address-level1"
+                      placeholder="State"
+                      value={state}
+                      onChange={(e) => setState(e.target.value)}
+                      disabled={busy}
+                      aria-label="State"
+                    />
                   </div>
                 )
               )}
@@ -183,6 +247,9 @@ export default function CartDrawer({
                       customerName: customerName.trim(),
                       customerPhone: customerPhone.trim(),
                       deliveryAddress: deliveryAddress.trim(),
+                      pincode: pincode.trim(),
+                      city: city.trim(),
+                      state: state.trim(),
                     })
                   }
                   disabled={isEmpty || busy || !deliveryReady}

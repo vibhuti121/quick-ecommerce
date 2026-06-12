@@ -9,6 +9,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -33,6 +34,9 @@ public final class Dtos {
             @NotBlank String customerName,
             @NotBlank String customerPhone,
             @NotBlank String deliveryAddress,
+            @NotBlank @Pattern(regexp = "^\\d{6}$", message = "must be a 6-digit pincode") String pincode,
+            @NotBlank String city,
+            @NotBlank String state,
             @NotEmpty @Valid List<CheckoutItem> items
     ) {}
 
@@ -56,6 +60,9 @@ public final class Dtos {
             String customerName,
             String customerPhone,
             String deliveryAddress,
+            String pincode,
+            String city,
+            String state,
             DeliveryStatus deliveryStatus,
             List<OrderItemResponse> items,
             Instant createdAt,
@@ -68,7 +75,8 @@ public final class Dtos {
                     .toList();
             return new OrderResponse(o.getOrderId(), o.getUserId(), o.getStatus(), o.getTotalAmount(),
                     o.getCurrency(), o.getFailureReason(),
-                    o.getCustomerName(), o.getCustomerPhone(), o.getDeliveryAddress(), o.getDeliveryStatus(),
+                    o.getCustomerName(), o.getCustomerPhone(), o.getDeliveryAddress(),
+                    o.getPincode(), o.getCity(), o.getState(), o.getDeliveryStatus(),
                     items, o.getCreatedAt(), o.getUpdatedAt());
         }
     }
