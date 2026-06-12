@@ -49,8 +49,20 @@ async function call<T>(path: string, options: RequestInit, token: string): Promi
     },
   });
   if (!res.ok) {
-    const err = new Error(`Request failed: ${res.status} ${res.statusText}`);
-    (err as Error & { status?: number }).status = res.status;
+    // Surface the server's ProblemDetail when present (e.g. the checkout 409 carries `detail`
+    // "Out of stock: SKU" and a `sku` property) so callers can show a real message, not a bare code.
+    let detail: string | undefined;
+    let sku: string | undefined;
+    try {
+      const body = (await res.clone().json()) as { detail?: string; sku?: string };
+      detail = body?.detail;
+      sku = body?.sku;
+    } catch {
+      /* non-JSON / empty error body — fall back to the status line */
+    }
+    const err = new Error(detail ?? `Request failed: ${res.status} ${res.statusText}`);
+    (err as Error & { status?: number; sku?: string }).status = res.status;
+    if (sku) (err as Error & { sku?: string }).sku = sku;
     throw err;
   }
   // 204/empty bodies (e.g. clear-cart) return nothing to parse.
@@ -272,23 +284,40 @@ export async function placeOrder(delivery: DeliveryDetails): Promise<Order> {
       ? crypto.randomUUID()
       : `co-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 
-  const res = await request<OrderResponse>('/api/orders/checkout', {
-    method: 'POST',
-    headers: { 'Idempotency-Key': idempotencyKey },
-    body: JSON.stringify({
-      currency: 'INR',
-      customerName: delivery.customerName.trim(),
-      customerPhone: delivery.customerPhone.trim(),
-      deliveryAddress: delivery.deliveryAddress.trim(),
-      items: lines.map((l) => ({
-        productId: l.productId,
-        sku: l.sku,
-        name: l.name,
-        unitPrice: l.unitPrice,
-        quantity: l.quantity,
-      })),
-    }),
-  });
+  let res: OrderResponse;
+  try {
+    res = await request<OrderResponse>('/api/orders/checkout', {
+      method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
+      body: JSON.stringify({
+        currency: 'INR',
+        customerName: delivery.customerName.trim(),
+        customerPhone: delivery.customerPhone.trim(),
+        deliveryAddress: delivery.deliveryAddress.trim(),
+        items: lines.map((l) => ({
+          productId: l.productId,
+          sku: l.sku,
+          name: l.name,
+          unitPrice: l.unitPrice,
+          quantity: l.quantity,
+        })),
+      }),
+    });
+  } catch (e) {
+    // The Redis ATP guard rejects an out-of-stock checkout instantly with 409 (no order created).
+    // Translate the SKU into the product name the shopper recognizes; the cart is left intact so
+    // they can adjust quantities and retry.
+    const err = e as { status?: number; sku?: string };
+    if (err.status === 409) {
+      const short = err.sku ? lines.find((l) => l.sku === err.sku) : undefined;
+      throw new Error(
+        short
+          ? `Sorry, "${short.name}" just went out of stock. Please reduce the quantity or remove it to continue.`
+          : 'Sorry, one of your items just went out of stock. Please review your cart and try again.',
+      );
+    }
+    throw e;
+  }
 
   // Empty the cart now that the order is placed (non-fatal if it fails — the order already exists).
   try {

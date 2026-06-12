@@ -201,10 +201,16 @@ services:
       DB_NAME: inventorydb
       DB_USER: postgres
       DB_PASSWORD: ${DB_PASSWORD:?missing - run ./scripts/gen-secrets.sh to create .env}
+      # Redis available-to-promise (ATP) counters for instant oversell rejection at checkout. Optional:
+      # if Redis is down the ATP pre-check degrades and the DB pessimistic lock remains the durable guard.
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
       # Observability Pillar 2B: HMAC key to de-identify X-User-Id into the log MDC ('user_id'). See auth-service.
       LOG_HASH_SECRET: ${LOG_HASH_SECRET:?missing - run ./scripts/gen-secrets.sh to create .env}
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     restart: unless-stopped
 

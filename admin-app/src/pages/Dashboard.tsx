@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Package, ShoppingCart, Truck } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
-import { listProducts } from '@/api/catalog';
+import { listProductsAdmin } from '@/api/catalog';
 import { getOrders } from '@/api/orders';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -22,7 +22,7 @@ interface Stat {
 }
 
 export function Dashboard() {
-  const products = useQuery({ queryKey: ['products'], queryFn: () => listProducts() });
+  const products = useQuery({ queryKey: ['products'], queryFn: () => listProductsAdmin() });
   const orders = useQuery({ queryKey: ['orders'], queryFn: () => getOrders() });
 
   const ordersToday = orders.data?.filter((o) => isToday(o.createdAt)).length ?? 0;

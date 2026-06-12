@@ -1,8 +1,10 @@
 package com.varsha.order.service;
 
+import com.varsha.order.client.InventoryClient;
 import com.varsha.order.dto.Dtos.CheckoutItem;
 import com.varsha.order.dto.Dtos.CheckoutRequest;
 import com.varsha.order.dto.Dtos.OrderResponse;
+import com.varsha.order.exception.OrderExceptions.InsufficientStockException;
 import com.varsha.order.exception.OrderExceptions.NotFoundException;
 import com.varsha.order.model.DeliveryStatus;
 import com.varsha.order.model.Order;
@@ -37,16 +39,24 @@ public class CheckoutService {
 
     private final OrderRepository orders;
     private final OutboxRepository outbox;
+    private final InventoryClient inventory;
     // Business meter (Pillar 3): top-of-funnel demand. Counts orders ACCEPTED at checkout (one per new
     // order, never on an idempotent replay) — distinct from orders_finalized_total{status} which the saga
     // emits at the terminal outcome. orders_placed_total minus confirmed/failed = in-flight saga backlog.
     private final Counter ordersPlaced;
+    // Counts checkouts rejected instantly by the ATP pre-check (out of stock before any order exists).
+    private final Counter ordersRejectedStock;
 
-    public CheckoutService(OrderRepository orders, OutboxRepository outbox, MeterRegistry meters) {
+    public CheckoutService(OrderRepository orders, OutboxRepository outbox,
+                           InventoryClient inventory, MeterRegistry meters) {
         this.orders = orders;
         this.outbox = outbox;
+        this.inventory = inventory;
         this.ordersPlaced = Counter.builder("orders.placed")
                 .description("Orders accepted at checkout (excludes idempotent replays)")
+                .register(meters);
+        this.ordersRejectedStock = Counter.builder("orders.rejected.stock")
+                .description("Checkouts rejected instantly by the ATP pre-check (out of stock)")
                 .register(meters);
     }
 
@@ -60,7 +70,25 @@ public class CheckoutService {
     public OrderResponse checkout(String userId, String idempotencyKey, CheckoutRequest req) {
         Order existing = orders.findByIdempotencyKey(idempotencyKey).orElse(null);
         if (existing != null) {
-            return OrderResponse.from(existing); // idempotent replay
+            return OrderResponse.from(existing); // idempotent replay — never re-decrement ATP
+        }
+
+        // Instant oversell guard: a synchronous Redis available-to-promise pre-check BEFORE the order
+        // exists. Out of stock => reject 409 now, instead of the customer discovering a FAILED order
+        // ~2s later via the async saga. RESERVED decrements the counters; INSUFFICIENT rejects; any
+        // degradation (Redis/inventory down) proceeds — the saga's DB pessimistic lock stays the
+        // authoritative oversell guard, so a missed pre-check can never actually oversell.
+        List<InventoryClient.Line> atpLines = req.items().stream()
+                .map(i -> new InventoryClient.Line(i.sku(), i.quantity()))
+                .toList();
+        InventoryClient.AtpOutcome atp = inventory.atpReserve(atpLines);
+        if (atp.insufficient()) {
+            ordersRejectedStock.increment();
+            log.info("order.rejected.stock {}",
+                    kv("event", "order.rejected.stock"),
+                    kv("payload", Map.of("sku", atp.shortSku() == null ? "?" : atp.shortSku())));
+            throw new InsufficientStockException(atp.shortSku(),
+                    "Out of stock" + (atp.shortSku() != null ? ": " + atp.shortSku() : ""));
         }
 
         String orderId = UUID.randomUUID().toString();

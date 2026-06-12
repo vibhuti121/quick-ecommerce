@@ -10,7 +10,7 @@ export type Role = 'ADMIN' | 'CUSTOMER' | 'GUEST';
 export type Permission =
   | 'product:read'
   | 'product:write'
-  | 'product:delete'
+  | 'inventory:read'
   | 'inventory:write'
   | 'order:read'
   | 'order:write';
@@ -18,7 +18,7 @@ export type Permission =
 const ALL_PERMISSIONS: Permission[] = [
   'product:read',
   'product:write',
-  'product:delete',
+  'inventory:read',
   'inventory:write',
   'order:read',
   'order:write',

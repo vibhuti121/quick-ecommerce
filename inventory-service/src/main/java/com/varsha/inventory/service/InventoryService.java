@@ -14,11 +14,13 @@ import com.varsha.inventory.repository.ReservationRepository;
 import com.varsha.inventory.repository.StockItemRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -31,16 +33,24 @@ public class InventoryService {
 
     private final StockItemRepository stock;
     private final ReservationRepository reservations;
+    private final AtpService atp;
 
-    public InventoryService(StockItemRepository stock, ReservationRepository reservations) {
+    public InventoryService(StockItemRepository stock, ReservationRepository reservations, AtpService atp) {
         this.stock = stock;
         this.reservations = reservations;
+        this.atp = atp;
     }
 
     @Transactional(readOnly = true)
     public StockItem getStock(String sku) {
         return stock.findBySku(sku)
                 .orElseThrow(() -> new NotFoundException("No stock record for SKU: " + sku));
+    }
+
+    /** Admin: every stock row, sorted by SKU, for the inventory visibility page. */
+    @Transactional(readOnly = true)
+    public List<StockItem> listAllStock() {
+        return stock.findAll(Sort.by(Sort.Order.asc("sku")));
     }
 
     /** Admin: add {@code quantity} units of available stock, creating the row if needed. */
@@ -55,6 +65,10 @@ public class InventoryService {
         }
         item.setAvailableQty(item.getAvailableQty() + quantity);
         StockItem saved = stock.save(item);
+        // Mirror the +N onto the Redis ATP counter so the new stock is instantly sellable at checkout.
+        // Best-effort: a Redis failure is swallowed; the DB row above is the source of truth and the
+        // counter self-heals on the next restart backfill.
+        atp.credit(sku, quantity);
         // Admin audit trail — trace.id + hashed user_id ride along from MDC; no PII (sku + quantities).
         log.info("admin.stock.adjusted {}", sku,
                 kv("event", "admin.stock.adjusted"),
@@ -143,6 +157,9 @@ public class InventoryService {
             StockItem item = lockOrThrow(l.getSku());
             item.setAvailableQty(item.getAvailableQty() + l.getQty());
             item.setReservedQty(item.getReservedQty() - l.getQty());
+            // The order failed/cancelled — give the units back to ATP that checkout decremented, so
+            // they become sellable again. Best-effort; the DB row above is authoritative.
+            atp.credit(l.getSku(), l.getQty());
         }
         res.setStatus(ReservationStatus.RELEASED);
         res.setUpdatedAt(Instant.now());
