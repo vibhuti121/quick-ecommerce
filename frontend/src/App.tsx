@@ -5,6 +5,9 @@ import TrustBand from './components/TrustBand';
 import HoneyTeaser from './components/HoneyTeaser';
 import SocialProof from './components/SocialProof';
 import ProductGrid from './components/ProductGrid';
+import CatalogControls from './components/CatalogControls';
+import type { SortKey } from './components/CatalogControls';
+import RecommendedRow from './components/RecommendedRow';
 import CartDrawer from './components/CartDrawer';
 import ProductDetail from './components/ProductDetail';
 import ProfileDrawer from './components/ProfileDrawer';
@@ -28,7 +31,6 @@ import {
   notify,
   placeOrder,
   removeFromCart,
-  searchProducts,
 } from './api';
 import type {
   Cart,
@@ -41,17 +43,26 @@ import type {
 } from './types';
 import { getWishlist, removeWishlist, toggleWishlist } from './lib/wishlist';
 import { isComingSoon, saveNotify } from './lib/comingSoon';
+import { isGiTagged, isLabTested } from './lib/provenance';
+import { getLastViewedId, setLastViewedId } from './lib/recentlyViewed';
 
 export default function App() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Search: the input updates `query` immediately (responsive box); a debounced effect calls the
-  // search endpoint and stores hits in `searchResults`. A blank query falls back to the full catalog.
+  // Catalogue v2 discovery state (all client-side over the already-fetched `products` — no backend
+  // call). `query` is now an INLINE LIVE FILTER (substring over the visible grid), not a server search;
+  // the OpenSearch `searchProducts` endpoint is retained in api.ts but no longer wired to the grid.
   const [query, setQuery] = useState<string>('');
-  const [searchResults, setSearchResults] = useState<Product[]>([]);
-  const [searching, setSearching] = useState<boolean>(false);
+  const [category, setCategory] = useState<string>('all');
+  const [sort, setSort] = useState<SortKey>('newest');
+  const [giOnly, setGiOnly] = useState<boolean>(false);
+  const [labOnly, setLabOnly] = useState<boolean>(false);
+  // Price ceiling cap. 0 = "no cap set yet" → treated as the catalogue's max (no filtering).
+  const [maxPrice, setMaxPrice] = useState<number>(0);
+  // Seeds the home "Recommended for you" row; rehydrated from localStorage, updated on each detail open.
+  const [lastViewedId, setLastViewedIdState] = useState<number | null>(() => getLastViewedId());
 
   const [cart, setCart] = useState<Cart | null>(null);
   const [cartOpen, setCartOpen] = useState<boolean>(false);
@@ -142,48 +153,70 @@ export default function App() {
     return () => { active = false; };
   }, []);
 
-  // Debounced search: wait 300ms after the last keystroke, then query. An empty term short-circuits
-  // (no request) and the grid shows the full catalog. `active` guards against an out-of-order response
-  // from a stale query overwriting a newer one.
-  useEffect(() => {
-    const term = query.trim();
-    if (!term) {
-      setSearchResults([]);
-      setSearching(false);
-      return;
+  // Distinct categories for the toolbar pills (lowercase keys, original order of first appearance).
+  const categories = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const p of products) {
+      const key = (p.category ?? '').toLowerCase();
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        out.push(key);
+      }
     }
-    let active = true;
-    setSearching(true);
-    const handle = setTimeout(() => {
-      searchProducts(term)
-        .then((hits) => {
-          if (active) setSearchResults(hits);
-        })
-        .catch((err: unknown) => {
-          if (active) setError(err instanceof Error ? err.message : 'Search failed.');
-        })
-        .finally(() => {
-          if (active) setSearching(false);
-        });
-    }, 300);
-    return () => {
-      active = false;
-      clearTimeout(handle);
-    };
-  }, [query]);
+    return out;
+  }, [products]);
 
-  const isSearching = query.trim().length > 0;
-  const displayed = isSearching ? searchResults : products;
+  // Slider bound = the most expensive buyable (non-coming-soon) product, rounded up a little.
+  const priceCeiling = useMemo(() => {
+    const prices = products.filter((p) => !isComingSoon(p)).map((p) => p.price);
+    return prices.length ? Math.ceil(Math.max(...prices)) : 0;
+  }, [products]);
+
+  // The single client-side pipeline: category → live-query substring → GI/Lab facets → price cap, then
+  // sort. Coming-soon (honey) items are exempt from the price cap (they aren't priced for sale) but
+  // still obey category/query/GI/Lab so honey can be filtered out like anything else.
+  const priceCapActive = maxPrice > 0 && maxPrice < priceCeiling;
+  const displayed = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    const filtered = products.filter((p) => {
+      if (category !== 'all' && (p.category ?? '').toLowerCase() !== category) return false;
+      if (term) {
+        const hay = `${p.name} ${p.description} ${p.provenance?.origin ?? ''} ${p.category ?? ''}`.toLowerCase();
+        if (!hay.includes(term)) return false;
+      }
+      if (giOnly && !isGiTagged(p)) return false;
+      if (labOnly && !isLabTested(p)) return false;
+      if (priceCapActive && !isComingSoon(p) && p.price > maxPrice) return false;
+      return true;
+    });
+    const sorted = [...filtered];
+    if (sort === 'price-asc') sorted.sort((a, b) => a.price - b.price);
+    else if (sort === 'price-desc') sorted.sort((a, b) => b.price - a.price);
+    else sorted.sort((a, b) => b.id - a.id); // newest = highest id first
+    return sorted;
+  }, [products, category, query, giOnly, labOnly, priceCapActive, maxPrice, sort]);
+
+  const hasActiveFilters =
+    category !== 'all' || query.trim().length > 0 || giOnly || labOnly || priceCapActive;
+
+  const resetFilters = useCallback(() => {
+    setCategory('all');
+    setQuery('');
+    setGiOnly(false);
+    setLabOnly(false);
+    setMaxPrice(0);
+  }, []);
 
   const itemCount = useMemo(
     () => (cart?.items ?? []).reduce((sum, item) => sum + item.quantity, 0),
     [cart]
   );
 
-  const handleAdd = useCallback(async (product: Product) => {
+  const handleAdd = useCallback(async (product: Product, quantity: number = 1) => {
     setAddingId(product.id);
     try {
-      const updated = await addToCart(product.id, 1);
+      const updated = await addToCart(product.id, Math.max(1, quantity));
       setCart(updated);
       setCartOpen(true);
     } catch (err: unknown) {
@@ -203,6 +236,9 @@ export default function App() {
       setComingSoonOpen(true);
       return;
     }
+    // Remember the opened SKU so the home "Recommended for you" row can seed from it next render.
+    setLastViewedId(product.id);
+    setLastViewedIdState(product.id);
     setDetailProduct(product);
     setDetailOpen(true);
     setDetailLoading(true);
@@ -416,9 +452,6 @@ export default function App() {
         itemCount={itemCount}
         onOpenCart={() => setCartOpen(true)}
         onOpenProfile={handleOpenProfile}
-        query={query}
-        onQueryChange={setQuery}
-        onClearQuery={() => setQuery('')}
       />
 
       <Hero onShopClick={handleScrollToCatalog} onHoneyClick={handleHoneyCta} />
@@ -437,23 +470,50 @@ export default function App() {
           </div>
         )}
 
+        {!loading && products.length > 0 && (
+          <CatalogControls
+            categories={categories}
+            category={category}
+            onCategory={setCategory}
+            sort={sort}
+            onSort={setSort}
+            query={query}
+            onQuery={setQuery}
+            onClearQuery={() => setQuery('')}
+            giOnly={giOnly}
+            onGiOnly={setGiOnly}
+            labOnly={labOnly}
+            onLabOnly={setLabOnly}
+            priceCeiling={priceCeiling}
+            maxPrice={maxPrice}
+            onMaxPrice={setMaxPrice}
+            onResetFilters={resetFilters}
+            resultCount={displayed.length}
+            total={products.length}
+          />
+        )}
+
         {loading ? (
           <div className="state-message">
             <div className="spinner" />
             <p>Loading products…</p>
           </div>
-        ) : isSearching && searching && displayed.length === 0 ? (
-          <div className="state-message">
-            <div className="spinner" />
-            <p>Searching…</p>
-          </div>
-        ) : isSearching && !searching && displayed.length === 0 && !error ? (
-          <div className="state-message">
-            <p>No products match “{query.trim()}”.</p>
-          </div>
-        ) : !isSearching && products.length === 0 && !error ? (
+        ) : products.length === 0 && !error ? (
           <div className="state-message">
             <p>No products available right now.</p>
+          </div>
+        ) : displayed.length === 0 ? (
+          <div className="state-message">
+            <p>
+              {hasActiveFilters
+                ? 'No products match your filters.'
+                : 'No products available right now.'}
+            </p>
+            {hasActiveFilters && (
+              <button className="btn btn-secondary" onClick={resetFilters}>
+                Clear filters
+              </button>
+            )}
           </div>
         ) : (
           <ProductGrid
@@ -477,6 +537,10 @@ export default function App() {
       />
 
       <SocialProof />
+
+      {/* Seeded by the last-viewed SKU (localStorage) over the PUBLIC recommendations endpoint.
+          Hides itself entirely on a first visit or when nothing relates — no empty band. */}
+      <RecommendedRow seedId={lastViewedId} onView={handleView} />
 
       <ProductDetail
         open={detailOpen}

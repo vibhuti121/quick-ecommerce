@@ -3,6 +3,7 @@ import { motion, useMotionValue, useSpring, useReducedMotion } from 'motion/reac
 import type { Product } from '../types';
 import { formatPrice } from '../api';
 import { isComingSoon, HONEY_IMAGE } from '../lib/comingSoon';
+import { isGiTagged, isLabTested } from '../lib/provenance';
 
 interface ProductCardProps {
   product: Product;
@@ -23,9 +24,13 @@ export default function ProductCard({
   wished,
   onToggleWishlist,
 }: ProductCardProps) {
-  const gi = product.provenance?.gi;
   const origin = product.provenance?.origin;
+  const farm = product.provenance?.farm;
   const comingSoon = isComingSoon(product);
+  // Editorial-provenance trust signals (Catalogue v2). Honey is exempt — its card stays the teaser.
+  const giTagged = !comingSoon && isGiTagged(product);
+  const labTested = !comingSoon && isLabTested(product);
+  const variantCount = product.variants?.length ?? 0;
   // Honey's catalog imageUrl is a placeholder until launch — show the real MaLLADE jar shot instead.
   const imgSrc = comingSoon ? HONEY_IMAGE : product.imageUrl;
 
@@ -81,7 +86,6 @@ export default function ProductCard({
           ) : (
             <span className="category-badge">{product.category}</span>
           )}
-          {gi?.status === 'authorized' && <span className="gi-badge gi-badge-card">GI ✓</span>}
         </button>
         <button
           type="button"
@@ -96,37 +100,56 @@ export default function ProductCard({
           {wished ? '♥' : '♡'}
         </button>
         <div className="product-body">
-          <h3 className="product-name product-view-text" onClick={() => onView(product)}>
-            {product.name}
-          </h3>
-          {origin && <span className="product-origin">📍 {origin}</span>}
-          <p className="product-description">{product.description}</p>
           {comingSoon ? (
-            <div className="product-footer">
-              <button
-                className="btn btn-primary coming-soon-cta"
-                onClick={(e) => {
-                  e.stopPropagation(); // open the teaser popup, not the cart
-                  onView(product);
-                }}
-              >
-                🔔 Notify me
-              </button>
-            </div>
+            <>
+              <h3 className="product-name product-view-text" onClick={() => onView(product)}>
+                {product.name}
+              </h3>
+              {origin && <span className="product-origin">📍 {origin}</span>}
+              <p className="product-description">{product.description}</p>
+              <div className="product-footer">
+                <button
+                  className="btn btn-primary coming-soon-cta"
+                  onClick={(e) => {
+                    e.stopPropagation(); // open the teaser popup, not the cart
+                    onView(product);
+                  }}
+                >
+                  🔔 Notify me
+                </button>
+              </div>
+            </>
           ) : (
-            <div className="product-footer">
-              <span className="product-price">{formatPrice(product.price)}</span>
-              <button
-                className="btn btn-primary"
-                onClick={(e) => {
-                  e.stopPropagation(); // add to cart without opening the detail drawer
-                  onAdd(product);
-                }}
-                disabled={adding}
-              >
-                {adding ? 'Adding…' : 'Add to cart'}
-              </button>
-            </div>
+            <>
+              {(giTagged || labTested) && (
+                <div className="product-trust">
+                  {giTagged && <span className="gi-badge">GI ✓</span>}
+                  {labTested && <span className="trust-chip trust-chip--lab">Lab-tested ✓</span>}
+                </div>
+              )}
+              {origin && <span className="product-origin product-origin--strong">📍 {origin}</span>}
+              <h3 className="product-name product-view-text" onClick={() => onView(product)}>
+                {product.name}
+              </h3>
+              {farm && <span className="product-farm">Farmed by {farm}</span>}
+              <p className="product-description">{product.description}</p>
+              {variantCount > 0 && (
+                <span className="product-variants">{variantCount} grades available</span>
+              )}
+              <div className="product-footer">
+                <span className="product-price">{formatPrice(product.price)}</span>
+                <button
+                  className="btn btn-primary"
+                  onClick={(e) => {
+                    e.stopPropagation(); // add to cart without opening the detail drawer
+                    onAdd(product);
+                  }}
+                  disabled={adding}
+                >
+                  {adding ? 'Adding…' : 'Add to cart'}
+                </button>
+              </div>
+            </>
           )}
         </div>
       </motion.div>

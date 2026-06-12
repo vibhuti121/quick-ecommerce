@@ -309,7 +309,22 @@ a cinematic **`Hero`** (kinetic litchi→honey headline + parallax), a **`TrustB
 (GI-Tagged · Lab-Tested · Farmer-Direct, sourced from the provenance data), the redesigned product
 grid (3D-tilt cards, layout-animated reflow on search/filter), a scroll-linked **`HoneyTeaser`** —
 honey's *"coming soon"* hook, always showing the real jar image and capturing the launch list — and a
-curated **`SocialProof`** band. Built on a warm cream + honey/litchi palette with self-hosted
+curated **`SocialProof`** band.
+
+**Catalogue v2 (data-driven discovery).** The grid is no longer a flat list with a bare search box —
+it surfaces, **client-side over the existing endpoints (no backend change)**, the provenance/variant
+data the catalog already serves. A sticky **`CatalogControls`** toolbar (below the header) carries
+**category pills**, an **inline live filter** (replaces the old header search box — typed text filters
+the grid by name/description/origin/category in real time), a **sort** (newest · price ↑/↓), and a
+**faceted filter** panel (GI-tagged-only · lab-tested-only · price ceiling) with a live "Showing N of
+M" count. Product cards are now **editorial-provenance** cards — a GI ✓ / Lab-tested ✓ trust strip,
+the origin, "Farmed by …", and an "N grades available" hint (honey's card is exempt and stays the
+teaser). The product-detail drawer gains **image zoom** (click-to-lightbox, Esc/click to close), a
+**quick-add** quantity stepper, and an **indicative** grade picker (a variant is never a cart-line key
+— add always ships the standard pack at the base price × quantity). A home **"Recommended for you"**
+row, seeded by the last-viewed SKU (localStorage), hangs off the public recommendations endpoint. The
+inline filter is a client-side substring match; the OpenSearch `/products/search` call is retained in
+`api.ts` for a future server-backed upgrade. Built on a warm cream + honey/litchi palette with self-hosted
 **Poppins/Inter** (`@fontsource`, no runtime CDN) and the **`motion`** library for scroll reveals,
 kinetic type, and the honey scrollytelling. Every animation collapses under
 `prefers-reduced-motion`; tilt/parallax are disabled on touch. Honey is **never buyable** — the card,
@@ -765,9 +780,12 @@ request/response bodies, and `docker compose logs <service>` around the timestam
   managed deployment / CA-signed cert / public domain yet. See [Production readiness](#production-readiness--what-it-takes-to-go-live).
 - **DS-0031 open** — `TLS_KEYSTORE_PASSWORD` is passed via a gateway Dockerfile build-ARG (trivy `fs`
   CRITICAL); a dev convenience, tracked as a follow-up (see Security-scan section).
-- **Minimal storefront UI** — the React app proves the journey (now incl. a search box and a product
-  detail modal with a "you may also like" row) but isn't a finished shopping experience (no real catalog
-  content, faceted filters, checkout UX, or account pages).
+- **Minimal storefront UI** — the React app proves the journey (Catalogue v2: sticky discovery toolbar
+  with category pills + inline live filter + sort + GI/lab/price facets, editorial-provenance cards, a
+  detail drawer with image zoom + quick-add + a "you may also like" row, and a home "Recommended for
+  you" row) but isn't yet a finished shopping experience (no checkout UX polish or account pages, and
+  the catalogue filter/sort/facets are client-side over `?size=200` — server-side facets are a
+  follow-up if the grid outgrows that page).
 - **Search is eventually consistent (secondary index).** Postgres is the source of truth; OpenSearch is
   kept in sync by dual-write on every catalog write **and** a startup backfill. Two consequences: (1) a
   catalog write is reflected in search after OpenSearch's refresh (~1s); (2) **a product deleted while
@@ -802,8 +820,9 @@ between "working demo" and "real customers can buy":
 - **Cloud deploy + real TLS + a domain** — the images are deploy-ready (env-only config), but nothing is
   hosted; needs a CA-signed cert (not the dev self-signed one) and DNS.
 - **Close DS-0031** — supply `TLS_KEYSTORE_PASSWORD` at runtime from a secrets manager, not a build-ARG.
-- **A real frontend** — finished storefront (search/filters, checkout UX, account/order history) and
-  actual catalog content + images, not the 5 demo SKUs.
+- **A real frontend** — Catalogue v2 ships discovery (category pills/filters/sort/inline search),
+  editorial cards, and detail zoom + quick-add; still needed are checkout UX polish, account/order
+  history, server-side facets, and actual catalog content + images at scale.
 - **Test coverage** — Testcontainers integration tests for the commerce services (only auth-service has
   unit tests today); the smoke scripts are the current regression gate.
 - **Secrets & backups** — managed secrets and automated Postgres backups. (On-call **alerting** is now

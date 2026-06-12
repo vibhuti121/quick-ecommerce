@@ -8,7 +8,7 @@ interface ProductDetailProps {
   loading: boolean;
   adding: boolean;
   onClose: () => void;
-  onAdd: (product: Product) => void;
+  onAdd: (product: Product, quantity?: number) => void;
   // Re-anchor the drawer to a clicked recommendation (refetches the authoritative record + its recs).
   onViewProduct?: (product: Product) => void;
   // Wishlist heart — consistent with the card. `wished` reflects the anchored product's membership.
@@ -64,6 +64,35 @@ export default function ProductDetail({
   const labCert = provenance?.labCert;
   const variants = product?.variants ?? [];
 
+  // Quick-add controls (Catalogue v2). Quantity is real (multiplies the add). The grade picker is
+  // INDICATIVE ONLY — a variant is never a cart-line key (see types.ts), so add-to-cart always ships
+  // the standard pack at the base price; selecting a grade just previews its indicative price.
+  const [qty, setQty] = useState(1);
+  const [gradeSku, setGradeSku] = useState<string>('standard');
+  // Single-image zoom lightbox (the data carries one imageUrl — no fake multi-image gallery).
+  const [zoomed, setZoomed] = useState(false);
+
+  // Reset the quick-add controls whenever the anchored product changes.
+  const anchorId = product?.id;
+  useEffect(() => {
+    setQty(1);
+    setGradeSku('standard');
+    setZoomed(false);
+  }, [anchorId]);
+
+  // Esc closes the zoom lightbox; keep it scoped to when it's open.
+  useEffect(() => {
+    if (!zoomed) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setZoomed(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [zoomed]);
+
+  const selectedGrade = variants.find((v) => v.sku === gradeSku);
+  const indicativePrice = (product?.price ?? 0) + (selectedGrade?.priceDelta ?? 0);
+
   // Hybrid "you may also like" recs for the anchored product. Best-effort & non-blocking: the
   // endpoint never 503s, so any failure (or none related) simply leaves an empty row. `active`
   // guards against a stale response from a previous anchor overwriting the current one.
@@ -114,7 +143,15 @@ export default function ProductDetail({
           <>
             <div className="detail-body">
               <div className="detail-image">
-                <img src={product.imageUrl} alt={product.name} />
+                <button
+                  type="button"
+                  className="detail-image-zoom"
+                  onClick={() => setZoomed(true)}
+                  aria-label={`Zoom image of ${product.name}`}
+                >
+                  <img src={product.imageUrl} alt={product.name} />
+                  <span className="zoom-hint" aria-hidden="true">🔍</span>
+                </button>
                 <span className="category-badge">{product.category}</span>
                 <button
                   type="button"
@@ -155,19 +192,32 @@ export default function ProductDetail({
 
               {variants.length > 0 && (
                 <section className="variant-panel">
-                  <h4 className="prov-title">Available grades / sizes</h4>
-                  <ul className="variant-list">
-                    {variants.map((v) => (
-                      <li key={v.sku} className="variant-item">
-                        {v.name}
-                        {v.priceDelta > 0 && (
-                          <span className="variant-delta">+{formatPrice(v.priceDelta)}</span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
+                  <h4 className="prov-title">Grade / size</h4>
+                  <label className="grade-picker">
+                    <span className="grade-picker-label">Choose a grade</span>
+                    <select
+                      className="cc-select grade-select"
+                      value={gradeSku}
+                      onChange={(e) => setGradeSku(e.target.value)}
+                      aria-label="Select grade"
+                    >
+                      <option value="standard">Standard pack — {formatPrice(product.price)}</option>
+                      {variants.map((v) => (
+                        <option key={v.sku} value={v.sku}>
+                          {v.name}
+                          {v.priceDelta > 0 ? ` — ${formatPrice(product.price + v.priceDelta)} (indicative)` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {selectedGrade && selectedGrade.priceDelta > 0 && (
+                    <p className="grade-indicative">
+                      {selectedGrade.name}: ~{formatPrice(indicativePrice)} — indicative.
+                    </p>
+                  )}
                   <p className="variant-note">
-                    Grades shown for information. This listing ships as the standard pack.
+                    Grades shown for information. This listing ships as the standard pack at{' '}
+                    {formatPrice(product.price)}.
                   </p>
                 </section>
               )}
@@ -194,18 +244,56 @@ export default function ProductDetail({
               )}
             </div>
 
-            <div className="cart-footer">
+            <div className="cart-footer detail-footer">
+              <div className="qty-stepper" role="group" aria-label="Quantity">
+                <button
+                  type="button"
+                  className="qty-btn"
+                  onClick={() => setQty((q) => Math.max(1, q - 1))}
+                  disabled={qty <= 1}
+                  aria-label="Decrease quantity"
+                >
+                  −
+                </button>
+                <span className="qty-value" aria-live="polite">
+                  {qty}
+                </span>
+                <button
+                  type="button"
+                  className="qty-btn"
+                  onClick={() => setQty((q) => Math.min(99, q + 1))}
+                  disabled={qty >= 99}
+                  aria-label="Increase quantity"
+                >
+                  +
+                </button>
+              </div>
               <button
-                className="btn btn-primary btn-block"
-                onClick={() => onAdd(product)}
+                className="btn btn-primary detail-add"
+                onClick={() => onAdd(product, qty)}
                 disabled={adding}
               >
-                {adding ? 'Adding…' : 'Add to cart'}
+                {adding ? 'Adding…' : `Add ${qty} to cart`}
               </button>
             </div>
           </>
         )}
       </aside>
+
+      {zoomed && product && (
+        <div
+          className="image-lightbox"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${product.name} — zoomed image`}
+          onClick={() => setZoomed(false)}
+        >
+          <button type="button" className="image-lightbox-close" aria-label="Close zoom">
+            ✕
+          </button>
+          <img src={product.imageUrl} alt={product.name} />
+        </div>
+      )}
     </>
   );
 }

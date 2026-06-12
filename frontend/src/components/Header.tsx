@@ -1,22 +1,12 @@
-import SearchBar from './SearchBar';
-
 interface HeaderProps {
   itemCount: number;
   onOpenCart: () => void;
   onOpenProfile: () => void;
-  query: string;
-  onQueryChange: (value: string) => void;
-  onClearQuery: () => void;
 }
 
-export default function Header({
-  itemCount,
-  onOpenCart,
-  onOpenProfile,
-  query,
-  onQueryChange,
-  onClearQuery,
-}: HeaderProps) {
+// Catalogue v2: search no longer lives in the header — it folds into the sticky discovery toolbar
+// (CatalogControls) as an inline live filter, so the header stays brand + profile + cart.
+export default function Header({ itemCount, onOpenCart, onOpenProfile }: HeaderProps) {
   return (
     <header className="header">
       <div className="header-inner">
@@ -24,7 +14,6 @@ export default function Header({
           <span className="brand-mark">⚡</span>
           <span className="brand-name">QuickCart</span>
         </div>
-        <SearchBar value={query} onChange={onQueryChange} onClear={onClearQuery} />
         <button className="profile-button" onClick={onOpenProfile} aria-label="Open profile">
           <span className="profile-icon">👤</span>
           <span>Profile</span>
