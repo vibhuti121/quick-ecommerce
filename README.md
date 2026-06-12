@@ -308,8 +308,8 @@ proxies `/api`,`/auth` to the HTTPS gateway.
 a cinematic **`Hero`** (kinetic litchi→honey headline + parallax), a **`TrustBand`**
 (GI-Tagged · Lab-Tested · Farmer-Direct, sourced from the provenance data), the redesigned product
 grid (3D-tilt cards, layout-animated reflow on search/filter), a scroll-linked **`HoneyTeaser`** —
-honey's *"coming soon"* hook, always showing the real jar image and capturing the launch list — and a
-curated **`SocialProof`** band.
+honey's *"The Drop"* hook (*"The first drop is coming. Be first to taste it."*), always showing the
+real jar image and capturing the launch list — and a curated **`SocialProof`** band.
 
 **Catalogue v2 (data-driven discovery).** The grid is no longer a flat list with a bare search box —
 it surfaces, **client-side over the existing endpoints (no backend change)**, the provenance/variant
@@ -328,8 +328,14 @@ inline filter is a client-side substring match; the OpenSearch `/products/search
 **Poppins/Inter** (`@fontsource`, no runtime CDN) and the **`motion`** library for scroll reveals,
 kinetic type, and the honey scrollytelling. Every animation collapses under
 `prefers-reduced-motion`; tilt/parallax are disabled on touch. Honey is **never buyable** — the card,
-the `ComingSoonModal`, and the teaser all route to one `saveNotify('honey')` + `POST /api/catalog/notify`
-launch list. Frontend changes aren't verified by `npm run build`
+the `ComingSoonModal`, and the teaser all carry the same **"The Drop"** framing (CTA *"Join the drop
+list"*) and route to one `saveNotify('honey')` + `POST /api/catalog/notify` launch list. The drop is
+**no-date** by design (no countdown to a launch we can't yet commit to): a single `HONEY_LAUNCH_DATE`
+constant (`lib/comingSoon.ts`, currently `null`) is the seam — set it to flip on the countdown path.
+The *"N already in line for batch 1"* social-proof line shows the **real** signup count and only once
+it crosses a small floor (`HONEY_INLINE_FLOOR = 25`) — **no fabricated number**; it stays hidden until
+a public count endpoint exists (today the only list-read is the ADMIN `GET /api/catalog/admin/notify`).
+Frontend changes aren't verified by `npm run build`
 alone — rebuild the `frontend` container and grep the served bundle (`docker compose exec -T frontend
 grep -ro "honey-teaser" /usr/share/nginx/html/assets`).
 

@@ -1,6 +1,6 @@
 import type { Product } from '../types';
 import NotifyForm from './NotifyForm';
-import { isComingSoon, HONEY_IMAGE } from '../lib/comingSoon';
+import { isComingSoon, HONEY_IMAGE, honeyInLineCount } from '../lib/comingSoon';
 
 interface ComingSoonModalProps {
   open: boolean;
@@ -16,6 +16,9 @@ interface ComingSoonModalProps {
 // capture. The form remounts (keyed on product id) so it resets to a fresh state each reopen.
 export default function ComingSoonModal({ open, product, onNotify, onClose }: ComingSoonModalProps) {
   if (!open || !product) return null;
+
+  // Honest in-line count — only when honeyInLineCount() clears the ≥25 floor; null ⇒ render nothing.
+  const inLine = honeyInLineCount();
 
   return (
     <>
@@ -33,7 +36,10 @@ export default function ComingSoonModal({ open, product, onNotify, onClose }: Co
           </div>
           <div className="product-modal-info">
             <h3 className="product-modal-name">{product.name}</h3>
-            <p className="coming-soon-headline">Launching soon 🍯</p>
+            <p className="coming-soon-headline">The first drop is coming 🍯</p>
+            {inLine !== null && (
+              <p className="honey-inline-count">{inLine} already in line</p>
+            )}
             <p className="product-modal-description">{product.description}</p>
             <NotifyForm key={product.id} onNotify={onNotify} />
           </div>

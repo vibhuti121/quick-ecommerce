@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { motion, useReducedMotion, useScroll, useTransform } from 'motion/react';
-import { HONEY_IMAGE } from '../lib/comingSoon';
+import { HONEY_IMAGE, HONEY_LAUNCH_DATE, honeyInLineCount } from '../lib/comingSoon';
 import NotifyForm from './NotifyForm';
 
 interface HoneyTeaserProps {
@@ -29,6 +29,10 @@ export default function HoneyTeaser({ onNotify }: HoneyTeaserProps) {
   const jarOpacity = useTransform(scrollYProgress, [0, 0.25, 1], [0.4, 1, 1]);
   const jarStyle = reduce ? undefined : { scale: jarScale, y: jarY, opacity: jarOpacity };
 
+  // "The Drop" honest social-proof: the real signup count, or null below the ≥25 floor / when
+  // unavailable. Renders nothing when null — never a fabricated number.
+  const inLine = honeyInLineCount();
+
   return (
     <section className="honey-teaser" id="honey-teaser" ref={ref} aria-label="Litchi honey — coming soon">
       {/* Decorative honeycomb wash — pure CSS, marked aria-hidden so it never reaches the a11y tree. */}
@@ -47,15 +51,29 @@ export default function HoneyTeaser({ onNotify }: HoneyTeaserProps) {
         </div>
 
         <div className="honey-teaser-copy">
-          <span className="honey-teaser-eyebrow">The next harvest</span>
+          <span className="honey-teaser-eyebrow">The Drop · Batch 1</span>
           <h2 className="display-2 honey-teaser-title">
-            Litchi Honey, <span className="honey-teaser-accent">straight from the blossom</span>
+            The first drop is coming.{' '}
+            <span className="honey-teaser-accent">Be first to taste it.</span>
           </h2>
           <p className="honey-teaser-lede">
-            Pressed from hives set among the same GI-tagged Shahi litchi orchards — single-origin,
-            lab-tested for purity, and bottled raw. We&apos;re finishing the last batch of testing.
-            Be first in line when it drops.
+            Single-origin litchi honey, pressed from hives set among the same GI-tagged Shahi litchi
+            orchards — lab-tested for purity and bottled raw. Batch 1 is small, and it goes to the
+            drop list first.
           </p>
+
+          {/* Launch-date seam: HONEY_LAUNCH_DATE === null ⇒ the no-date "The Drop" copy (built).
+              When an ISO date is set, flip to the countdown-clock path. */}
+          {HONEY_LAUNCH_DATE !== null && (
+            // TODO: full countdown-clock styling deferred (fe-lead follow-up)
+            <p className="honey-teaser-countdown">Dropping {HONEY_LAUNCH_DATE}</p>
+          )}
+
+          {/* Honest in-line count — only when honeyInLineCount() clears the ≥25 floor. */}
+          {inLine !== null && (
+            <p className="honey-teaser-count">{inLine} already in line for batch 1</p>
+          )}
+
           <div className="honey-teaser-form">
             <NotifyForm onNotify={onNotify} />
           </div>
