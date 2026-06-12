@@ -9,6 +9,9 @@ public record NotifyResponse(
         String topic,
         String phone,
         String email,
+        String pincode,
+        String city,
+        String state,
         Instant createdAt
 ) {
     public static NotifyResponse from(NotifySignup s) {
@@ -17,6 +20,9 @@ public record NotifyResponse(
                 s.getTopic(),
                 s.getPhone(),
                 s.getEmail(),
+                s.getPincode(),
+                s.getCity(),
+                s.getState(),
                 s.getCreatedAt()
         );
     }

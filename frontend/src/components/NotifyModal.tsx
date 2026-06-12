@@ -4,8 +4,15 @@ import NotifyForm from './NotifyForm';
 interface NotifyModalProps {
   open: boolean;
   topic: NotifyTopic | null;
-  // Persist interest for `topic` (browser-local). Phone required & validated; email optional.
-  onNotify: (phone: string, email?: string) => void;
+  // Persist interest for `topic` (browser-local + backend). Phone required & validated; email
+  // optional; pincode + auto-filled-editable city/state for the serviceability pilot.
+  onNotify: (
+    phone: string,
+    email: string | undefined,
+    pincode: string,
+    city: string,
+    state: string,
+  ) => void;
   onClose: () => void;
 }
 

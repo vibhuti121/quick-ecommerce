@@ -2,6 +2,7 @@ package com.varsha.cart.service;
 
 import com.varsha.cart.client.CatalogClient;
 import com.varsha.cart.client.ProductView;
+import com.varsha.cart.exception.CartExceptions.HoneyNotBuyableException;
 import com.varsha.cart.model.Cart;
 import com.varsha.cart.model.CartItem;
 import com.varsha.cart.repository.CartRepository;
@@ -37,6 +38,14 @@ public class CartService {
             existing.setQuantity(newQty);
         } else {
             ProductView p = catalog.fetch(productId);
+            // Server-side honey gate: honey is a pre-launch "coming soon" SKU that renders in the
+            // catalog but is never purchasable. The storefront already routes it to the drop list,
+            // but this makes not-buyable airtight at the API. The new-line branch is the only place
+            // honey can enter a cart — the increment branch above never fetches category and is
+            // unreachable for honey, since a honey line could never have been added in the first place.
+            if ("honey".equalsIgnoreCase(p.category())) {
+                throw new HoneyNotBuyableException("This item is coming soon and can't be added to the cart yet.");
+            }
             cart.getItems().put(productId,
                     new CartItem(p.id(), p.sku(), p.name(), p.imageUrl(), p.basePrice(), newQty));
         }

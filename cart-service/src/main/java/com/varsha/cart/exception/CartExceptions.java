@@ -26,4 +26,11 @@ public final class CartExceptions {
             super(message);
         }
     }
+
+    /** The product is a pre-launch "coming soon" item (honey) and is not purchasable yet. */
+    public static class HoneyNotBuyableException extends RuntimeException {
+        public HoneyNotBuyableException(String message) {
+            super(message);
+        }
+    }
 }

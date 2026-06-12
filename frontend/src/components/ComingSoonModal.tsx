@@ -1,13 +1,19 @@
 import type { Product } from '../types';
 import NotifyForm from './NotifyForm';
-import { isComingSoon, HONEY_IMAGE, honeyInLineCount } from '../lib/comingSoon';
+import { isComingSoon, HONEY_IMAGE } from '../lib/comingSoon';
 
 interface ComingSoonModalProps {
   open: boolean;
   product: Product | null;
-  // Persist interest (browser-local). Phone is required & validated; email is optional (passed only
-  // when the user filled a valid one).
-  onNotify: (phone: string, email?: string) => void;
+  // Persist interest (browser-local + backend). Phone required & validated; email optional; pincode
+  // (6-digit) + auto-filled-editable city/state for the serviceability pilot.
+  onNotify: (
+    phone: string,
+    email: string | undefined,
+    pincode: string,
+    city: string,
+    state: string,
+  ) => void;
   onClose: () => void;
 }
 
@@ -16,9 +22,6 @@ interface ComingSoonModalProps {
 // capture. The form remounts (keyed on product id) so it resets to a fresh state each reopen.
 export default function ComingSoonModal({ open, product, onNotify, onClose }: ComingSoonModalProps) {
   if (!open || !product) return null;
-
-  // Honest in-line count — only when honeyInLineCount() clears the ≥25 floor; null ⇒ render nothing.
-  const inLine = honeyInLineCount();
 
   return (
     <>
@@ -37,9 +40,6 @@ export default function ComingSoonModal({ open, product, onNotify, onClose }: Co
           <div className="product-modal-info">
             <h3 className="product-modal-name">{product.name}</h3>
             <p className="coming-soon-headline">The first drop is coming 🍯</p>
-            {inLine !== null && (
-              <p className="honey-inline-count">{inLine} already in line</p>
-            )}
             <p className="product-modal-description">{product.description}</p>
             <NotifyForm key={product.id} onNotify={onNotify} />
           </div>

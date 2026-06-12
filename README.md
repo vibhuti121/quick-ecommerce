@@ -332,9 +332,14 @@ the `ComingSoonModal`, and the teaser all carry the same **"The Drop"** framing 
 list"*) and route to one `saveNotify('honey')` + `POST /api/catalog/notify` launch list. The drop is
 **no-date** by design (no countdown to a launch we can't yet commit to): a single `HONEY_LAUNCH_DATE`
 constant (`lib/comingSoon.ts`, currently `null`) is the seam — set it to flip on the countdown path.
-The *"N already in line for batch 1"* social-proof line shows the **real** signup count and only once
-it crosses a small floor (`HONEY_INLINE_FLOOR = 25`) — **no fabricated number**; it stays hidden until
-a public count endpoint exists (today the only list-read is the ADMIN `GET /api/catalog/admin/notify`).
+The launch-list capture (`NotifyForm`) collects a **required pincode** that auto-fills an **editable
+city/state** (`lib/pincode.ts` — `api.postalpincode.in` precise lookup with a ~4s abort timeout, then
+an offline first-two-digit postal-circle → state → capital fallback that never throws); the same
+pincode→city/state pattern is added to the **checkout delivery form** (`CartDrawer`) and threaded into
+`POST /api/orders/checkout`. The CTA is always a plain *"Notify me"* — **no customer-facing signup
+count is shown** anywhere (the public `GET /api/catalog/notify/count` endpoint is internal-only).
+See **[`docs/honey-the-drop.md`](docs/honey-the-drop.md)** for screenshots of the teaser + card and the
+full breakdown of the countdown seam and the preserved invariants.
 Frontend changes aren't verified by `npm run build`
 alone — rebuild the `frontend` container and grep the served bundle (`docker compose exec -T frontend
 grep -ro "honey-teaser" /usr/share/nginx/html/assets`).
@@ -478,7 +483,8 @@ Base URL = the gateway, e.g. `https://localhost:8443` (HTTPS, dev self-signed �
 | 🔓 GET | `/api/catalog/products/search` | `?q=&category=&type=&page=&size=` | **Full-text search** (same `Page` shape as browse). Typo-tolerant, relevance-ranked, searches name/sku/category/description + flattened JSONB attributes. Blank `q` → normal browse. Degrades to a Postgres `ILIKE` scan if OpenSearch is down (never 503s). Not cached — a just-created SKU is findable immediately |
 | 🔓 GET | `/api/catalog/products/{id}/recommendations` | `?size=8` | **"You may also like"** — hybrid (co-purchase first, content-based fills, same-category fallback). Bare `List<ProductResponse>` (not a `Page`). Public, never 503s (only 404 if the anchor is gone); excludes the anchor; `size` clamped to 1–24 |
 | 🔓 GET | `/api/catalog/products/{id}` | — | Single product |
-| 🔓 POST | `/api/catalog/notify` | `NotifyRequest` | **Launch-interest signup** from the storefront "🔔 Notify me" popups. Persists `{topic, phone, email?}` to `notify_signups`. **Idempotent on (topic, phone)** — a re-submit returns the existing row (no duplicate). → **201**; junk phone/email → **400** |
+| 🔓 POST | `/api/catalog/notify` | `NotifyRequest` | **Launch-interest signup** from the storefront "🔔 Notify me" popups. Persists `{topic, phone, email?, pincode, city, state}` to `notify_signups`. **Idempotent on (topic, phone)** — a re-submit returns the existing row (no duplicate). → **201**; junk phone/pincode → **400** |
+| 🔓 GET | `/api/catalog/notify/count` | `?topic=honey` | **Aggregate signup count** → `{ topic, count }`. Public + read-only (no PII — just an integer). Built for **internal/admin use only**; the storefront never shows it to customers (the CTA is always a plain "Notify me") |
 | 🛡 GET | `/api/catalog/admin/notify` | — | List all signups, newest first (ADMIN only). How the founder retrieves the launch list |
 | 🛡 POST | `/api/catalog/admin/products` | `ProductRequest` | Create (ADMIN only) |
 | 🛡 PUT | `/api/catalog/admin/products/{id}` | `ProductRequest` | Update (ADMIN only) |
@@ -486,13 +492,13 @@ Base URL = the gateway, e.g. `https://localhost:8443` (HTTPS, dev self-signed �
 
 `ProductRequest` = `{ sku, name, description?, productType, category?, basePrice, currency, imageUrl?, attributes? }`
 
-`NotifyRequest` = `{ topic, phone, email? }` — `phone` is a 10-digit Indian mobile (`[6-9]\d{9}`), `email` optional. The storefront also keeps a `localStorage` copy as an offline fallback, so the form still succeeds if the backend is unreachable.
+`NotifyRequest` = `{ topic, phone, email?, pincode, city, state }` — `phone` is a 10-digit Indian mobile (`[6-9]\d{9}`), `pincode` a 6-digit string (required); `city`/`state` are auto-filled by the storefront's pincode resolver (external lookup with an offline state+capital fallback) but stay editable. `email` optional. The storefront also keeps a `localStorage` copy as an offline fallback, so the form still succeeds if the backend is unreachable.
 
 ### Cart — `/api/cart/**` (🔒, scoped to `X-User-Id`)
 | Method | Path | Body | Notes |
 |---|---|---|---|
 | 🔒 GET | `/api/cart` | — | `{ userId, items:{<productId>:line}, itemCount, total }` |
-| 🔒 POST | `/api/cart/items` | `{ productId, quantity }` | **`quantity` is a signed delta** (+1 add, −1 decrement; line ≤0 removed) |
+| 🔒 POST | `/api/cart/items` | `{ productId, quantity }` | **`quantity` is a signed delta** (+1 add, −1 decrement; line ≤0 removed). A `category==honey` product is rejected with **400** ("coming soon, not buyable") — the server-side half of the honey gate |
 | 🔒 DELETE | `/api/cart/items/{productId}` | — | Remove a line |
 | 🔒 DELETE | `/api/cart` | — | Clear cart |
 
@@ -518,7 +524,7 @@ Base URL = the gateway, e.g. `https://localhost:8443` (HTTPS, dev self-signed �
 | 🔒 GET | `/api/orders/{orderId}` | — | Poll `status`: PENDING → CONFIRMED \| FAILED |
 | 🔒 GET | `/api/orders` | — | Current user's orders |
 
-`CheckoutRequest` = `{ currency, customerName, customerPhone, deliveryAddress, items:[{ productId, sku, name, unitPrice, quantity }] }` — the three delivery fields are required (COD pilot: goods are delivered to the address and paid on delivery).
+`CheckoutRequest` = `{ currency, customerName, customerPhone, deliveryAddress, pincode, city, state, items:[{ productId, sku, name, unitPrice, quantity }] }` — the delivery fields are required (COD pilot: goods are delivered to the address and paid on delivery). `pincode` is a 6-digit string; `city`/`state` are auto-filled from it by the same pincode resolver the notify form uses, and stay editable.
 
 ### Videocall — `/api/videocall/**`
 Gated 3-person video calling for **logged-in** customers (Phase 3). The login JWT only proves login and

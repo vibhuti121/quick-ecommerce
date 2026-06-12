@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import { motion, useMotionValue, useSpring, useReducedMotion } from 'motion/react';
 import type { Product } from '../types';
 import { formatPrice } from '../api';
-import { isComingSoon, HONEY_IMAGE, honeyInLineCount } from '../lib/comingSoon';
+import { isComingSoon, HONEY_IMAGE } from '../lib/comingSoon';
 import { isGiTagged, isLabTested } from '../lib/provenance';
 
 interface ProductCardProps {
@@ -31,9 +31,6 @@ export default function ProductCard({
   const giTagged = !comingSoon && isGiTagged(product);
   const labTested = !comingSoon && isLabTested(product);
   const variantCount = product.variants?.length ?? 0;
-  // "The Drop" honest social-proof: the real signup count, or null below the ≥25 floor / when
-  // unavailable. Computed only for the honey branch; renders nothing when null (never fabricated).
-  const inLine = comingSoon ? honeyInLineCount() : null;
   // Honey's catalog imageUrl is a placeholder until launch — show the real MaLLADE jar shot instead.
   const imgSrc = comingSoon ? HONEY_IMAGE : product.imageUrl;
 
@@ -110,12 +107,8 @@ export default function ProductCard({
               </h3>
               {origin && <span className="product-origin">📍 {origin}</span>}
               <p className="product-description">{product.description}</p>
-              {/* Drop framing — no date yet ("The Drop" no-date variant). Honest in-line count only
-                  when honeyInLineCount() clears the ≥25 floor; nothing rendered when null. */}
+              {/* Drop framing — no date yet ("The Drop" no-date variant). */}
               <span className="honey-drop-eyebrow">The first drop is coming</span>
-              {inLine !== null && (
-                <span className="honey-inline-count">{inLine} already in line</span>
-              )}
               <div className="product-footer">
                 <button
                   className="btn btn-primary coming-soon-cta"

@@ -36,6 +36,18 @@ public class NotifySignup {
     @Column(length = 255)
     private String email;
 
+    /** 6-digit Indian pincode the visitor entered (location capture). */
+    @Column(length = 6)
+    private String pincode;
+
+    /** City resolved from the pincode (district, or the state capital as fallback); user-editable. */
+    @Column(length = 128)
+    private String city;
+
+    /** State/UT resolved from the pincode; user-editable. */
+    @Column(length = 128)
+    private String state;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -55,6 +67,15 @@ public class NotifySignup {
 
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
+
+    public String getPincode() { return pincode; }
+    public void setPincode(String pincode) { this.pincode = pincode; }
+
+    public String getCity() { return city; }
+    public void setCity(String city) { this.city = city; }
+
+    public String getState() { return state; }
+    public void setState(String state) { this.state = state; }
 
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }

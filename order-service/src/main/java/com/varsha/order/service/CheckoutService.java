@@ -101,6 +101,9 @@ public class CheckoutService {
         order.setCustomerName(req.customerName());
         order.setCustomerPhone(req.customerPhone());
         order.setDeliveryAddress(req.deliveryAddress());
+        order.setPincode(req.pincode());
+        order.setCity(req.city());
+        order.setState(req.state());
         order.setDeliveryStatus(DeliveryStatus.AWAITING_DELIVERY);
 
         BigDecimal total = BigDecimal.ZERO;

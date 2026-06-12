@@ -114,8 +114,13 @@ export interface WishlistItem {
 }
 
 // Cash-on-Delivery pilot: where the order goes. Collected at checkout and required before placing.
+// pincode/city/state were added for the serviceability pilot — pincode is the 6-digit key, city/state
+// auto-fill from it (lib/pincode) but stay editable, so all three are required at submit.
 export interface DeliveryDetails {
   customerName: string;
   customerPhone: string;
   deliveryAddress: string;
+  pincode: string;
+  city: string;
+  state: string;
 }

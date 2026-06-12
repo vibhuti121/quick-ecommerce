@@ -1,6 +1,7 @@
 package com.varsha.cart.exception;
 
 import com.varsha.cart.exception.CartExceptions.CatalogUnavailableException;
+import com.varsha.cart.exception.CartExceptions.HoneyNotBuyableException;
 import com.varsha.cart.exception.CartExceptions.ProductNotFoundException;
 import com.varsha.cart.exception.CartExceptions.UnauthorizedException;
 import org.springframework.http.HttpStatus;
@@ -27,6 +28,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(CatalogUnavailableException.class)
     public ProblemDetail handleUnavailable(CatalogUnavailableException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
+    }
+
+    @ExceptionHandler(HoneyNotBuyableException.class)
+    public ProblemDetail handleHoneyNotBuyable(HoneyNotBuyableException ex) {
+        return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

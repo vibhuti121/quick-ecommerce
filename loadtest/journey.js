@@ -134,6 +134,9 @@ export default function () {
     customerName: `Load Tester ${__VU}`,
     customerPhone: '9990000003',
     deliveryAddress: '1 Test Lane, Bengaluru',
+    pincode: '560001',
+    city: 'Bengaluru',
+    state: 'Karnataka',
     items: [{
       productId: product.id,
       sku: product.sku,

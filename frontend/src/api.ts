@@ -294,6 +294,9 @@ export async function placeOrder(delivery: DeliveryDetails): Promise<Order> {
         customerName: delivery.customerName.trim(),
         customerPhone: delivery.customerPhone.trim(),
         deliveryAddress: delivery.deliveryAddress.trim(),
+        pincode: delivery.pincode.trim(),
+        city: delivery.city.trim(),
+        state: delivery.state.trim(),
         items: lines.map((l) => ({
           productId: l.productId,
           sku: l.sku,
@@ -566,9 +569,25 @@ interface NotifyResponse {
   createdAt: string;
 }
 
-export async function notify(topic: string, phone: string, email?: string): Promise<void> {
+// pincode/city/state are required by the backend (the serviceability pilot — see lib/pincode). They
+// arrive resolved+editable from NotifyForm; pass them through verbatim.
+export async function notify(
+  topic: string,
+  phone: string,
+  email: string | undefined,
+  pincode: string,
+  city: string,
+  state: string,
+): Promise<void> {
   await request<NotifyResponse>('/api/catalog/notify', {
     method: 'POST',
-    body: JSON.stringify({ topic, phone, email: email ?? null }),
+    body: JSON.stringify({
+      topic,
+      phone,
+      email: email ?? null,
+      pincode: pincode.trim(),
+      city: city.trim(),
+      state: state.trim(),
+    }),
   });
 }
