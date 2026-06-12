@@ -1,5 +1,6 @@
 import type { Product } from '../types';
 import NotifyForm from './NotifyForm';
+import { isComingSoon, HONEY_IMAGE } from '../lib/comingSoon';
 
 interface ComingSoonModalProps {
   open: boolean;
@@ -25,7 +26,9 @@ export default function ComingSoonModal({ open, product, onNotify, onClose }: Co
         </button>
         <div className="product-modal-main coming-soon-main">
           <div className="product-modal-image">
-            <img src={product.imageUrl} alt={product.name} />
+            {/* Honey's catalog imageUrl is a placeholder until launch — show the real MaLLADE jar
+                shot (matches the grid card + carousel) so the teaser always carries the real image. */}
+            <img src={isComingSoon(product) ? HONEY_IMAGE : product.imageUrl} alt={product.name} />
             <span className="coming-soon-badge">Coming Soon</span>
           </div>
           <div className="product-modal-info">

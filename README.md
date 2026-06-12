@@ -304,6 +304,20 @@ npm install && npm run dev            # http://localhost:5173
 Both leave `VITE_API_BASE` **empty**: the container is same-origin behind the gateway, and the dev server
 proxies `/api`,`/auth` to the HTTPS gateway.
 
+**Storytelling homepage (Gen-Z redesign).** The storefront opens as a brand story, not a bare grid:
+a cinematic **`Hero`** (kinetic litchi→honey headline + parallax), a **`TrustBand`**
+(GI-Tagged · Lab-Tested · Farmer-Direct, sourced from the provenance data), the redesigned product
+grid (3D-tilt cards, layout-animated reflow on search/filter), a scroll-linked **`HoneyTeaser`** —
+honey's *"coming soon"* hook, always showing the real jar image and capturing the launch list — and a
+curated **`SocialProof`** band. Built on a warm cream + honey/litchi palette with self-hosted
+**Poppins/Inter** (`@fontsource`, no runtime CDN) and the **`motion`** library for scroll reveals,
+kinetic type, and the honey scrollytelling. Every animation collapses under
+`prefers-reduced-motion`; tilt/parallax are disabled on touch. Honey is **never buyable** — the card,
+the `ComingSoonModal`, and the teaser all route to one `saveNotify('honey')` + `POST /api/catalog/notify`
+launch list. Frontend changes aren't verified by `npm run build`
+alone — rebuild the `frontend` container and grep the served bundle (`docker compose exec -T frontend
+grep -ro "honey-teaser" /usr/share/nginx/html/assets`).
+
 **Tear down:**
 ```bash
 docker compose down                   # keep data (named volumes survive)
