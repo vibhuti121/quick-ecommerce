@@ -2913,3 +2913,366 @@ textarea:focus-visible,
     z-index: 5;
   }
 }
+
+/* ============================================================================
+   Catalogue v2 — sticky discovery toolbar, editorial cards, detail zoom/quick-add,
+   home recommendations. All additive; tokens only. Decisions logged 2026-06-12.
+   ============================================================================ */
+
+/* --- Sticky discovery toolbar (CatalogControls) --- */
+.catalog-controls {
+  position: sticky;
+  top: 64px; /* clears the sticky .header (~66px) so the bar parks beneath it */
+  z-index: 15; /* under the header (20), over the grid */
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 4px 0 20px;
+  padding: 12px 14px;
+  background: rgba(250, 248, 245, 0.92);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.cc-row-main {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.cc-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex: 1 1 auto;
+}
+.cc-pill {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 7px 15px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.cc-pill:hover {
+  border-color: rgba(var(--accent-rgb), 0.5);
+}
+.cc-pill-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.cc-pill:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.cc-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+/* The reused SearchBar drops its header margin inside the toolbar. */
+.catalog-controls .search-bar {
+  margin: 0;
+  min-width: 200px;
+}
+.cc-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.cc-select {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 500;
+  padding: 8px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.cc-select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+.cc-filter-toggle {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+.cc-filter-toggle:hover {
+  border-color: rgba(var(--accent-rgb), 0.5);
+}
+.cc-filter-toggle-active {
+  background: rgba(var(--accent-rgb), 0.12);
+  border-color: var(--accent);
+  color: var(--honey-dark);
+}
+.cc-filter-toggle:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.cc-facets {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 18px;
+  padding: 12px 4px 4px;
+  border-top: 1px dashed var(--border);
+}
+.cc-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.88rem;
+  color: var(--text);
+  cursor: pointer;
+}
+.cc-check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.cc-price {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.88rem;
+  color: var(--text);
+}
+.cc-price input[type='range'] {
+  width: 160px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.cc-reset {
+  border: none;
+  background: none;
+  color: var(--litchi-dark);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 2px;
+}
+.cc-reset:hover {
+  text-decoration: underline;
+}
+.cc-count {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+@media (max-width: 640px) {
+  .catalog-controls {
+    top: 58px;
+  }
+  .cc-tools {
+    width: 100%;
+  }
+  .catalog-controls .search-bar {
+    flex: 1 1 100%;
+  }
+}
+
+/* --- Editorial product card: provenance is the hero --- */
+.product-trust {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+.trust-chip {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.trust-chip--lab {
+  background: rgba(var(--accent-rgb), 0.14);
+  color: var(--honey-dark);
+}
+.product-origin--strong {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--forest);
+}
+.product-farm {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.product-variants {
+  font-size: 0.76rem;
+  color: var(--muted);
+  font-style: italic;
+}
+
+/* --- Product detail: single-image zoom --- */
+.detail-image-zoom {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: zoom-in;
+}
+.zoom-hint {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  background: rgba(61, 45, 20, 0.6);
+  color: #fff;
+  font-size: 0.85rem;
+  padding: 4px 8px;
+  border-radius: 999px;
+  pointer-events: none;
+}
+.image-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 60; /* above the detail drawer (40) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(20, 14, 6, 0.88);
+  cursor: zoom-out;
+  padding: 24px;
+}
+.image-lightbox img {
+  max-width: 92vw;
+  max-height: 88vh;
+  object-fit: contain;
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+}
+.image-lightbox-close {
+  position: absolute;
+  top: 18px;
+  right: 22px;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+.image-lightbox-close:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+/* --- Product detail: grade picker (indicative only) + quantity stepper --- */
+.grade-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.grade-picker-label {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.grade-select {
+  width: 100%;
+}
+.grade-indicative {
+  margin: 8px 0 0;
+  font-size: 0.82rem;
+  color: var(--honey-dark);
+}
+.detail-footer {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.qty-stepper {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+.qty-btn {
+  width: 38px;
+  height: 40px;
+  border: none;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.qty-btn:hover:not(:disabled) {
+  background: var(--bg-alt);
+}
+.qty-btn:disabled {
+  color: var(--border);
+  cursor: not-allowed;
+}
+.qty-value {
+  min-width: 36px;
+  text-align: center;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+.detail-add {
+  flex: 1;
+}
+
+/* --- Home "Recommended for you" row --- */
+.home-recs {
+  background: var(--bg-alt);
+  padding: 40px 0;
+}
+.home-recs-inner {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+.home-recs-title {
+  margin: 0;
+  font-size: 1.4rem;
+}
+.home-recs-sub {
+  margin: 4px 0 18px;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+/* Size the bare <img> in rec cards (home row + drawer "you may also like"). */
+.recs-row .rec-card img {
+  width: 100%;
+  height: 120px;
+  object-fit: cover;
+  display: block;
+}
+.recs-row .rec-card .rec-name,
+.recs-row .rec-card .rec-price {
+  display: block;
+  padding: 0 10px;
+}
+.recs-row .rec-card .rec-name {
+  margin-top: 10px;
+}
+.recs-row .rec-card .rec-price {
+  padding-bottom: 10px;
+  margin-top: 4px;
+}
