@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Header from './components/Header';
+import Hero from './components/Hero';
+import TrustBand from './components/TrustBand';
+import HoneyTeaser from './components/HoneyTeaser';
+import SocialProof from './components/SocialProof';
 import ProductGrid from './components/ProductGrid';
 import CartDrawer from './components/CartDrawer';
 import ProductDetail from './components/ProductDetail';
@@ -220,6 +224,27 @@ export default function App() {
     setComingSoonOpen(false);
   }, []);
 
+  // Hero "Shop Litchi" CTA — smooth-scroll to the product catalogue anchor.
+  const handleScrollToCatalog = useCallback(() => {
+    document.getElementById('catalog')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
+
+  // Hero "Honey — coming soon" CTA — jump to the honey teaser section if it's mounted; otherwise
+  // fall back to the honey product's coming-soon popup (reuses the existing notify path). This keeps
+  // the CTA live regardless of which storefront sections are present.
+  const handleHoneyCta = useCallback(() => {
+    const teaser = document.getElementById('honey-teaser');
+    if (teaser) {
+      teaser.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      return;
+    }
+    const honey = products.find(isComingSoon);
+    if (honey) {
+      setComingSoonProduct(honey);
+      setComingSoonOpen(true);
+    }
+  }, [products]);
+
   // Fetch the user's order history (newest-first). Used on profile-open, on Refresh, after checkout,
   // and by the auto-poll. Errors are non-fatal — the panel just keeps whatever it had.
   const loadOrders = useCallback(async () => {
@@ -396,13 +421,12 @@ export default function App() {
         onClearQuery={() => setQuery('')}
       />
 
-      <main className="main">
-        <UpdatesCarousel onNotify={setNotifyTopic} />
+      <Hero onShopClick={handleScrollToCatalog} onHoneyClick={handleHoneyCta} />
 
-        <section className="hero">
-          <h1>Everything you need, delivered quick.</h1>
-          <p>Browse our curated picks and check out in seconds.</p>
-        </section>
+      <TrustBand />
+
+      <main className="main" id="catalog">
+        <UpdatesCarousel onNotify={setNotifyTopic} />
 
         {error && (
           <div className="banner banner-error">
@@ -442,6 +466,17 @@ export default function App() {
           />
         )}
       </main>
+
+      {/* The honey hook lives below the catalogue: the storefront sells litchi today and teases the
+          honey launch. Same launch list as the card/carousel/modal — saveNotify('honey') + notify. */}
+      <HoneyTeaser
+        onNotify={(phone, email) => {
+          saveNotify('honey', phone, email);
+          void notify('honey', phone, email).catch(() => {});
+        }}
+      />
+
+      <SocialProof />
 
       <ProductDetail
         open={detailOpen}

@@ -1,18 +1,31 @@
 :root {
-  --accent: #4f46e5;
-  --accent-dark: #4338ca;
-  --bg: #f5f6fa;
+  /* MaLLADE warm palette — honey + litchi on cream (replaces the old indigo SaaS look) */
+  --honey: #c8860e;
+  --honey-dark: #a66e07;
+  --litchi: #d64c5c;
+  --litchi-dark: #b83b4a;
+  --marigold: #f4b942;
+  --forest: #2d5016;
+  /* Brand accent maps to honey so the 30+ var(--accent) consumers warm up automatically */
+  --accent: #c8860e;
+  --accent-dark: #a66e07;
+  --accent-rgb: 200, 134, 14; /* honey, for rgba() focus rings / glows */
+  --bg: #faf8f5; /* cream */
+  --bg-alt: #f3f7f2; /* sage section bg */
   --surface: #ffffff;
-  --text: #1f2430;
+  --text: #3d3d3d; /* warm charcoal */
   --muted: #6b7280;
-  --border: #e5e7eb;
+  --border: #ece7df; /* warm-tinted hairline */
   --danger: #dc2626;
-  --success: #16a34a;
+  --success: #2d5016; /* forest doubles as the trust/success green */
   --radius: 14px;
-  --shadow: 0 4px 16px rgba(17, 24, 39, 0.08);
-  --shadow-lg: 0 12px 40px rgba(17, 24, 39, 0.18);
-  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial,
-    sans-serif;
+  --shadow: 0 4px 16px rgba(61, 45, 20, 0.08);
+  --shadow-lg: 0 12px 40px rgba(61, 45, 20, 0.16);
+  /* Type system: Poppins display, Inter body (self-hosted via @fontsource) */
+  --font-display: 'Poppins', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-body: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica,
+    Arial, sans-serif;
+  font-family: var(--font-body);
 }
 
 * {
@@ -28,7 +41,81 @@ body {
 body {
   background: var(--bg);
   color: var(--text);
+  font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
+}
+
+/* Headings get the Poppins brand voice globally (family/weight/colour) — but NOT
+   large sizes, so compact drawer/card titles keep their existing footprint. The
+   full display scale (H1 3.5 / H2 2.25 / H3 1.5) is opt-in via the .display-* utilities
+   below, used by the storytelling sections (hero, trust band, teaser, social proof). */
+h1,
+h2,
+h3,
+.display {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.2;
+}
+h1 {
+  letter-spacing: -0.02em;
+}
+
+/* Display scale — for page-level storytelling sections only */
+.display-1 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 3.5rem;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+}
+.display-2 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 2.25rem;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+.display-3 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.5rem;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+@media (max-width: 720px) {
+  .display-1 {
+    font-size: 2.4rem;
+  }
+  .display-2 {
+    font-size: 1.8rem;
+  }
+}
+
+/* Accessibility — visible keyboard focus ring on every interactive element */
+a:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid var(--marigold);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Reduced-motion kill-switch — collapses every animation/transition globally.
+   Later phases (parallax, 3D tilt, scroll reveals) all inherit this guardrail. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 .app {
@@ -125,7 +212,7 @@ body {
 
 .search-bar:focus-within {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.14);
 }
 
 .search-icon {
@@ -185,20 +272,314 @@ body {
   padding: 28px 20px 64px;
 }
 
-.hero {
-  margin-bottom: 28px;
+/* ===== Cinematic hero (Phase 2) ===================================================
+   Full-bleed warm composition: drifting honey/litchi glow blobs behind kinetic copy,
+   the real honey jar floating on a parallax layer, two CTAs, and a scroll cue. The
+   parallax/stagger all collapse under prefers-reduced-motion (handled in JS + the
+   global kill-switch). ================================================================ */
+.hero-cinematic {
+  position: relative;
+  overflow: hidden;
+  min-height: clamp(560px, 88vh, 880px);
+  display: grid;
+  grid-template-columns: 1.15fr 0.85fr;
+  align-items: center;
+  gap: 32px;
+  padding: 72px clamp(20px, 6vw, 96px) 96px;
+  background:
+    radial-gradient(120% 90% at 85% 10%, rgba(244, 185, 66, 0.18), transparent 55%),
+    radial-gradient(90% 80% at 8% 95%, rgba(214, 76, 92, 0.12), transparent 55%),
+    linear-gradient(165deg, #fffdf9 0%, var(--bg) 45%, var(--bg-alt) 100%);
 }
 
-.hero h1 {
-  margin: 0 0 8px;
-  font-size: 2rem;
-  letter-spacing: -0.03em;
+.hero-blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.55;
+  pointer-events: none;
+  z-index: 0;
+}
+.hero-blob--honey {
+  width: 460px;
+  height: 460px;
+  top: -90px;
+  right: 4%;
+  background: radial-gradient(circle, rgba(200, 134, 14, 0.42), transparent 70%);
+  animation: hero-float 11s ease-in-out infinite;
+}
+.hero-blob--litchi {
+  width: 380px;
+  height: 380px;
+  bottom: -120px;
+  left: -40px;
+  background: radial-gradient(circle, rgba(214, 76, 92, 0.34), transparent 70%);
+  animation: hero-float 14s ease-in-out infinite reverse;
+}
+@keyframes hero-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(0, -26px, 0) scale(1.06);
+  }
 }
 
-.hero p {
-  margin: 0;
+.hero-copy {
+  position: relative;
+  z-index: 2;
+  max-width: 620px;
+}
+
+.hero-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 16px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(6px);
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.82rem;
+  letter-spacing: 0.01em;
+  color: var(--forest);
+  box-shadow: var(--shadow);
+}
+
+.hero-headline {
+  margin: 22px 0 18px;
+  color: var(--text);
+}
+/* Each word sits in an overflow-clipped mask so it slides up from "below the line". */
+.hero-word-mask {
+  display: inline-flex;
+  overflow: hidden;
+  vertical-align: bottom;
+  padding: 0 0.14em 0.06em 0;
+}
+.hero-word {
+  display: inline-block;
+  position: relative;
+}
+/* "Litchi" + "Honey" get a warm gradient + spark to carry the brand story. */
+.hero-word-mask:nth-child(2) .hero-word,
+.hero-word-mask:nth-child(5) .hero-word {
+  background: linear-gradient(120deg, var(--litchi), var(--honey));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.hero-word-spark {
+  position: absolute;
+  top: -0.1em;
+  right: -0.35em;
+  width: 0.32em;
+  height: 0.32em;
+  background: var(--marigold);
+  border-radius: 50%;
+  box-shadow: 0 0 14px 3px rgba(244, 185, 66, 0.7);
+  animation: hero-twinkle 2.6s ease-in-out infinite;
+}
+@keyframes hero-twinkle {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
+.hero-sub {
+  margin: 0 0 30px;
+  font-size: 1.12rem;
+  line-height: 1.6;
   color: var(--muted);
-  font-size: 1.05rem;
+  max-width: 30em;
+}
+
+.hero-ctas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.hero-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 15px 28px;
+  border-radius: 999px;
+  font-family: var(--font-body);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
+}
+.hero-cta--primary {
+  background: linear-gradient(120deg, var(--litchi), var(--honey));
+  color: #fff;
+  box-shadow: 0 10px 26px rgba(200, 134, 14, 0.32);
+}
+.hero-cta--primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 34px rgba(200, 134, 14, 0.4);
+}
+.hero-cta-arrow {
+  transition: transform 0.16s ease;
+}
+.hero-cta--primary:hover .hero-cta-arrow {
+  transform: translateX(4px);
+}
+.hero-cta--ghost {
+  background: rgba(255, 255, 255, 0.7);
+  border-color: var(--border);
+  color: var(--text);
+  backdrop-filter: blur(6px);
+}
+.hero-cta--ghost:hover {
+  transform: translateY(-2px);
+  border-color: var(--honey);
+  color: var(--honey-dark);
+}
+.hero-cta-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--honey);
+  box-shadow: 0 0 0 0 rgba(200, 134, 14, 0.5);
+  animation: hero-pulse 1.9s ease-in-out infinite;
+}
+@keyframes hero-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(200, 134, 14, 0.5);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(200, 134, 14, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(200, 134, 14, 0);
+  }
+}
+
+/* Floating jar art */
+.hero-art {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.hero-jar {
+  position: relative;
+  width: clamp(220px, 26vw, 360px);
+  aspect-ratio: 3 / 4;
+  border-radius: 28px;
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+  border: 6px solid #fff;
+  animation: hero-bob 6s ease-in-out infinite;
+}
+.hero-jar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.hero-jar-tag {
+  position: absolute;
+  bottom: 14px;
+  left: 14px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(45, 80, 22, 0.92);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  backdrop-filter: blur(4px);
+}
+@keyframes hero-bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-14px);
+  }
+}
+
+/* Scroll cue */
+.hero-scroll-cue {
+  position: absolute;
+  left: 50%;
+  bottom: 26px;
+  transform: translateX(-50%);
+  z-index: 2;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--muted);
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.hero-scroll-arrow {
+  width: 22px;
+  height: 22px;
+  border-right: 2px solid var(--honey);
+  border-bottom: 2px solid var(--honey);
+  transform: rotate(45deg);
+  animation: hero-scroll-bounce 1.8s ease-in-out infinite;
+}
+@keyframes hero-scroll-bounce {
+  0%,
+  100% {
+    transform: rotate(45deg) translate(0, 0);
+    opacity: 0.5;
+  }
+  50% {
+    transform: rotate(45deg) translate(4px, 4px);
+    opacity: 1;
+  }
+}
+
+@media (max-width: 860px) {
+  .hero-cinematic {
+    grid-template-columns: 1fr;
+    text-align: center;
+    min-height: auto;
+    padding: 56px 22px 80px;
+  }
+  .hero-copy {
+    max-width: 100%;
+    order: 2;
+  }
+  .hero-art {
+    order: 1;
+    margin-bottom: 8px;
+  }
+  .hero-sub {
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .hero-ctas {
+    justify-content: center;
+  }
+  .hero-scroll-cue {
+    display: none;
+  }
 }
 
 /* Banner */
@@ -222,30 +603,45 @@ body {
 /* Product grid */
 .product-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: 22px;
+  grid-template-columns: repeat(auto-fill, minmax(256px, 1fr));
+  gap: 24px;
 }
 
+/* Outer = the grid item + motion layout wrapper (no surface of its own). The surface, shadow and
+   3D tilt live on .product-card-inner so tilt transforms never collide with layout-reflow. */
 .product-card {
+  display: flex;
+  position: relative;
+  border-radius: var(--radius);
+}
+
+.product-card-inner {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transform-style: preserve-3d;
+  transition: box-shadow 0.22s ease, border-color 0.22s ease;
 }
-
-.product-card:hover {
-  transform: translateY(-4px);
+.product-card-inner:hover {
   box-shadow: var(--shadow-lg);
+  border-color: rgba(200, 134, 14, 0.35);
 }
 
 .product-image {
   position: relative;
   aspect-ratio: 4 / 3;
-  background: #eef0f5;
+  background: var(--bg-alt);
   overflow: hidden;
+  border: none;
+  padding: 0;
+  width: 100%;
+  cursor: pointer;
 }
 
 .product-image img {
@@ -253,21 +649,26 @@ body {
   height: 100%;
   object-fit: cover;
   display: block;
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+/* Image zoom on hover — independent of the card tilt (img transform, not card transform). */
+.product-card-inner:hover .product-image img {
+  transform: scale(1.08);
 }
 
 .category-badge {
   position: absolute;
-  top: 10px;
-  left: 10px;
-  background: rgba(31, 36, 48, 0.78);
+  top: 12px;
+  left: 12px;
+  background: rgba(45, 80, 22, 0.82);
   color: #fff;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  padding: 4px 10px;
+  letter-spacing: 0.05em;
+  padding: 4px 11px;
   border-radius: 999px;
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(3px);
 }
 
 .product-body {
@@ -313,7 +714,8 @@ body {
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s ease, opacity 0.15s ease;
+  transition: background 0.15s ease, opacity 0.15s ease, transform 0.12s ease,
+    box-shadow 0.15s ease;
 }
 
 .btn-primary {
@@ -323,6 +725,12 @@ body {
 
 .btn-primary:hover:not(:disabled) {
   background: var(--accent-dark);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(200, 134, 14, 0.28);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .btn:disabled {
@@ -793,9 +1201,312 @@ body {
   color: var(--muted);
 }
 
-@media (max-width: 600px) {
-  .hero h1 {
-    font-size: 1.55rem;
+/* ===== Trust band (Phase 3) =======================================================
+   Three food-trust pillars between the hero and the catalogue. Staggered scroll-reveal
+   (motion, whileInView) + a marigold glow on hover. ================================== */
+.trust-band {
+  background: var(--bg-alt);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 44px clamp(20px, 6vw, 96px);
+}
+.trust-grid {
+  list-style: none;
+  margin: 0 auto;
+  padding: 0;
+  max-width: 1180px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+.trust-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 22px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.trust-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--marigold);
+  box-shadow: 0 14px 34px rgba(244, 185, 66, 0.28);
+}
+.trust-icon {
+  flex: 0 0 auto;
+  width: 48px;
+  height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(244, 185, 66, 0.25), rgba(200, 134, 14, 0.18));
+}
+.trust-text {
+  min-width: 0;
+}
+.trust-title {
+  margin: 0 0 4px;
+  font-family: var(--font-display);
+  font-size: 1.08rem;
+  font-weight: 700;
+  color: var(--forest);
+}
+.trust-line {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+@media (max-width: 860px) {
+  .trust-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
+/* ---- honey teaser (Phase 5: the "coming soon" hook) -------------------------------------------
+   Full-width scrollytelling band below the catalogue. The real jar (HONEY_IMAGE) scales/rises on
+   scroll (motion drives the transform inline); here we own layout, the honeycomb wash, and copy. */
+.honey-teaser {
+  position: relative;
+  overflow: hidden;
+  margin: 64px 0 0;
+  padding: 88px 24px;
+  background:
+    radial-gradient(120% 90% at 80% 10%, rgba(244, 185, 66, 0.18), transparent 60%),
+    linear-gradient(135deg, #fff6e2 0%, var(--bg-alt) 100%);
+  border-top: 1px solid var(--border);
+}
+
+/* Honeycomb wash — repeating hexagon tiles in faint honey, masked to fade out so it never fights
+   the copy. Decorative only (aria-hidden in the component). */
+.honey-teaser-comb {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(circle at 50% 50%, transparent 0, transparent 9px, rgba(200, 134, 14, 0.06) 10px, transparent 11px);
+  background-size: 44px 44px;
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 30%, #000 70%, transparent);
+  mask-image: linear-gradient(180deg, transparent, #000 30%, #000 70%, transparent);
+  pointer-events: none;
+}
+
+.honey-teaser-inner {
+  position: relative;
+  max-width: 1100px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 0.9fr 1.1fr;
+  gap: 56px;
+  align-items: center;
+}
+
+.honey-teaser-visual {
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.honey-teaser-jar {
+  width: min(340px, 80%);
+  height: auto;
+  border-radius: 20px;
+  object-fit: cover;
+  box-shadow: 0 30px 70px rgba(166, 110, 7, 0.28);
+  will-change: transform, opacity;
+}
+
+.honey-teaser-tag {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%) rotate(-3deg);
+  padding: 6px 16px;
+  border-radius: 999px;
+  background: var(--litchi);
+  color: #fff;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+  box-shadow: 0 8px 20px rgba(214, 76, 92, 0.35);
+}
+
+.honey-teaser-copy {
+  max-width: 520px;
+}
+
+.honey-teaser-eyebrow {
+  display: inline-block;
+  margin-bottom: 12px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(var(--accent-rgb), 0.12);
+  color: var(--accent-dark);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.honey-teaser-title {
+  margin: 0 0 16px;
+}
+
+.honey-teaser-accent {
+  color: var(--accent-dark);
+}
+
+.honey-teaser-lede {
+  margin: 0 0 24px;
+  font-size: 1.05rem;
+  line-height: 1.65;
+  color: var(--muted);
+}
+
+/* The teaser's notify form sits inline (not in a modal) — give it room but keep the shared field
+   styling from .coming-soon-* untouched. */
+.honey-teaser-form {
+  max-width: 380px;
+}
+
+@media (max-width: 860px) {
+  .honey-teaser {
+    padding: 64px 20px;
+  }
+  .honey-teaser-inner {
+    grid-template-columns: 1fr;
+    gap: 36px;
+    text-align: center;
+  }
+  .honey-teaser-eyebrow {
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .honey-teaser-form {
+    margin: 0 auto;
+    text-align: left;
+  }
+}
+
+/* ---- social proof (Phase 6: curated soft-launch voices) --------------------------------------
+   Presentational brand voices — no star ratings or "verified" claims (the storefront is in
+   soft-pilot). Staggered scroll-reveal mirrors the trust band. */
+.social-proof {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 80px 24px 24px;
+}
+
+.social-proof-head {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.social-proof-eyebrow {
+  display: inline-block;
+  margin-bottom: 10px;
+  padding: 4px 12px;
+  border-radius: 999px;
+  background: rgba(45, 80, 22, 0.1);
+  color: var(--forest);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.social-proof-title {
+  margin: 0;
+}
+
+.social-proof-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+}
+
+.social-proof-card {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 28px 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: 0 6px 18px rgba(61, 61, 61, 0.05);
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+}
+.social-proof-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 34px rgba(166, 110, 7, 0.14);
+  border-color: rgba(var(--accent-rgb), 0.4);
+}
+
+.social-proof-quote {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.65;
+  color: var(--text);
+}
+/* Soft opening quote mark for a warmer editorial feel. */
+.social-proof-quote::before {
+  content: '\201C';
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  line-height: 0;
+  margin-right: 2px;
+}
+
+.social-proof-author {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: auto;
+}
+
+.social-proof-avatar {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: var(--bg-alt);
+  font-size: 1.25rem;
+}
+
+.social-proof-meta {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.3;
+}
+.social-proof-name {
+  font-family: var(--font-display);
+  font-weight: 600;
+  color: var(--text);
+}
+.social-proof-city {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+@media (max-width: 860px) {
+  .social-proof {
+    padding: 56px 20px 16px;
+  }
+  .social-proof-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -1498,7 +2209,7 @@ body {
 }
 
 .updates-notify:hover {
-  background: #4338ca;
+  background: var(--accent-dark);
   transform: translateY(-1px);
 }
 
@@ -1644,7 +2355,7 @@ body {
 .coming-soon-input:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.15);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.18);
 }
 
 .coming-soon-input[aria-invalid='true'] {
@@ -1951,7 +2662,7 @@ body {
   font-size: 0.8rem;
 }
 .tile-label--you {
-  background: rgba(79, 70, 229, 0.7);
+  background: rgba(var(--accent-rgb), 0.75);
 }
 .screen-share-badge {
   position: absolute;
