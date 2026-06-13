@@ -111,7 +111,9 @@ const PINCODE_PREFIX_TO_STATE: Record<string, string> = {
 
 // ---- offline table 2: state/UT → capital city -------------------------------------------------
 // "state known → use the state capital as city" (founder rule). Covers the 28 states + 8 UTs.
-const STATE_TO_CAPITAL: Record<string, string> = {
+// EXPORTED so the Taste Match capture's State-first dropdown can (a) list the canonical states and
+// (b) auto-fill the capital as city when a state is picked directly (the reverse of the PIN→city path).
+export const STATE_TO_CAPITAL: Record<string, string> = {
   'Andhra Pradesh': 'Amaravati',
   'Arunachal Pradesh': 'Itanagar',
   Assam: 'Dispur',
@@ -150,6 +152,12 @@ const STATE_TO_CAPITAL: Record<string, string> = {
   Lakshadweep: 'Kavaratti',
   Puducherry: 'Puducherry',
 };
+
+// The canonical, alphabetically-sorted list of Indian states + UTs for a <select>. Derived from the
+// same table that feeds the PIN→state path, so the dropdown and the auto-resolver can never drift.
+export const INDIAN_STATES: readonly string[] = Object.keys(STATE_TO_CAPITAL).sort((a, b) =>
+  a.localeCompare(b),
+);
 
 const PIN_RE = /^\d{6}$/;
 const API_TIMEOUT_MS = 4000;

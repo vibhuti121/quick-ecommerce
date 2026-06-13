@@ -427,7 +427,7 @@ Non-secret knobs (safe defaults in `docker-compose.yml`):
 | `ORDER_SERVICE_URL` | `http://order-service:8094` | Where catalog-service reaches order-service for co-purchase data — **compose-internal, bypassing the gateway** (same pattern as order→inventory). Best-effort: any failure (timeout/4xx/5xx/unreachable) degrades to an empty co-purchase list; there is intentionally **no** `depends_on`. |
 | `REC_SIZE_DEFAULT` | `8` | Default `size` when the caller omits `?size=`. Any requested size is clamped to 1–24 so a caller can't trigger an unbounded blend/aggregation. |
 | `REC_CONNECT_TIMEOUT_MS` / `REC_RESPONSE_TIMEOUT_MS` | `1500` / `2000` | Short by design — a dead/slow order-service fails fast into co-purchase-empty degradation instead of stalling the recommendations request thread. |
-| `GOOGLE_CLIENT_ID` / `_SECRET` | dummy | Real values enable Google login; guest tokens cover the full journey without them. |
+| `GOOGLE_CLIENT_ID` / `_SECRET` | dummy | Real values enable Google login — both the OAuth2 redirect flow **and** the Taste Match `POST /api/auth/google` ID-token exchange (which verifies a credential's `aud` against `GOOGLE_CLIENT_ID`). Left at the `dummy-client-id` placeholder (or blank), `/api/auth/google` returns a clean **503** `{ disabled:true }`; guest/email/phone tokens cover the full journey without them. |
 | `OTP_DEV_ECHO` | `false` | **Dev stub only.** `true` → `/auth/otp/request` echoes the OTP in its JSON response so local/CI can verify the phone-OTP flow without a real SMS provider. Leave **false** outside dev — the real code only ever leaves over the SMS channel. |
 
 Frontend (`frontend/.env.example`): leave `VITE_API_BASE` **empty** for local dev — the Vite dev
@@ -452,8 +452,8 @@ so the browser never sees the dev self-signed cert. Empty in production too (ser
    first (below) to get a `usr-<uuid>` token, then check out. (The storefront enforces the same gate in the
    cart UI; order-service is the real boundary.)
 
-**Public paths** (no token): `/auth/guest`, `/auth/register`, `/auth/login`, `/auth/otp/**`
-(self-serve sign-up / sign-in), `/api/catalog/products` (browse), `/api/catalog/notify`
+**Public paths** (no token): `/auth/guest`, `/auth/register`, `/auth/login`, `/auth/otp/**`,
+`/api/auth/google` (Google Sign-In exchange — the caller has no JWT yet), `/api/catalog/products` (browse), `/api/catalog/notify`
 (launch-interest signup), `/socket.io/**` (the WebRTC handshake carries the call grant itself),
 `/actuator/**`, `/oauth2/**`, `/login/**`. Everything else returns **401** without a valid Bearer token.
 
@@ -489,6 +489,7 @@ Base URL = the gateway, e.g. `https://localhost:8443` (HTTPS, dev self-signed �
 | 🔓 POST | `/auth/login` | `{ identifier, password }` | Email-or-phone + password sign-in → `{ token, displayName }`. Bad creds **or** unknown identifier → identical generic **401** (anti-enumeration) |
 | 🔓 POST | `/auth/otp/request` | `{ phone }` | Send a 6-digit OTP (hashed in Redis, ~5-min TTL, rate-limited). Always returns neutral `{ sent:true }` regardless of whether the phone is known. **Dev stub** logs/echoes the code (`OTP_DEV_ECHO=true`); a real SMS provider drops in behind config at go-live |
 | 🔓 POST | `/auth/otp/verify` | `{ phone, code }` | Verify the OTP (attempt-capped) → finds-or-creates the phone account → `{ token, displayName }`. Wrong code → generic error + attempt increment |
+| 🔓 POST | `/api/auth/google` | `{ credential }` | **Google Sign-In** (Taste Match). `credential` = the browser's Google ID-token; verified **server-side** against Google (`aud` must equal `GOOGLE_CLIENT_ID`, `email_verified`), then finds-or-creates a `usr-<uuid>` account → `{ token, displayName }`. **Disabled-safe:** when no real `GOOGLE_CLIENT_ID` is set (blank or the `dummy-client-id` placeholder) it returns a clean **503** `{ disabled:true }` (never crashes); an invalid/unverified credential → **401** |
 | 🔒 GET | `/auth/me` | — | Current user from token (incl. `role`) |
 | 🔒 PUT | `/auth/me/display-name` | `{ "displayName": "..." }` | Update the current user's display name |
 | 🔓 GET | `/oauth2/authorization/google` | — | Start Google login (optional) |
@@ -500,6 +501,9 @@ Base URL = the gateway, e.g. `https://localhost:8443` (HTTPS, dev self-signed �
 | 🔓 GET | `/api/catalog/products/search` | `?q=&category=&type=&page=&size=` | **Full-text search** (same `Page` shape as browse). Typo-tolerant, relevance-ranked, searches name/sku/category/description + flattened JSONB attributes. Blank `q` → normal browse. Degrades to a Postgres `ILIKE` scan if OpenSearch is down (never 503s). Not cached — a just-created SKU is findable immediately |
 | 🔓 GET | `/api/catalog/products/{id}/recommendations` | `?size=8` | **"You may also like"** — hybrid (co-purchase first, content-based fills, same-category fallback). Bare `List<ProductResponse>` (not a `Page`). Public, never 503s (only 404 if the anchor is gone); excludes the anchor; `size` clamped to 1–24 |
 | 🔓 GET | `/api/catalog/products/{id}` | — | Single product |
+| 🔒 GET | `/api/catalog/taste/profile` | — | **Taste Match progress** for the signed-in user → `{ xp, tier, rank, discoveredFruits[], badges[], streak, fruitAffinity, persona, state, pincode }`. Returns a **zeroed default (never 404)** when no profile exists yet. **Non-guest only** — a `guest-` token → **403** |
+| 🔒 POST | `/api/catalog/taste/profile` | `TasteProgressUpdate` | **Upsert** the user's Taste Match progress (lenient body — unknown/missing fields are ignored, never 400s). Monotonic merge against any existing row: `max(xp)`, `max(streak)`, **union** of `discoveredFruits`/`badges` (case-insensitive dedupe), latest-wins for `tier`/`rank`/`persona`/`state`/`pincode`, `fruitAffinity` merged. → the merged profile |
+| 🔒 POST | `/api/catalog/taste/profile/merge` | `{ deviceProgress: {…} }` | **Carry-over** an anonymous device's local progress into the account on sign-in (same monotonic-merge semantics as the upsert) → the merged profile. Mirrors the guest-cart carry-over |
 | 🔓 POST | `/api/catalog/notify` | `NotifyRequest` | **Launch-interest signup** from the storefront "🔔 Notify me" popups **and the fruit quiz**. Persists to `notify_signups`. **Idempotent on (topic, phone)** — a re-submit returns the existing row. A quiz submit (`topic:"quiz"` + `fruits:[…]`) **fans out server-side** to one row per fruit slug (`topic=<slug>`) plus the umbrella `quiz` row — so per-fruit demand is a free `GROUP BY topic`. → **201**; junk phone/pincode → **400** |
 | 🔓 GET | `/api/catalog/notify/count` | `?topic=honey` | **Aggregate signup count** → `{ topic, count }`. Public + read-only (no PII — just an integer). Built for **internal/admin use only**; the storefront never shows it to customers (the CTA is always a plain "Notify me") |
 | 🛡 GET | `/api/catalog/admin/notify` | — | List all signups, newest first (ADMIN only). How the founder retrieves the launch list |

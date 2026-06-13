@@ -3,11 +3,13 @@ import type {
   CartItem,
   DeliveryDetails,
   DeliveryStatus,
+  DeviceTasteProgress,
   Order,
   OrderStatus,
   OrderSummary,
   Product,
   Provenance,
+  TasteProfile,
   UserProfile,
   Variant,
 } from './types';
@@ -483,6 +485,17 @@ export async function login(identifier: string, password: string): Promise<void>
   localStorage.setItem(TOKEN_KEY, token);
 }
 
+// ---- Google Sign-In (one-tap / GIS) -----------------------------------------
+// The Google Identity Services client returns a `credential` (a Google ID-token JWT). We hand it to the
+// backend, which VERIFIES it with Google and mints OUR real (non-guest) JWT. Stored under the same
+// TOKEN_KEY so the whole app immediately treats the browser as logged in. The Google client-id itself is
+// a build-time env (VITE_GOOGLE_CLIENT_ID) consumed by the UI; the backend owns verification.
+// CONTRACT: POST /api/auth/google  { credential }  →  { token, displayName }
+export async function loginWithGoogle(credential: string): Promise<void> {
+  const { token } = await postAuth<AuthTokenResponse>('/api/auth/google', { credential });
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
 export interface OtpRequestResult {
   sent: boolean;
   devCode?: string; // present ONLY when the backend runs with OTP_DEV_ECHO=true (dev/CI)
@@ -547,6 +560,59 @@ export async function requestGrant(roomId?: string): Promise<GrantResult> {
     method: 'POST',
     body: JSON.stringify(roomId ? { roomId } : {}),
   });
+}
+
+// ---- Taste Match profile (the ?taste-match game's go-live persistence) ------
+// The conversion layer's server seam. ALL three are STUB-TOLERANT by design: in local dev these routes
+// may 404 (backend implemented in a parallel track). Reads return null on ANY failure so the caller
+// falls back to the localStorage progression — the exact resilience the storefront already has for the
+// cold-start path. The merge/upsert swallow failures too (a logged-in player whose sync silently fails
+// still sees their local progress; nothing earned is lost). These require a non-guest token; request()
+// attaches whatever token is stored (a logged-in JWT after a claim) and the gateway enforces auth.
+//
+// CONTRACT (backend track implements to match):
+//   GET  /api/catalog/taste/profile        (auth) → TasteProfile
+//   POST /api/catalog/taste/profile/merge  (auth) { deviceProgress } → TasteProfile (device→account merge)
+//   POST /api/catalog/taste/profile        (auth) { ...progress } → TasteProfile (upsert)
+
+// Fetch the account's server-side taste profile. null = no profile / endpoint unavailable → use local.
+export async function getTasteProfile(): Promise<TasteProfile | null> {
+  try {
+    return await request<TasteProfile>('/api/catalog/taste/profile');
+  } catch {
+    return null; // 404 / not-yet-implemented / guest → fall back to localStorage progression
+  }
+}
+
+// Merge the device's guest progression INTO the account on login (the carry-over invariant for the game,
+// mirroring guest-cart carry-over). The backend is the merge authority (max-of XP, union-of discovered,
+// etc.); we just hand it the device snapshot. Returns the merged profile, or null if the seam is absent.
+export async function mergeTasteProfile(
+  deviceProgress: DeviceTasteProgress,
+): Promise<TasteProfile | null> {
+  try {
+    return await request<TasteProfile>('/api/catalog/taste/profile/merge', {
+      method: 'POST',
+      body: JSON.stringify({ deviceProgress }),
+    });
+  } catch {
+    return null; // seam absent / failed — caller keeps localStorage truth, nothing lost
+  }
+}
+
+// Upsert the account's progress after a logged-in run. Best-effort; a failure is non-fatal (the local
+// run already recorded). Returns the server's view, or null when the seam is absent.
+export async function upsertTasteProfile(
+  progress: Partial<DeviceTasteProgress>,
+): Promise<TasteProfile | null> {
+  try {
+    return await request<TasteProfile>('/api/catalog/taste/profile', {
+      method: 'POST',
+      body: JSON.stringify(progress),
+    });
+  } catch {
+    return null;
+  }
 }
 
 export function formatPrice(value: number): string {

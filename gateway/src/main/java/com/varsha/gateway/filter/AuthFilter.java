@@ -30,7 +30,15 @@ public class AuthFilter implements GlobalFilter, Ordered {
         // /auth/guest). They each end in JwtService.generate(); downstream still only trusts the JWT.
         // Anti-enumeration / rate-limit / attempt-caps are enforced inside auth-service, not here.
         "/auth/register", "/auth/login", "/auth/otp/",
-        // catalog browse is open to anonymous shoppers; writes live under /api/catalog/admin/** and stay protected
+        // Google Sign-In exchange (Taste Match V7): the browser POSTs a Google ID-token `credential`
+        // before it has OUR JWT, so this MUST be public like the other sign-in doors. auth-service
+        // VERIFIES the credential with Google and mints our JWT; disabled (clean 503) when no real
+        // GOOGLE_CLIENT_ID is configured. Routed to auth-service by the /api/auth/** route below.
+        "/api/auth/google",
+        // catalog browse is open to anonymous shoppers; writes live under /api/catalog/admin/** and stay protected.
+        // NOTE: /api/catalog/taste/** (Taste Match V7) is deliberately NOT whitelisted — it stays under the
+        // /api/** AUTHENTICATED default below (it's a non-guest account claim surface; guest-token subjects
+        // are additionally 403'd inside catalog-service). "/api/catalog/products" does not prefix "taste".
         "/api/catalog/products",
         // public launch-interest signup ("Notify me"). Note: /api/catalog/admin/notify does NOT startsWith
         // this, so the admin list stays behind the ADMIN_PATHS check below.

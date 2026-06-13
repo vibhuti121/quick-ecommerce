@@ -20,9 +20,9 @@
 
 | Field | Value |
 |---|---|
-| **Active now** | _(idle)_ — Phase-0 closure shipped + roadmap set up. Next candidate: an H1 item. |
-| **Definition of done** | — |
-| **Started** | — |
+| **Active now** | **Engagement→Demand loop** — milestone COMPLETE (a day early). `growth-lead` built+registered; cycle-1 ideate run (Taste Match top, A+B 3.82; 1 Gate-0 kill); clickable **Taste Match prototype** built (local `?taste-match`, not deployed, notify mocked); launch digest fired. **Waiting on founder:** play it + score 1-10 → calibrates the rubric (Layer C). _(13-Jun)_ |
+| **Definition of done** | **First goal (14-Jun) — DONE 13-Jun:** ✅ agent+rubric+memory · ✅ routines+plists (paused) · ✅ first ideate cycle end-to-end · ✅ clickable prototype · ✅ Telegram digest fired. _Open: founder plays+scores; then schedule the routines (`GROWTH=1 ./install.sh`) + decide if Taste Match goes live (founder-gated)._ |
+| **Started** | 13-Jun-2026 |
 
 _When you start something: `/varsha` fills this box (one item), works only on it, and on finish moves it to its Horizon as ✅ + logs the Changelog._
 
@@ -34,7 +34,10 @@ _When you start something: `/varsha` fills this box (one item), works only on it
 > Writing it down kills the "I must do it now" urge. `/varsha` drains this into the right Horizon
 > during the end-of-session reconcile. (Empty = good; means nothing is being dropped on the floor.)
 
-- _(empty)_
+- **PR #42** (roadmap + redeploy docs) — pushed, awaiting merge to `main`.
+- **Backup restore-drill** (H1 #1) — no-regret safety, do when bandwidth frees.
+- **Cloudflare Access admin dashboard** (H1 #2) — parked, low urgency (demand still 0).
+- Note: old "Quiz v2 shareable" (H1 #4) is now **subsumed** into the bigger Engagement→Demand loop above.
 
 ---
 
@@ -168,7 +171,9 @@ by a measured trigger, not a calendar date. Note the trigger; don't build ahead 
         ├── compliance-finance  — entity, FSSAI, GST, lab tests, unit economics, legal
         ├── sourcing-supply     — FPOs, beekeepers, co-packers, logistics, packaging
         ├── corporate-sales     — B2B / corporate gifting / Diwali hampers
-        └── marketplace-manager — Amazon/Flipkart/Blinkit/Zepto listings + ROAS
+        ├── marketplace-manager — Amazon/Flipkart/Blinkit/Zepto listings + ROAS
+        └── growth-lead         — engagement→demand game engine (rubric + own memory ~/mallde/growth/);
+                                  builds go coo-advisor → /varsha → fe-lead/backend/devops (no mesh)
 ```
 
 ---
@@ -177,3 +182,4 @@ by a measured trigger, not a calendar date. Note the trigger; don't build ahead 
 
 - **2026-06-13** — Roadmap doc created. Phase-0 closure COMPLETE + deployed live (privacy line, git-safe deploy tooling, self-serve demand/redeploy docs, PR #41 merged). Live read-only smoke 11/11. H1 (4 items) parked & ready; H2 compliance track flagged as the long pole.
 - **2026-06-13** — Added the **anti-drift system**: Current Focus box (WIP=1) + Parking Lot (capture-don't-switch). Founder phrases: **"park it"** → add to Parking Lot; **"focus kya hai?"** → read Current Focus back.
+- **2026-06-13** — **growth-lead agent BUILT** (Engagement→Demand spoke under coo-advisor). A self-improving game engine: a versioned **rubric** (Octalysis + Hook Model + a founder-taste model) that Gate-0-mission-checks → judge-panel-scores ideas → prototypes the top one for the founder to play+score. Own memory at **`~/mallde/growth/`** (relocated out of `~/.claude/` — headless runner hard-blocks `.claude/` writes). Two paused headless routines (`mallde-growth-ideate` 07:00, `mallde-growth-pulse` 20:00; `GROWTH=1 ./install.sh` to schedule). **Change protocol = 3 lanes** (new game = rubric pipeline · rubric rule change = versioned vN+1 + founder sign-off · system improvement = Parking Lot → coo-advisor → /varsha). First ideate cycle run: **Taste Match** scored top (A+B 3.82), Build-Your-Dream-Box (3.56) + Mango Market (3.45) parked, Fruit Crush/Spin-to-win **killed at Gate 0** (no preference→demand link). Prototype build in progress (fe-lead, local, not deployed). All infra user-space/uncommitted.
