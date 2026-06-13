@@ -1,5 +1,5 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Package, Boxes, ShoppingCart, LogOut } from 'lucide-react';
+import { LayoutDashboard, Package, Boxes, Sparkles, ShoppingCart, LogOut } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ const NAV: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/products', label: 'Products', icon: Package },
   { to: '/inventory', label: 'Inventory', icon: Boxes },
+  { to: '/demand', label: 'Demand', icon: Sparkles },
   { to: '/orders', label: 'Orders', icon: ShoppingCart },
 ];
 

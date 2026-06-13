@@ -24,9 +24,22 @@ public class NotifySignup {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    /** Subject the visitor wants alerts about: honey | litchi | gi | delivery. */
+    /**
+     * Subject the visitor wants alerts about. For the honey teaser this is a fixed key
+     * (honey | litchi | gi | delivery); for the fruit quiz the row fans out one-per-fruit and the topic
+     * is the chosen fruit slug (e.g. 'litchi', 'mango'), plus one umbrella 'quiz' row per completion.
+     * Either way it stays ≤ 32 chars (DTO-bounded), so per-fruit demand is a {@code GROUP BY topic}.
+     */
     @Column(nullable = false, length = 32)
     private String topic;
+
+    /** Visitor's name. The quiz asks for it; the older honey teaser did not, so it's nullable. */
+    @Column(length = 128)
+    private String name;
+
+    /** Which storefront surface captured the lead: 'quiz' | 'teaser'. Null for pre-existing rows. */
+    @Column(length = 32)
+    private String source;
 
     /** Normalized 10-digit Indian mobile. */
     @Column(nullable = false, length = 20)
@@ -61,6 +74,12 @@ public class NotifySignup {
 
     public String getTopic() { return topic; }
     public void setTopic(String topic) { this.topic = topic; }
+
+    public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
+
+    public String getSource() { return source; }
+    public void setSource(String source) { this.source = source; }
 
     public String getPhone() { return phone; }
     public void setPhone(String phone) { this.phone = phone; }

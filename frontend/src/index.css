@@ -10,6 +10,7 @@
   --accent: #c8860e;
   --accent-dark: #a66e07;
   --accent-rgb: 200, 134, 14; /* honey, for rgba() focus rings / glows */
+  --litchi-rgb: 214, 76, 92; /* litchi, for rgba() tints (quiz reveal/ribbon washes) — mirrors --accent-rgb */
   --bg: #faf8f5; /* cream */
   --bg-alt: #f3f7f2; /* sage section bg */
   --surface: #ffffff;
@@ -2398,6 +2399,14 @@ textarea:focus-visible,
   color: var(--danger);
 }
 
+/* Privacy/consent micro-copy shown above the submit button (before any PII is sent). */
+.coming-soon-privacy {
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--muted);
+  margin-top: 8px;
+}
+
 .coming-soon-confirm {
   margin-top: auto;
   padding: 12px 14px;
@@ -3306,4 +3315,415 @@ textarea:focus-visible,
 .recs-row .rec-card .rec-price {
   padding-bottom: 10px;
   margin-top: 4px;
+}
+
+/* ============================================================================
+   "Find your MaLLADE match" fruit quiz — Phase-0 waitlist centerpiece.
+   Grid select (backbone) + inline nugget reveal (soul) + persona result (flourish).
+   Reveal motion only (JS-gated in FruitQuiz.tsx); the block at the bottom is the
+   second a11y layer (the CSS reduced-motion kill-switch for the few CSS transitions).
+   ============================================================================ */
+.fruit-quiz {
+  background: var(--bg-alt);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 56px 20px;
+}
+
+.fruit-quiz-inner {
+  max-width: 920px;
+  margin: 0 auto;
+}
+
+.fruit-quiz-head {
+  text-align: center;
+  margin-bottom: 28px;
+}
+
+.fruit-quiz-eyebrow {
+  display: inline-block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--honey-dark);
+  margin-bottom: 8px;
+}
+
+.fruit-quiz-title {
+  margin: 0 0 8px;
+}
+
+.fruit-quiz-lede {
+  max-width: 540px;
+  margin: 0 auto;
+  color: var(--muted);
+}
+
+/* ---- grid (2-col mobile / 3-col ≥640px) ---- */
+.fruit-quiz-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14px;
+}
+
+@media (min-width: 640px) {
+  .fruit-quiz-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+.fruit-quiz-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fruit-quiz-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 18px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  color: var(--text);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+}
+
+.fruit-quiz-card:hover {
+  box-shadow: var(--shadow-lg);
+  border-color: rgba(var(--accent-rgb), 0.4);
+}
+
+/* focus-visible per spec: accent outline + soft honey halo */
+.fruit-quiz-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.35);
+}
+
+.fruit-quiz-card-img {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.fruit-quiz-card-emoji {
+  font-size: 2.6rem;
+  line-height: 1;
+}
+
+/* selected fruit (litchi/mango): litchi fill + bold WHITE label (AA needs bold/≥18px) */
+/* AA: white label on --litchi (#d64c5c) = 4.16:1 FAIL; --litchi-dark (#b83b4a) ≈ 5.6:1 PASS */
+.fruit-quiz-card.is-selected {
+  background: var(--litchi-dark);
+  border-color: var(--litchi-dark);
+}
+
+.fruit-quiz-card-label {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.fruit-quiz-card.is-selected .fruit-quiz-card-label {
+  color: #fff;
+}
+
+/* selected honey: honey-dark fill + white label + marigold "Coming Soon" micro-badge.
+   AA: white on --honey (#c8860e) ≈ 2.9:1 FAIL; --honey-dark (#a66e07) = 4.33:1 — still <4.5:1 for
+   normal text, so the selected label below is bumped to bold ≥18.67px (1.17rem) to qualify as WCAG
+   large text (3:1 threshold → PASS). */
+.fruit-quiz-card.is-honey.is-selected {
+  background: var(--honey-dark);
+  border-color: var(--honey-dark);
+}
+
+.fruit-quiz-card.is-honey.is-selected .fruit-quiz-card-label {
+  font-size: 1.17rem; /* 18.72px @16px root → WCAG large text (bold); 4.33:1 ≥ 3:1 PASS */
+}
+
+.fruit-quiz-card-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  /* AA: --honey-dark on this near-white tint = 4.33:1 FAIL for 0.68rem bold; --text (#3d3d3d) ≈ 9.4:1 PASS */
+  color: var(--text);
+  background: rgba(var(--accent-rgb), 0.12);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.fruit-quiz-card.is-honey.is-selected .fruit-quiz-card-badge {
+  /* AA: --honey-dark on --marigold = 2.44:1 FAIL; --text (#3d3d3d) on --marigold (#f4b942) = 6.14:1 PASS */
+  color: var(--text);
+  background: var(--marigold);
+}
+
+/* checkmark that scales in on select (top-right) */
+.fruit-quiz-card-check {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #fff;
+  color: var(--litchi-dark);
+  font-size: 0.85rem;
+  font-weight: 700;
+  box-shadow: var(--shadow);
+}
+
+.fruit-quiz-card.is-honey .fruit-quiz-card-check {
+  color: var(--honey-dark);
+}
+
+/* ---- inline "vs your usual" nugget (the conversion moment) ---- */
+.fruit-quiz-nugget {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 12px 14px;
+  box-shadow: var(--shadow);
+}
+
+/* litchi nugget gets a soft litchi wash + ribbon (the new --litchi-rgb token) */
+.fruit-quiz-nugget.is-litchi {
+  border-left-color: var(--litchi);
+  background: rgba(var(--litchi-rgb), 0.08);
+}
+
+.fruit-quiz-nugget-lead {
+  margin: 0 0 8px;
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
+.fruit-quiz-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+
+.fruit-quiz-chip {
+  font-size: 0.74rem;
+  font-weight: 700;
+  color: var(--forest);
+  background: #eef5e9;
+  border-radius: 999px;
+  padding: 3px 9px;
+}
+
+.fruit-quiz-nutrition {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--text);
+}
+
+/* cited source always shown in muted small text — never an uncited claim */
+.fruit-quiz-source {
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+/* ---- sticky running-basket chip ---- */
+.fruit-quiz-basket {
+  position: sticky;
+  bottom: 14px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 22px;
+  padding: 12px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  box-shadow: var(--shadow-lg);
+}
+
+.fruit-quiz-basket-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.fruit-quiz-next {
+  flex: 0 0 auto;
+}
+
+/* ---- step 2: vibe question ---- */
+.fruit-quiz-step {
+  margin-top: 4px;
+}
+
+.fruit-quiz-fieldset {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  padding: 20px;
+  box-shadow: var(--shadow);
+}
+
+.fruit-quiz-legend {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.2rem;
+  padding: 0 8px;
+}
+
+.fruit-quiz-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.fruit-quiz-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.fruit-quiz-option:hover {
+  border-color: rgba(var(--accent-rgb), 0.4);
+}
+
+.fruit-quiz-option.is-selected {
+  border-color: var(--litchi);
+  background: rgba(var(--litchi-rgb), 0.08);
+}
+
+.fruit-quiz-option input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--litchi);
+}
+
+.fruit-quiz-option-label {
+  font-weight: 600;
+}
+
+.fruit-quiz-navrow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+/* ---- step 3: persona result card ---- */
+.fruit-quiz-result {
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 32px 24px;
+  box-shadow: var(--shadow-lg);
+}
+
+/* honey-lean result (Forest Wanderer / honey pick) gets the honey ribbon wash */
+.fruit-quiz-result.is-honey {
+  background: linear-gradient(180deg, rgba(var(--accent-rgb), 0.08), var(--surface) 60%);
+  border-color: rgba(var(--accent-rgb), 0.35);
+}
+
+.fruit-quiz-result-eyebrow {
+  display: block;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--honey-dark);
+  margin-bottom: 6px;
+}
+
+.fruit-quiz-result-name {
+  margin: 0 0 10px;
+}
+
+.fruit-quiz-result-blurb {
+  max-width: 480px;
+  margin: 0 auto 14px;
+  color: var(--text);
+  line-height: 1.55;
+}
+
+.fruit-quiz-result-note {
+  max-width: 480px;
+  margin: 0 auto 14px;
+  font-size: 0.88rem;
+  color: var(--muted);
+}
+
+.fruit-quiz-share {
+  margin-bottom: 18px;
+}
+
+.fruit-quiz-share-btn {
+  min-width: 180px;
+}
+
+.fruit-quiz-result-form {
+  max-width: 380px;
+  margin: 0 auto;
+  text-align: left;
+  border-top: 1px solid var(--border);
+  padding-top: 18px;
+}
+
+.fruit-quiz-result-cta {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.05rem;
+  text-align: center;
+  margin: 0 0 12px;
+}
+
+.fruit-quiz-retake {
+  margin-top: 16px;
+  background: none;
+  border: none;
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.fruit-quiz-retake:hover {
+  color: var(--text);
+}
+
+/* Second a11y layer: collapse the quiz's CSS transitions under reduced-motion. The JS-driven reveal/
+   tap/checkmark motion is ALSO gated via useReducedMotion() in FruitQuiz.tsx (motion-value inline
+   transforms a media query can't reach) — both layers are required (§3). */
+@media (prefers-reduced-motion: reduce) {
+  .fruit-quiz-card,
+  .fruit-quiz-option,
+  .fruit-quiz-retake {
+    transition: none;
+  }
 }

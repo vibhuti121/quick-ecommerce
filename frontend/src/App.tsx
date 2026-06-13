@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Header from './components/Header';
 import Hero from './components/Hero';
 import TrustBand from './components/TrustBand';
+import FruitQuiz from './components/FruitQuiz';
 import HoneyTeaser from './components/HoneyTeaser';
 import SocialProof from './components/SocialProof';
 import ProductGrid from './components/ProductGrid';
@@ -43,6 +44,7 @@ import type {
 } from './types';
 import { getWishlist, removeWishlist, toggleWishlist } from './lib/wishlist';
 import { isComingSoon, saveNotify } from './lib/comingSoon';
+import { deriveQuizFruitsOrFallback } from './lib/quizFruits';
 import { isGiTagged, isLabTested } from './lib/provenance';
 import { getLastViewedId, setLastViewedId } from './lib/recentlyViewed';
 
@@ -166,6 +168,11 @@ export default function App() {
     }
     return out;
   }, [products]);
+
+  // "Find your MaLLADE match" quiz options — DERIVED from the live catalogue (falls back to the brand's
+  // three families on a cold/empty load). Honey options carry isComingSoon so the quiz routes a honey
+  // pick to the notify list only, never a cart (honey-not-buyable §4 untouched).
+  const quizFruits = useMemo(() => deriveQuizFruitsOrFallback(products), [products]);
 
   // Slider bound = the most expensive buyable (non-coming-soon) product, rounded up a little.
   const priceCeiling = useMemo(() => {
@@ -457,6 +464,23 @@ export default function App() {
       <Hero onShopClick={handleScrollToCatalog} onHoneyClick={handleHoneyCta} />
 
       <TrustBand />
+
+      {/* "Find your MaLLADE match" — the Phase-0 waitlist centerpiece. Placed HIGH (right after the
+          trust strip, before the catalogue) so it greets the visitor first. No money/cart/checkout:
+          ONE notify POST fans out server-side (topic='quiz' + one row per fruit slug, incl. honey as a
+          demand signal). saveNotify mirrors locally; the POST is best-effort so a backend outage never
+          surfaces an error — the form shows its own confirmation regardless. */}
+      <FruitQuiz
+        fruits={quizFruits}
+        onSubmit={(name, phone, email, pincode, city, state, fruits) => {
+          saveNotify('quiz', phone, email, pincode, city, state);
+          void notify('quiz', phone, email || undefined, pincode, city, state, {
+            name,
+            source: 'quiz',
+            fruits,
+          }).catch(() => {});
+        }}
+      />
 
       <main className="main" id="catalog">
         <UpdatesCarousel onNotify={setNotifyTopic} />

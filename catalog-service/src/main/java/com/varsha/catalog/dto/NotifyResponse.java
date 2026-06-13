@@ -7,6 +7,8 @@ import java.time.Instant;
 public record NotifyResponse(
         Long id,
         String topic,
+        String name,
+        String source,
         String phone,
         String email,
         String pincode,
@@ -18,6 +20,8 @@ public record NotifyResponse(
         return new NotifyResponse(
                 s.getId(),
                 s.getTopic(),
+                s.getName(),
+                s.getSource(),
                 s.getPhone(),
                 s.getEmail(),
                 s.getPincode(),
