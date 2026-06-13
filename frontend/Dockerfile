@@ -7,6 +7,12 @@ WORKDIR /app
 COPY package.json package-lock.json* ./
 RUN npm install
 COPY . .
+# Taste Match V7 Google Sign-In: Vite inlines import.meta.env.VITE_* at BUILD time, so the client id
+# must be present here (a runtime container env is too late). Passed as a build ARG from compose
+# (root .env). Empty default => GOOGLE_ENABLED=false => one-tap hidden, password fallback only.
+# The Google client id is PUBLIC by design (it ships in the browser bundle); it is not a secret.
+ARG VITE_GOOGLE_CLIENT_ID=
+ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID
 # `npm run build` is `tsc && vite build` — strict TS compile is part of the gate.
 RUN npm run build
 
