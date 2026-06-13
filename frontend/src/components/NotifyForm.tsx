@@ -10,7 +10,23 @@ interface NotifyFormProps {
   // Persist interest (browser-local + backend). Phone is required & validated; email is optional
   // (passed only when valid). pincode (6-digit, required) + city/state (auto-filled, editable, both
   // required) feed the serviceability pilot. The parent owns WHAT subject this is for.
+  //
+  // HONEY CALLERS (HoneyTeaser / ComingSoonModal / NotifyModal) use ONLY `onNotify` — its signature
+  // and the JSON it ultimately POSTs are unchanged. The quiz path opts into a required Name field via
+  // `collectName` and receives it through the SEPARATE `onNotifyWithName` callback, so the 6-arg honey
+  // contract stays byte-identical. (When collectName is true, onNotifyWithName fires INSTEAD of onNotify.)
   onNotify: (
+    phone: string,
+    email: string | undefined,
+    pincode: string,
+    city: string,
+    state: string,
+  ) => void;
+  // Quiz opt-in: render a required Name input above phone. Defaults to false (honey behaviour).
+  collectName?: boolean;
+  // Fired (instead of onNotify) when collectName is true — carries the collected name as the 1st arg.
+  onNotifyWithName?: (
+    name: string,
     phone: string,
     email: string | undefined,
     pincode: string,
@@ -24,13 +40,15 @@ interface NotifyFormProps {
 // popup (ComingSoonModal), the honey teaser (HoneyTeaser), and the per-banner carousel popup
 // (NotifyModal) so the validation/normalization lives in exactly one place. The parent remounts this
 // (via a `key`) to reset it on reopen.
-export default function NotifyForm({ onNotify }: NotifyFormProps) {
+export default function NotifyForm({ onNotify, collectName = false, onNotifyWithName }: NotifyFormProps) {
+  const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [pincode, setPincode] = useState('');
   const [city, setCity] = useState('');
   const [state, setState] = useState('');
   const [resolving, setResolving] = useState(false);
+  const [nameError, setNameError] = useState('');
   const [phoneError, setPhoneError] = useState('');
   const [emailError, setEmailError] = useState('');
   const [pincodeError, setPincodeError] = useState('');
@@ -59,6 +77,13 @@ export default function NotifyForm({ onNotify }: NotifyFormProps) {
     e.preventDefault();
     let ok = true;
 
+    // Name is required ONLY on the quiz path (collectName). Honey callers never render it.
+    const nameValue = name.trim();
+    if (collectName && !nameValue) {
+      setNameError('Please tell us your name.');
+      ok = false;
+    }
+
     // Phone is compulsory.
     if (!isValidIndianMobile(phone)) {
       setPhoneError('Enter a valid 10-digit mobile number.');
@@ -82,7 +107,12 @@ export default function NotifyForm({ onNotify }: NotifyFormProps) {
     }
 
     if (!ok) return;
-    onNotify(phone, emailValue || undefined, pincode, city.trim(), state.trim());
+    // Quiz path fires onNotifyWithName (name first); honey path fires the unchanged 6-arg onNotify.
+    if (collectName && onNotifyWithName) {
+      onNotifyWithName(nameValue, phone, emailValue || undefined, pincode, city.trim(), state.trim());
+    } else {
+      onNotify(phone, emailValue || undefined, pincode, city.trim(), state.trim());
+    }
     setSubmitted(true);
   }
 
@@ -96,6 +126,35 @@ export default function NotifyForm({ onNotify }: NotifyFormProps) {
 
   return (
     <form className="coming-soon-form" onSubmit={handleSubmit} noValidate>
+      {/* Name — quiz-only (collectName). Required there; never rendered for honey callers. */}
+      {collectName && (
+        <>
+          <label className="coming-soon-label" htmlFor="notify-name">
+            Name <span className="coming-soon-req">*</span>
+          </label>
+          <input
+            id="notify-name"
+            type="text"
+            autoComplete="name"
+            className="coming-soon-input"
+            placeholder="Your name"
+            value={name}
+            onChange={(e) => {
+              setName(e.target.value);
+              if (nameError) setNameError('');
+            }}
+            aria-invalid={!!nameError}
+            aria-describedby={nameError ? 'notify-name-error' : undefined}
+            autoFocus
+          />
+          {nameError && (
+            <span className="coming-soon-error" id="notify-name-error">
+              {nameError}
+            </span>
+          )}
+        </>
+      )}
+
       <label className="coming-soon-label" htmlFor="notify-phone">
         Mobile number <span className="coming-soon-req">*</span>
       </label>
@@ -113,7 +172,7 @@ export default function NotifyForm({ onNotify }: NotifyFormProps) {
         }}
         aria-invalid={!!phoneError}
         aria-describedby={phoneError ? 'notify-phone-error' : undefined}
-        autoFocus
+        autoFocus={!collectName}
       />
       {phoneError && (
         <span className="coming-soon-error" id="notify-phone-error">

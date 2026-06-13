@@ -1,5 +1,6 @@
 package com.varsha.catalog.controller;
 
+import com.varsha.catalog.dto.DemandResponse;
 import com.varsha.catalog.dto.NotifyCountResponse;
 import com.varsha.catalog.dto.NotifyRequest;
 import com.varsha.catalog.dto.NotifyResponse;
@@ -27,6 +28,8 @@ import java.util.List;
  *   <li>{@code GET /api/catalog/admin/notify} — ADMIN. Sits under the {@code /api/catalog/admin}
  *       prefix, so it's gated by both the gateway RBAC boundary and the in-service
  *       {@code AdminRoleFilter} (X-User-Role=ADMIN) — same as the admin product endpoints.</li>
+ *   <li>{@code GET /api/catalog/admin/notify/demand} — ADMIN (same gating). Aggregated demand for the
+ *       founder's "Demand" dashboard: headcount, per-fruit, per-state, latest leads.</li>
  * </ul>
  */
 @RestController
@@ -53,5 +56,10 @@ public class NotifyController {
     @GetMapping("/admin/notify")
     public List<NotifyResponse> list() {
         return notify.list();
+    }
+
+    @GetMapping("/admin/notify/demand")
+    public DemandResponse demand() {
+        return notify.demand();
     }
 }

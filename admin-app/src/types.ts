@@ -87,6 +87,44 @@ export interface StockItem {
   updatedAt: string;
 }
 
+// --- Notify / Demand (mirror of catalog-service NotifyResponse + DemandResponse) ---
+// One launch-interest lead row. The fruit quiz fans a single submit out to one row per chosen fruit
+// (topic = fruit slug) plus an umbrella `topic: 'quiz'` row, all sharing the same phone/contact.
+export interface NotifyLead {
+  id: number;
+  topic: string;
+  name: string | null;
+  source: string | null;
+  phone: string;
+  email: string | null;
+  pincode: string | null;
+  city: string | null;
+  state: string | null;
+  createdAt: string;
+}
+
+// Demand per topic (a fruit slug, or an umbrella key like 'quiz'/'honey'). `people` is distinct phones.
+export interface TopicDemand {
+  topic: string;
+  signups: number;
+  people: number;
+}
+
+// Signups per state/UT (rows with no resolved state are omitted server-side).
+export interface StateDemand {
+  state: string;
+  signups: number;
+}
+
+// GET /api/catalog/admin/notify/demand — the founder's aggregated waitlist view.
+export interface DemandResponse {
+  totalRows: number;
+  distinctPeople: number;
+  byFruit: TopicDemand[];
+  byState: StateDemand[];
+  recent: NotifyLead[];
+}
+
 // Spring Page envelope (GET /api/catalog/products?size=N).
 export interface Page<T> {
   content: T[];

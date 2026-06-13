@@ -227,7 +227,9 @@ ssh -L 5174:127.0.0.1:5174 <host>   # then open http://localhost:5174 (nginx bas
 
 **Pages:** `/login` (email + password → `/auth/login`), `/dashboard` (product / orders-today / awaiting-delivery
 cards), `/products` (full CRUD over the catalog admin API — list, create, edit, delete, with SKU-conflict
-surfacing), `/orders` (list + mark-delivered).
+surfacing), `/inventory` (stock visibility + restock), `/demand` (the launch-interest **Demand dashboard** —
+waitlist headcount, most-wanted fruits, signups by state, recent leads; reads `/api/catalog/admin/notify/demand`),
+`/orders` (list + mark-delivered).
 
 **Login & roles.** Sign in posts `{ identifier, password }` to `/auth/login`; only a **`role=ADMIN`** JWT is
 accepted (any other role is rejected client-side). In production an admin token comes from Google OAuth with
@@ -310,6 +312,21 @@ a cinematic **`Hero`** (kinetic litchi→honey headline + parallax), a **`TrustB
 grid (3D-tilt cards, layout-animated reflow on search/filter), a scroll-linked **`HoneyTeaser`** —
 honey's *"The Drop"* hook (*"The first drop is coming. Be first to taste it."*), always showing the
 real jar image and capturing the launch list — and a curated **`SocialProof`** band.
+
+**"Find your MaLLADE match" fruit quiz (Phase-0 waitlist centerpiece).** Between the `TrustBand` and the
+catalogue sits an interactive quiz (`FruitQuiz`) — the sticky hook of the browse+waitlist pilot (no money,
+no checkout). It's a **hybrid**: a **tap-to-collect fruit grid** (every card a real `<button aria-pressed>`
+toggle into a running basket; mobile-first; the fruit set is **derived from the live catalogue**, not
+hardcoded — `lib/quizFruits.ts`, with a safe fallback), a **story-stepper "vs your usual" nugget** that
+reveals on each pick (the conversion moment — taste/rarity + GI/lab provenance chips, plus a compliance-gated,
+**cited** nutrition line where one is defensible; honey leads on taste/lab-purity only, no health claim), one
+light **"vibe" question**, and a **shareable persona result card** (native share + retake) that mounts the
+existing **`NotifyForm`**. Nugget/persona copy is **data-driven** (`lib/quizContent.ts`) so signed-off copy
+swaps in as a data edit. On submit it fires **one** `POST /api/catalog/notify` carrying `{topic:'quiz', name,
+source:'quiz', fruits:[…slugs]}` — the backend fans those out **server-side** to one signup row per fruit
+(`topic=<slug>`) plus the umbrella `quiz` row (no client-side loop). **Honey is never buyable here** — a honey
+pick is a demand signal only, riding the same notify fan-out (it creates the `honey` launch-list row), never a
+cart add. Selected-card fills use the darkened brand shades + a large-text honey label so all states clear **AA**.
 
 **Catalogue v2 (data-driven discovery).** The grid is no longer a flat list with a bare search box —
 it surfaces, **client-side over the existing endpoints (no backend change)**, the provenance/variant
@@ -483,16 +500,17 @@ Base URL = the gateway, e.g. `https://localhost:8443` (HTTPS, dev self-signed �
 | 🔓 GET | `/api/catalog/products/search` | `?q=&category=&type=&page=&size=` | **Full-text search** (same `Page` shape as browse). Typo-tolerant, relevance-ranked, searches name/sku/category/description + flattened JSONB attributes. Blank `q` → normal browse. Degrades to a Postgres `ILIKE` scan if OpenSearch is down (never 503s). Not cached — a just-created SKU is findable immediately |
 | 🔓 GET | `/api/catalog/products/{id}/recommendations` | `?size=8` | **"You may also like"** — hybrid (co-purchase first, content-based fills, same-category fallback). Bare `List<ProductResponse>` (not a `Page`). Public, never 503s (only 404 if the anchor is gone); excludes the anchor; `size` clamped to 1–24 |
 | 🔓 GET | `/api/catalog/products/{id}` | — | Single product |
-| 🔓 POST | `/api/catalog/notify` | `NotifyRequest` | **Launch-interest signup** from the storefront "🔔 Notify me" popups. Persists `{topic, phone, email?, pincode, city, state}` to `notify_signups`. **Idempotent on (topic, phone)** — a re-submit returns the existing row (no duplicate). → **201**; junk phone/pincode → **400** |
+| 🔓 POST | `/api/catalog/notify` | `NotifyRequest` | **Launch-interest signup** from the storefront "🔔 Notify me" popups **and the fruit quiz**. Persists to `notify_signups`. **Idempotent on (topic, phone)** — a re-submit returns the existing row. A quiz submit (`topic:"quiz"` + `fruits:[…]`) **fans out server-side** to one row per fruit slug (`topic=<slug>`) plus the umbrella `quiz` row — so per-fruit demand is a free `GROUP BY topic`. → **201**; junk phone/pincode → **400** |
 | 🔓 GET | `/api/catalog/notify/count` | `?topic=honey` | **Aggregate signup count** → `{ topic, count }`. Public + read-only (no PII — just an integer). Built for **internal/admin use only**; the storefront never shows it to customers (the CTA is always a plain "Notify me") |
 | 🛡 GET | `/api/catalog/admin/notify` | — | List all signups, newest first (ADMIN only). How the founder retrieves the launch list |
+| 🛡 GET | `/api/catalog/admin/notify/demand` | — | **Aggregated demand** for the admin Demand dashboard (ADMIN only) → `{ totalRows, distinctPeople, byFruit:[{topic,signups,people}], byState:[{state,signups}], recent:[…] }`. All counts computed in-DB |
 | 🛡 POST | `/api/catalog/admin/products` | `ProductRequest` | Create (ADMIN only) |
 | 🛡 PUT | `/api/catalog/admin/products/{id}` | `ProductRequest` | Update (ADMIN only) |
 | 🛡 DELETE | `/api/catalog/admin/products/{id}` | — | Delete (ADMIN only) |
 
 `ProductRequest` = `{ sku, name, description?, productType, category?, basePrice, currency, imageUrl?, attributes? }`
 
-`NotifyRequest` = `{ topic, phone, email?, pincode, city, state }` — `phone` is a 10-digit Indian mobile (`[6-9]\d{9}`), `pincode` a 6-digit string (required); `city`/`state` are auto-filled by the storefront's pincode resolver (external lookup with an offline state+capital fallback) but stay editable. `email` optional. The storefront also keeps a `localStorage` copy as an offline fallback, so the form still succeeds if the backend is unreachable.
+`NotifyRequest` = `{ topic, name?, source?, fruits?, phone, email?, pincode, city, state }` — `phone` is a 10-digit Indian mobile (`[6-9]\d{9}`), `pincode` a 6-digit string (required); `city`/`state` are auto-filled by the storefront's pincode resolver (external lookup with an offline state+capital fallback) but stay editable. `email` optional. `name`/`source` are optional (the honey teaser omits them; the quiz sends `name` + `source:"quiz"`). `fruits` is an optional list of lowercase fruit slugs (≤24) — present only on a quiz submit, and is what the server fans out per-fruit. The storefront also keeps a `localStorage` copy as an offline fallback, so the form still succeeds if the backend is unreachable.
 
 ### Cart — `/api/cart/**` (🔒, scoped to `X-User-Id`)
 | Method | Path | Body | Notes |
@@ -822,6 +840,35 @@ request/response bodies, and `docker compose logs <service>` around the timestam
   audience-scale livestreaming needs an SFU (mediasoup/LiveKit), not yet built.
 
 ---
+
+## Deploy (pilot) — the lean "core" stack
+
+The Phase-0 launch is a **waitlist + browse** site (no money, no checkout): a visitor browses the GI-tagged
+fruits, plays the **"Find your MaLLADE match" quiz**, and drops their details — captured as demand in our own
+DB. That only needs **8 of the 25 services**, so `docker-compose.prod.yml` is an override that runs the core
+set and parks the rest behind a Compose **profile**:
+
+```bash
+# Pilot: 8 core services only (gateway, frontend, auth, catalog, cart, postgres, redis, minio)
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+
+# Everything (order/inventory/payment, videocall, search, observability, admin-app):
+docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile full up -d --build
+```
+
+What the override does:
+- **Profiles** — the 17 non-core services are tagged `profiles: ["full"]` (admin-app: `["full","admin"]`),
+  so a bare `up` starts only the core 8. Search degrades to Postgres `ILIKE`; checkout/order/videocall are
+  simply absent (off by design in the pilot — not a regression).
+- **Trimmed `depends_on`** — gateway and catalog drop their non-core boot dependencies via the `!override`
+  YAML tag (a plain map-merge can only add keys, never remove the base's deps).
+- **Resource caps** — `mem_limit` on every core service + `JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=50
+  -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError` on the four JVMs (the bare `java -jar` entrypoints honor no
+  `JAVA_OPTS`). Footprint ≈ 3.1 GB → fits a 4 GB VM.
+
+Edge/TLS for a real domain (Cloudflare proxied → origin `:8443`, Full mode) and the deploy runbook are owned
+by the `devops` agent; the self-signed origin cert is safe **only** behind Cloudflare — never expose `:8443`
+raw to the internet.
 
 ## Production readiness — what it takes to go live
 

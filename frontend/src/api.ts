@@ -569,8 +569,21 @@ interface NotifyResponse {
   createdAt: string;
 }
 
+// Optional extras carried ONLY by the quiz path ("Find your MaLLADE match"). The backend (migration
+// V6) added `name`/`source` columns to notify_signups and fans out server-side: one row per fruit
+// slug (topic=<slug>) plus the umbrella topic="quiz" row, deduped on (topic, phone). The honey
+// callers (HoneyTeaser/ComingSoonModal/NotifyModal) pass NONE of these, so their JSON body stays
+// byte-identical to before. fruits[] = lowercase fruit SLUGS [a-z0-9-]{1,32}, max 24 — sent ONCE as
+// an array; never loop client-side.
+export interface NotifyExtra {
+  name?: string;
+  source?: string;
+  fruits?: string[];
+}
+
 // pincode/city/state are required by the backend (the serviceability pilot — see lib/pincode). They
-// arrive resolved+editable from NotifyForm; pass them through verbatim.
+// arrive resolved+editable from NotifyForm; pass them through verbatim. `extra` is optional and only
+// the quiz supplies it — when omitted, the request body is identical to the 6-arg honey contract.
 export async function notify(
   topic: string,
   phone: string,
@@ -578,16 +591,36 @@ export async function notify(
   pincode: string,
   city: string,
   state: string,
+  extra?: NotifyExtra,
 ): Promise<void> {
+  // Base body is exactly the legacy honey shape — do NOT add name/source/fruits keys unless the quiz
+  // actually supplied them, so the honey payload remains byte-for-byte unchanged.
+  const body: Record<string, unknown> = {
+    topic,
+    phone,
+    email: email ?? null,
+    pincode: pincode.trim(),
+    city: city.trim(),
+    state: state.trim(),
+  };
+  if (extra) {
+    if (extra.name?.trim()) body.name = extra.name.trim();
+    if (extra.source?.trim()) body.source = extra.source.trim();
+    // Normalize + cap defensively even though the helper already produces clean slugs: lowercase,
+    // slug charset, dedupe, max 24. An empty array is omitted so we never send fruits:[] noise.
+    if (extra.fruits && extra.fruits.length) {
+      const fruits = Array.from(
+        new Set(
+          extra.fruits
+            .map((f) => f.trim().toLowerCase())
+            .filter((f) => /^[a-z0-9-]{1,32}$/.test(f)),
+        ),
+      ).slice(0, 24);
+      if (fruits.length) body.fruits = fruits;
+    }
+  }
   await request<NotifyResponse>('/api/catalog/notify', {
     method: 'POST',
-    body: JSON.stringify({
-      topic,
-      phone,
-      email: email ?? null,
-      pincode: pincode.trim(),
-      city: city.trim(),
-      state: state.trim(),
-    }),
+    body: JSON.stringify(body),
   });
 }
