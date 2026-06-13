@@ -256,6 +256,12 @@ export default function NotifyForm({ onNotify, collectName = false, onNotifyWith
         onChange={(e) => setState(e.target.value)}
       />
 
+      {/* Consent line — we collect a phone (and optional email) before they hit submit, so the
+          privacy promise must be visible BEFORE submission, not just on the confirmation. */}
+      <p className="coming-soon-privacy">
+        We&apos;ll only use your number to text you when your picks drop — no spam, no sharing.
+      </p>
+
       <button type="submit" className="btn btn-primary coming-soon-submit">
         🔔 Notify me
       </button>

@@ -2399,6 +2399,14 @@ textarea:focus-visible,
   color: var(--danger);
 }
 
+/* Privacy/consent micro-copy shown above the submit button (before any PII is sent). */
+.coming-soon-privacy {
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--muted);
+  margin-top: 8px;
+}
+
 .coming-soon-confirm {
   margin-top: auto;
   padding: 12px 14px;

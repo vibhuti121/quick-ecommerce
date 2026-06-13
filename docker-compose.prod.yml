@@ -1,0 +1,127 @@
+# ---------------------------------------------------------------------------
+# docker-compose.prod.yml — Phase 0 go-live override (the "pilot" profile)
+# ---------------------------------------------------------------------------
+# Layered ON TOP of docker-compose.yml:
+#     docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# What this override does:
+#   1. PROFILE-GATES the 17 non-core services behind `profiles: ["full"]`. With this
+#      override active they do NOT start by default — only the 8 core services the
+#      waitlist+browse pilot needs come up. Bring the full dev stack back with
+#      `--profile full` (or run the base file alone for unrestricted local dev).
+#   2. TRIMS depends_on on gateway + catalog-service to the core set via the `!override`
+#      YAML merge tag (a plain map-merge can only ADD keys, never remove the base's
+#      non-core deps — so we replace the whole block). Requires Compose v2.24.4+.
+#   3. RIGHT-SIZES the core JVMs for a 4 GB pilot box: T3 `mem_limit` (cgroup cap) +
+#      T2 heap cap via JAVA_TOOL_OPTIONS (the bare `java -jar` entrypoints honor no
+#      JAVA_OPTS, but every JVM auto-reads JAVA_TOOL_OPTIONS). MaxRAMPercentage is
+#      container-aware, so the cap is meaningful only paired with mem_limit.
+#
+# Core 8 (always up): postgres, redis, minio, auth-service, catalog-service,
+#                     cart-service, gateway, frontend.
+# OFF in the pilot (profile "full"): opensearch (search degrades to ILIKE), order /
+#   inventory / payment (no checkout in Phase 0), videocall / signaling / coturn,
+#   admin-app (stays private — reached via SSH tunnel when explicitly enabled), and
+#   all observability (prometheus / alertmanager / grafana / elasticsearch / kibana /
+#   apm-server / es-init / kibana-init / filebeat).
+#
+# Heap math (MaxRAMPercentage=50): heap ≈ half the mem_limit, the rest covers
+# metaspace / threads / code cache / direct buffers. ExitOnOutOfMemoryError + the
+# base file's `restart: unless-stopped` turn a leak into a restart, not a hung box.
+# Pilot-box footprint ≈ 3.1 GB (fits a 4 GB VM with headroom; trivial on Oracle ARM).
+# ---------------------------------------------------------------------------
+
+services:
+
+  # ---- Core datastores: cgroup caps only (no JVM) -------------------------
+  postgres:
+    mem_limit: 384m
+  redis:
+    mem_limit: 128m
+  minio:
+    mem_limit: 256m
+
+  # ---- Core JVM services: T3 cgroup cap + T2 heap cap ---------------------
+  auth-service:
+    mem_limit: 512m
+    environment:
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=50 -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError"
+
+  catalog-service:
+    mem_limit: 768m          # heaviest: JPA + image/MinIO + (degraded) search/recs clients
+    environment:
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=50 -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError"
+    # Drop the opensearch dependency for the pilot (it's OFF; search degrades to ILIKE).
+    # `!override` REPLACES the base depends_on — a merge could not remove opensearch.
+    depends_on: !override
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
+
+  cart-service:
+    mem_limit: 448m
+    environment:
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=50 -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError"
+
+  gateway:
+    mem_limit: 512m
+    environment:
+      JAVA_TOOL_OPTIONS: "-XX:MaxRAMPercentage=50 -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError"
+    # Gate the edge only on the core first-paint services. The base file also waits on
+    # order / inventory / payment / videocall / signaling — all OFF in the pilot — so
+    # `!override` replaces the block with the core-only readiness set.
+    depends_on: !override
+      auth-service:
+        condition: service_healthy
+      catalog-service:
+        condition: service_healthy
+      cart-service:
+        condition: service_started
+      frontend:
+        condition: service_started
+
+  frontend:
+    mem_limit: 128m          # static nginx
+
+  # ---- Non-core: profile-gated OFF for the pilot --------------------------
+  # `profiles: ["full"]` → excluded from a default `up`; re-enable with `--profile full`.
+  opensearch:
+    profiles: ["full"]
+  inventory-service:
+    profiles: ["full"]
+  payment-service:
+    profiles: ["full"]
+  order-service:
+    profiles: ["full"]
+  videocall-service:
+    profiles: ["full"]
+  signaling-service:
+    profiles: ["full"]
+  coturn:
+    profiles: ["full"]
+  # admin-app proxies /admin/orders to order-service (OFF here) → its own profile so the
+  # pilot doesn't drag order-service back up. Founder reads demand via psql or, when the
+  # Demand page lands, via an SSH tunnel started with an explicit `--profile admin`.
+  admin-app:
+    profiles: ["full", "admin"]
+  prometheus:
+    profiles: ["full"]
+  alertmanager:
+    profiles: ["full"]
+  grafana:
+    profiles: ["full"]
+  elasticsearch:
+    profiles: ["full"]
+  kibana:
+    profiles: ["full"]
+  apm-server:
+    profiles: ["full"]
+  es-init:
+    profiles: ["full"]
+  kibana-init:
+    profiles: ["full"]
+  filebeat:
+    profiles: ["full"]

@@ -866,9 +866,18 @@ What the override does:
   -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError` on the four JVMs (the bare `java -jar` entrypoints honor no
   `JAVA_OPTS`). Footprint ≈ 3.1 GB → fits a 4 GB VM.
 
-Edge/TLS for a real domain (Cloudflare proxied → origin `:8443`, Full mode) and the deploy runbook are owned
-by the `devops` agent; the self-signed origin cert is safe **only** behind Cloudflare — never expose `:8443`
-raw to the internet.
+**This pilot is LIVE** at **https://mallde.in** — a Hetzner CX22 (Germany) box, Cloudflare proxied in
+**Full** mode to the origin `:8443`. The deploy tooling lives in **`deploy/`** (`01-bootstrap` … `05-install-cron`,
+`RUNBOOK.md`, `CLOUDFLARE.md`); a redeploy is `MALLADE_DOMAIN=mallde.in bash deploy/02-deploy.sh`. The
+self-signed origin cert is safe **only** behind Cloudflare (origin `:8443` is firewalled to Cloudflare CIDRs)
+— never expose `:8443` raw to the internet. Cloudflare proxies inbound `443` but connects to the origin on
+`443` by default, so a **Cloudflare Origin Rule** rewriting the destination port → `8443` is mandatory
+(without it you get error 521); see `deploy/CLOUDFLARE.md`. Nightly `catalogdb` backups push to Backblaze B2
+(`deploy/04-backup-catalogdb.sh`, 02:30 cron).
+
+**Reading the demand** (waitlist leads + per-fruit counts captured by the quiz) is its own self-serve guide:
+**`deploy/DEMAND-ACCESS.md`** — a public count-only pulse (`GET /api/catalog/notify/count?topic=<slug>`), the
+full lead list via `psql` on the box, and the SSH-tunnel route to the admin Demand dashboard.
 
 ## Production readiness — what it takes to go live
 
@@ -876,8 +885,9 @@ Honest answer: **this runs end-to-end on a laptop today, but it is not a launche
 between "working demo" and "real customers can buy":
 
 - **Real payments** — swap `MockPaymentProvider` for Razorpay/Stripe; KYC, PCI scope, webhooks, refunds.
-- **Cloud deploy + real TLS + a domain** — the images are deploy-ready (env-only config), but nothing is
-  hosted; needs a CA-signed cert (not the dev self-signed one) and DNS.
+- **Cloud deploy + real TLS + a domain** — *done for the waitlist pilot* (live at https://mallde.in,
+  Cloudflare-proxied TLS, see "Deploy (pilot)" above). What remains is hosting the **full commerce stack**
+  (order/inventory/payment) the same way once checkout is real.
 - **Close DS-0031** — supply `TLS_KEYSTORE_PASSWORD` at runtime from a secrets manager, not a build-ARG.
 - **A real frontend** — Catalogue v2 ships discovery (category pills/filters/sort/inline search),
   editorial cards, and detail zoom + quick-add; still needed are checkout UX polish, account/order
