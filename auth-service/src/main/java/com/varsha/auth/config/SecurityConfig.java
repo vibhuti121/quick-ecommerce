@@ -25,7 +25,10 @@ public class SecurityConfig {
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers("/health", "/actuator/**", "/auth/validate", "/auth/me", "/auth/guest",
-                        "/auth/register", "/auth/login", "/auth/otp/**").permitAll()
+                        "/auth/register", "/auth/login", "/auth/otp/**",
+                        // Google Sign-In exchange (Taste Match V7): the caller has no JWT yet; the
+                        // gateway gates this publicly and auth-service verifies the credential itself.
+                        "/api/auth/google").permitAll()
                 .anyRequest().authenticated()
             )
             .oauth2Login(oauth2 -> oauth2

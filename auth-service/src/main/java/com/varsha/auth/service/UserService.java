@@ -134,6 +134,33 @@ public class UserService {
         });
     }
 
+    /**
+     * Google Sign-In (Taste Match V7) find-or-create by a Google-VERIFIED email. Called only after
+     * {@link GoogleAuthService} has validated the credential with Google (aud + email_verified), so the
+     * email is trusted. Returns the existing account for that email, or mints a fresh "usr-&lt;uuid&gt;"
+     * one; refreshes name/picture and re-evaluates the admin allowlist on every sign-in (same spirit as
+     * the OAuth2 {@link #upsert} path). This is a login/merge, not a net-new password signup, so it is
+     * deliberately NOT counted by the signups meter.
+     */
+    public User findOrCreateByGoogleEmail(String verifiedEmail, String name, String picture) {
+        String email = verifiedEmail.trim().toLowerCase();
+        String role = roleFor(email);
+        return repo.findByEmail(email).map(existing -> {
+            if (name != null && !name.isBlank()) existing.setName(name);
+            if (picture != null && !picture.isBlank()) existing.setPicture(picture);
+            existing.setRole(role);
+            return repo.save(existing);
+        }).orElseGet(() -> {
+            User created = new User();
+            created.setId("usr-" + UUID.randomUUID());
+            created.setEmail(email);
+            created.setName(name);
+            created.setPicture(picture);
+            created.setRole(role);
+            return repo.save(created);
+        });
+    }
+
     public User updateDisplayName(String userId, String displayName) {
         User user = repo.findById(userId).orElseThrow();
         user.setDisplayName(displayName);

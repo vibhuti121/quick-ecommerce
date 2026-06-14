@@ -105,6 +105,38 @@ export interface UserProfile {
   isGuest: boolean;
 }
 
+// ---- Taste Match conversion layer (the ?taste-match game's go-live persistence) -------------
+// The server-side mirror of the game's per-device progression (XP/tier/passport/badges/streak +
+// the persona & the demand-footprint state/pincode). Returned by GET /api/catalog/taste/profile
+// (auth) and POST .../merge. ALL fields optional/lenient so a partial or stub server response, or a
+// 404 in local dev, degrades cleanly to the localStorage state (same resilience as getProfile()).
+export interface TasteProfile {
+  xp?: number;
+  tier?: string;            // tier id (e.g. 'gourmand')
+  rank?: number;            // optional leaderboard rank (server-computed; unused locally)
+  discoveredFruits?: string[]; // collectible slugs the account has WANT-IT'd
+  badges?: string[];        // unlocked badge ids
+  streak?: number;          // current consecutive-day streak (server-truth)
+  persona?: string;         // last persona id
+  state?: string;           // demand-footprint: Indian state
+  pincode?: string;         // demand-footprint: 6-digit PIN
+}
+
+// The device-side progression we send up on login so nothing earned as a guest is lost (mirrors the
+// guest-cart carry-over invariant). Read straight off the localStorage libs at merge time.
+export interface DeviceTasteProgress {
+  xp: number;
+  plays: number;
+  discoveredFruits: string[];
+  bestStreak: number;
+  currentStreak: number;
+  lastPlayDay: number;      // localEpochDay of the last run (-1 = never)
+  badges: string[];
+  persona?: string;
+  state?: string;
+  pincode?: string;
+}
+
 // A wishlisted product — client-side only (localStorage). Stores just enough to render the tab.
 export interface WishlistItem {
   id: number;

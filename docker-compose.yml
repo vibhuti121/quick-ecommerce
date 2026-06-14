@@ -373,6 +373,10 @@ services:
   frontend:
     build:
       context: ./frontend
+      args:
+        # Taste Match V7 Google one-tap. Vite bakes this into the bundle at build time; from root .env.
+        # Empty => GOOGLE_ENABLED=false (password fallback only). Public id, not a secret.
+        VITE_GOOGLE_CLIENT_ID: ${VITE_GOOGLE_CLIENT_ID:-}
     restart: unless-stopped
 
   # ---- Admin console (COD pilot) — network-isolated, NOT exposed to the public internet ----

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { isValidIndianMobile } from '../lib/comingSoon';
-import { resolvePincode } from '../lib/pincode';
+import { resolvePincode, INDIAN_STATES, STATE_TO_CAPITAL } from '../lib/pincode';
 
 // Very light email sanity check — we're not the source of truth, just avoiding obvious typos before
 // we store the address. A real launch list would validate server-side.
@@ -24,6 +24,11 @@ interface NotifyFormProps {
   ) => void;
   // Quiz opt-in: render a required Name input above phone. Defaults to false (honey behaviour).
   collectName?: boolean;
+  // Address-footprint opt-in (Taste Match V7): when true, the location fields render in the
+  // demand-signal order STATE (dropdown of Indian states) → PINCODE → CITY, instead of the legacy
+  // PINCODE → CITY → STATE order. Defaults to false so every honey caller is byte-identical.
+  // Picking a state first auto-fills its capital as city; a later 6-digit PIN still refines both.
+  stateFirst?: boolean;
   // Fired (instead of onNotify) when collectName is true — carries the collected name as the 1st arg.
   onNotifyWithName?: (
     name: string,
@@ -40,7 +45,12 @@ interface NotifyFormProps {
 // popup (ComingSoonModal), the honey teaser (HoneyTeaser), and the per-banner carousel popup
 // (NotifyModal) so the validation/normalization lives in exactly one place. The parent remounts this
 // (via a `key`) to reset it on reopen.
-export default function NotifyForm({ onNotify, collectName = false, onNotifyWithName }: NotifyFormProps) {
+export default function NotifyForm({
+  onNotify,
+  collectName = false,
+  onNotifyWithName,
+  stateFirst = false,
+}: NotifyFormProps) {
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -52,6 +62,7 @@ export default function NotifyForm({ onNotify, collectName = false, onNotifyWith
   const [phoneError, setPhoneError] = useState('');
   const [emailError, setEmailError] = useState('');
   const [pincodeError, setPincodeError] = useState('');
+  const [stateError, setStateError] = useState('');
   const [submitted, setSubmitted] = useState(false);
 
   // On reaching 6 digits, resolve city/state (API → offline fallback, never throws). Keep the digits
@@ -70,6 +81,18 @@ export default function NotifyForm({ onNotify, collectName = false, onNotifyWith
           }
         })
         .finally(() => setResolving(false));
+    }
+  }
+
+  // stateFirst path: picking a state up-front auto-fills its capital as city (the founder "state →
+  // capital" rule, reused) — but ONLY when city is still empty, so a PIN-derived or hand-typed city is
+  // never clobbered. A later 6-digit PIN refines both via handlePincodeChange. Clears the state error.
+  function handleStateChange(value: string) {
+    setState(value);
+    if (stateError) setStateError('');
+    if (value && !city.trim()) {
+      const capital = STATE_TO_CAPITAL[value];
+      if (capital) setCity(capital);
     }
   }
 
@@ -97,12 +120,21 @@ export default function NotifyForm({ onNotify, collectName = false, onNotifyWith
       ok = false;
     }
 
+    // State is compulsory. On the stateFirst path it's a dropdown, so surface the error on the field
+    // itself; the legacy path keeps the combined "fill city and state" message under pincode.
+    if (stateFirst && !state.trim()) {
+      setStateError('Please choose your state.');
+      ok = false;
+    }
+
     // Pincode is compulsory (6 digits). City/state must end up filled (auto or typed).
     if (!/^\d{6}$/.test(pincode)) {
       setPincodeError('Enter a valid 6-digit pincode.');
       ok = false;
     } else if (!city.trim() || !state.trim()) {
-      setPincodeError('Please fill in your city and state.');
+      setPincodeError(
+        stateFirst ? 'Please fill in your city.' : 'Please fill in your city and state.',
+      );
       ok = false;
     }
 
@@ -203,58 +235,105 @@ export default function NotifyForm({ onNotify, collectName = false, onNotifyWith
         </span>
       )}
 
-      <label className="coming-soon-label" htmlFor="notify-pincode">
-        Pincode <span className="coming-soon-req">*</span>
-        {resolving && (
-          <span className="coming-soon-resolving" aria-live="polite">
-            {' '}resolving…
-          </span>
-        )}
-      </label>
-      <input
-        id="notify-pincode"
-        type="text"
-        inputMode="numeric"
-        autoComplete="postal-code"
-        maxLength={6}
-        className="coming-soon-input"
-        placeholder="e.g. 560001"
-        value={pincode}
-        onChange={(e) => handlePincodeChange(e.target.value)}
-        aria-invalid={!!pincodeError}
-        aria-describedby={pincodeError ? 'notify-pincode-error' : undefined}
-      />
-      {pincodeError && (
-        <span className="coming-soon-error" id="notify-pincode-error">
-          {pincodeError}
-        </span>
-      )}
+      {/* ── Location fields. Order depends on `stateFirst`: V7 Taste Match wants STATE → PIN → CITY
+          (state + pincode are the per-pincode demand-footprint signal); honey callers keep the legacy
+          PIN → CITY → STATE order byte-for-byte. The three blocks below are defined once and emitted
+          in the chosen order so neither path duplicates markup or validation. ── */}
+      {(() => {
+        const stateBlock = (
+          <div key="state" className="coming-soon-field">
+            <label className="coming-soon-label" htmlFor="notify-state">
+              State <span className="coming-soon-req">*</span>
+            </label>
+            {stateFirst ? (
+              <select
+                id="notify-state"
+                autoComplete="address-level1"
+                className="coming-soon-input coming-soon-select"
+                value={state}
+                onChange={(e) => handleStateChange(e.target.value)}
+                aria-invalid={!!stateError}
+                aria-describedby={stateError ? 'notify-state-error' : undefined}
+              >
+                <option value="">Select your state…</option>
+                {INDIAN_STATES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                id="notify-state"
+                type="text"
+                autoComplete="address-level1"
+                className="coming-soon-input"
+                placeholder="State"
+                value={state}
+                onChange={(e) => setState(e.target.value)}
+              />
+            )}
+            {stateError && (
+              <span className="coming-soon-error" id="notify-state-error">
+                {stateError}
+              </span>
+            )}
+          </div>
+        );
 
-      <label className="coming-soon-label" htmlFor="notify-city">
-        City <span className="coming-soon-req">*</span>
-      </label>
-      <input
-        id="notify-city"
-        type="text"
-        autoComplete="address-level2"
-        className="coming-soon-input"
-        placeholder="City"
-        value={city}
-        onChange={(e) => setCity(e.target.value)}
-      />
+        const pincodeBlock = (
+          <div key="pincode" className="coming-soon-field">
+            <label className="coming-soon-label" htmlFor="notify-pincode">
+              Pincode <span className="coming-soon-req">*</span>
+              {resolving && (
+                <span className="coming-soon-resolving" aria-live="polite">
+                  {' '}resolving…
+                </span>
+              )}
+            </label>
+            <input
+              id="notify-pincode"
+              type="text"
+              inputMode="numeric"
+              autoComplete="postal-code"
+              maxLength={6}
+              className="coming-soon-input"
+              placeholder="e.g. 560001"
+              value={pincode}
+              onChange={(e) => handlePincodeChange(e.target.value)}
+              aria-invalid={!!pincodeError}
+              aria-describedby={pincodeError ? 'notify-pincode-error' : undefined}
+            />
+            {pincodeError && (
+              <span className="coming-soon-error" id="notify-pincode-error">
+                {pincodeError}
+              </span>
+            )}
+          </div>
+        );
 
-      <label className="coming-soon-label" htmlFor="notify-state">
-        State <span className="coming-soon-req">*</span>
-      </label>
-      <input
-        id="notify-state"
-        type="text"
-        autoComplete="address-level1"
-        className="coming-soon-input"
-        placeholder="State"
-        value={state}
-        onChange={(e) => setState(e.target.value)}
-      />
+        const cityBlock = (
+          <div key="city" className="coming-soon-field">
+            <label className="coming-soon-label" htmlFor="notify-city">
+              City <span className="coming-soon-req">*</span>
+            </label>
+            <input
+              id="notify-city"
+              type="text"
+              autoComplete="address-level2"
+              className="coming-soon-input"
+              placeholder="City"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+            />
+          </div>
+        );
+
+        // STATE → PIN → CITY for the footprint path; PIN → CITY → STATE legacy otherwise.
+        return stateFirst
+          ? [stateBlock, pincodeBlock, cityBlock]
+          : [pincodeBlock, cityBlock, stateBlock];
+      })()}
 
       {/* Consent line — we collect a phone (and optional email) before they hit submit, so the
           privacy promise must be visible BEFORE submission, not just on the confirmation. */}

@@ -3,6 +3,7 @@ import Header from './components/Header';
 import Hero from './components/Hero';
 import TrustBand from './components/TrustBand';
 import FruitQuiz from './components/FruitQuiz';
+import TasteMatch from './components/TasteMatch';
 import HoneyTeaser from './components/HoneyTeaser';
 import SocialProof from './components/SocialProof';
 import ProductGrid from './components/ProductGrid';
@@ -48,7 +49,31 @@ import { deriveQuizFruitsOrFallback } from './lib/quizFruits';
 import { isGiTagged, isLabTested } from './lib/provenance';
 import { getLastViewedId, setLastViewedId } from './lib/recentlyViewed';
 
+// LOCAL-ONLY prototype gate. "Taste Match" is a founder-score artifact reachable ONLY at ?taste-match
+// (or #taste-match) — it renders a standalone app that never appears in the production nav / on
+// mallde.in. Read once at module load (no router); frontend-only, capture is STUBBED (see TasteMatch).
+const IS_TASTE_MATCH =
+  typeof window !== 'undefined' &&
+  (window.location.search.includes('taste-match') || window.location.hash.includes('taste-match'));
+
+// The standalone prototype shell — kept out of the main App tree so it pulls in no catalogue/cart/auth
+// hooks at all (true local preview). Rendered by App only when the local-only gate is set.
+function TasteMatchApp() {
+  return (
+    <div className="app tm-standalone">
+      <TasteMatch />
+    </div>
+  );
+}
+
+// Top-level shell: pick the standalone prototype OR the full storefront. Branching HERE (rather than
+// early-returning inside Storefront) keeps the storefront's hooks unconditional — no Rules-of-Hooks
+// violation — while the prototype mounts nothing of the catalogue/cart/auth tree.
 export default function App() {
+  return IS_TASTE_MATCH ? <TasteMatchApp /> : <Storefront />;
+}
+
+function Storefront() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);

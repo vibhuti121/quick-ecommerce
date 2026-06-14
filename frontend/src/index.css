@@ -3727,3 +3727,2059 @@ textarea:focus-visible,
     transition: none;
   }
 }
+
+/* ============================================================================================
+   "Taste Match" V2 — LOCAL-ONLY prototype (founder-score artifact; NOT served via the gateway).
+   A Tinder × Snapchat swipe DECK. HYBRID look: base = A "Dark Editorial Gloss" (near-black premium
+   gradient, full-bleed fruit photo, gold hairline = --marigold, big Poppins, quiet-luxury adult tone)
+   + B "Vivid Pop-Juicy" punch on the high-moments (rotated WANT IT!/NAH stamps, "Top 3% Rare" badge,
+   loud shareable persona card). Reachable only at ?taste-match — see App.tsx IS_TASTE_MATCH.
+
+   SCOPED DARK TOKENS — these dark prototype-local values live HERE (not global :root) so they never
+   leak into the cream storefront. Warm brand hues (--honey/--litchi/--marigold) stay the accents.
+   Second a11y layer (reduced-motion) at the bottom of this block.
+   ============================================================================================ */
+.tm-standalone,
+.taste-match {
+  --tm-bg: #0b0a10;            /* near-black page base */
+  --tm-bg-2: #16121c;          /* gradient stop / warm aubergine */
+  --tm-ink: #f6f1ea;           /* primary text on dark (warm white) */
+  --tm-ink-dim: rgba(246, 241, 234, 0.66); /* secondary text on dark */
+  --tm-card: #1c1722;          /* solid dark card */
+  --tm-hairline: rgba(244, 185, 66, 0.55);  /* gold hairline = --marigold tinted */
+  --tm-scrim: linear-gradient(180deg, rgba(11,10,16,0) 28%, rgba(11,10,16,0.58) 60%, rgba(11,10,16,0.96) 100%);
+  /* V6 prototype-only illustration ink (the mascot character + passport pin numerals). Declared here with
+     the other scoped tokens so the literal lives in ONE place; all V6 rules reference only var(--…). */
+  --tm-ink-face: #2a1a0e;     /* warm near-black — eyes / mouth / pin numerals */
+  --tm-leaf: #4a7c1f;          /* leaf mid-green (lifts --forest) */
+  --tm-sprout: #b8761e;        /* dimmer orange for the lowest (sprout) tier mascot body */
+}
+
+/* Standalone shell — dark premium radial canvas, centres the deck, mobile-first. */
+.tm-standalone {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: radial-gradient(120% 90% at 50% -10%, var(--tm-bg-2), var(--tm-bg) 60%);
+  padding: 24px 16px;
+}
+
+.taste-match {
+  width: 100%;
+  color: var(--tm-ink);
+  font-family: var(--font-body);
+}
+
+.taste-match-inner {
+  max-width: 440px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+/* ---- intro — V3 full-bleed darkened HERO (drag #1 fix) ----
+   The intro is now a tall hero card: a full-bleed darkened fruit photo behind a layered scrim, with the
+   eyebrow / Poppins title / lede / CTA stacked at the bottom on top of it — premium energy, no dead
+   black space. Mobile-first; the card fills the deck stage so intro→deck feels like one surface. */
+.tm-intro {
+  position: relative;
+  width: 100%;
+  min-height: 600px;
+  max-height: 78vh;
+  border-radius: 22px;
+  overflow: hidden;
+  background: var(--tm-card);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(246, 241, 234, 0.06);
+  display: flex;
+  text-align: left;
+}
+
+.tm-intro-hero {
+  position: absolute;
+  inset: 0;
+}
+
+.tm-intro-hero-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  user-select: none;
+  -webkit-user-drag: none;
+  /* V5 (#2): same TIGHTENED editorial grade as the deck cards — one cohesive set; the intro hero stays
+     a touch darker (it carries long-form copy) but shares the saturation/contrast/warmth of the deck. */
+  filter: saturate(1.18) contrast(1.08) brightness(0.58) sepia(0.06);
+}
+
+/* V6 — the ONE ambient honey loop, layered OVER the daily-drop photo (under the scrim). Same grade as the
+   photo so the two layers blend into one mood; the video carries the motion, the photo is the instant
+   first-paint + the reduced-motion fallback. Mounted only when !reduce (JS layer one); layer two below
+   hides it under reduce anyway. */
+.tm-intro-hero-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 1;
+  pointer-events: none;
+  filter: saturate(1.18) contrast(1.08) brightness(0.58) sepia(0.06);
+}
+
+/* layered scrim — a strong dark wash + a honey-toned glow up top so the title/CTA sit with depth and
+   clear AA against the photo. Deeper than the card scrim because intro copy is long-form. */
+.tm-intro-scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(120% 70% at 50% 0%, rgba(var(--accent-rgb), 0.18), transparent 55%),
+    linear-gradient(180deg, rgba(11, 10, 16, 0.45) 0%, rgba(11, 10, 16, 0.35) 38%, rgba(11, 10, 16, 0.92) 100%);
+}
+
+.tm-intro-copy {
+  position: relative;
+  z-index: 2;
+  margin-top: auto;
+  padding: 28px 26px 30px;
+  width: 100%;
+}
+
+.tm-eyebrow {
+  display: inline-block;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--marigold);
+  border-left: 2px solid var(--tm-hairline);
+  background: rgba(11, 10, 16, 0.82); /* AA backing pill over the bright hero photo */
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+/* #4 — HABIT HOOK. The intro streak pill: a returning player's live streak (loud, gold) or a softer
+   "play daily" nudge. Dark backing pill so the gold/ink text clears AA over the bright hero photo. */
+.tm-streak-pill {
+  display: inline-block;
+  margin-bottom: 12px;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.82rem;
+  letter-spacing: 0.02em;
+  color: var(--marigold);
+  background: rgba(11, 10, 16, 0.82);
+  border: 1px solid var(--tm-hairline);
+  border-radius: 999px;
+  padding: 6px 14px;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.6);
+}
+
+/* the soft nudge variant — quieter (ink-dim, no gold) so it doesn't oversell a streak that isn't live. */
+.tm-streak-pill-soft {
+  color: var(--tm-ink);
+  border-color: rgba(246, 241, 234, 0.28);
+  font-weight: 500;
+}
+
+/* "Today's drop: <fruit>" — names the daily-drop fruit so the intro previews what leads the deck. */
+.tm-intro-drop {
+  margin: 0 0 18px;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--tm-ink);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.6);
+}
+
+.tm-intro-drop strong {
+  color: var(--marigold);
+  font-weight: 700;
+}
+
+.tm-intro-title {
+  margin: 14px 0 12px;
+  color: var(--tm-ink);
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.55);
+}
+
+.tm-intro-lede {
+  color: var(--tm-ink);
+  font-size: 1.02rem;
+  line-height: 1.55;
+  margin: 0 0 22px;
+  max-width: 34ch;
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.6);
+}
+
+.tm-intro-lede strong {
+  color: var(--marigold);
+}
+
+.tm-start {
+  font-size: 1.05rem;
+  padding: 14px 30px;
+}
+
+.tm-intro-fine {
+  margin: 16px 0 0;
+  color: var(--tm-ink-dim);
+  font-size: 0.82rem;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.6);
+}
+
+/* ---- deck progress ---- */
+.tm-progress {
+  margin-bottom: 16px;
+}
+
+.tm-progress-label {
+  display: block;
+  font-weight: 600;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  color: var(--tm-ink-dim);
+  margin-bottom: 6px;
+}
+
+.tm-progress-track {
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(246, 241, 234, 0.12);
+  overflow: hidden;
+}
+
+.tm-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--litchi), var(--marigold));
+}
+
+/* ---- the swipe DECK / cards ---- */
+.tm-deck-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+/* the stack — fixed 9:16-ish stage so the peek + top card overlay. */
+.tm-deck {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 10 / 15;
+  max-height: 70vh;
+  margin: 0 auto;
+}
+
+/* full-bleed editorial fruit card — A "Dark Editorial Gloss" base. */
+.tm-card {
+  position: absolute;
+  inset: 0;
+  border-radius: 22px;
+  overflow: hidden;
+  background: var(--tm-card);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(246, 241, 234, 0.06);
+}
+
+.tm-swipe-card {
+  cursor: grab;
+  touch-action: pan-y;
+  z-index: 2;
+}
+
+/* peek-behind next card — scaled down + tucked up so the stack reads. */
+.tm-deck-peek {
+  position: absolute;
+  inset: 0;
+  border-radius: 22px;
+  overflow: hidden;
+  background: var(--tm-card);
+  transform: scale(0.94) translateY(14px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+  z-index: 1;
+}
+
+.tm-card-photo,
+.tm-deck-peek .tm-card-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  user-select: none;
+  -webkit-user-drag: none;
+  /* V5 (#2): TIGHTENED editorial grade — one cohesive, art-directed premium set. Saturation +
+     contrast unified across deck + share + intro so every photo reads as the same shoot; a hair of
+     warmth (sepia) pulls toward the honey/litchi palette; brightness pulled back slightly so the gold
+     hairline + white type sit with authority. PROTOTYPE-ONLY — when owned MaLLADE photography arrives,
+     shots will be graded in-camera/in-edit and this can be dialled back. Filters are non-color CSS. */
+  filter: saturate(1.18) contrast(1.08) brightness(0.9) sepia(0.06);
+}
+
+/* V6 — Ken-Burns slow-zoom on the ACTIVE swipe card's photo only (not the static peek-behind), so the
+   live card breathes/feels alive while the player decides. A very slow scale+drift (origin offset), so it
+   reads as cinematic, never busy. The drag-parallax itself is the motion-value x/rotate/tint on the card
+   wrapper (already JS-gated via useReducedMotion). This CSS layer is killed under reduce (layer two). */
+.tm-swipe-card .tm-card-photo {
+  transform-origin: 54% 46%;
+  animation: tm-kenburns 18s ease-in-out infinite alternate;
+}
+@keyframes tm-kenburns {
+  0% { transform: scale(1.04) translate(0, 0); }
+  100% { transform: scale(1.12) translate(-1.6%, 1.2%); }
+}
+
+/* The warm vignette + grade wash — a tokens-only overlay layered OVER the photo (under the scrim) so
+   the whole set shares one cohesive, art-directed mood. Honey wash on the bright top, deepened edges,
+   plus a V5 (#2) inset-shadow VIGNETTE that frames every photo identically for a unified premium feel. */
+.tm-card-grade,
+.tm-sharecard-grade,
+.tm-intro-grade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 80% at 50% 0%, rgba(var(--accent-rgb), 0.16), transparent 55%),
+    radial-gradient(140% 120% at 50% 100%, rgba(11, 10, 16, 0.6), transparent 58%),
+    linear-gradient(0deg, rgba(11, 10, 16, 0.14), rgba(11, 10, 16, 0.14));
+  /* subtle art-directed vignette — darkens the corners so each photo reads framed + intentional. */
+  box-shadow: inset 0 0 120px 24px rgba(11, 10, 16, 0.5);
+}
+
+.tm-card-emoji-bg {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 6rem;
+  background: radial-gradient(120% 90% at 50% 20%, var(--tm-bg-2), var(--tm-bg));
+}
+
+.tm-card-scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--tm-scrim);
+}
+
+/* B swipe STAMPS — bold, rotated, fade in on drag (opacity driven by motion values in JS). */
+.tm-stamp {
+  position: absolute;
+  top: 26px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 2rem;
+  letter-spacing: 0.02em;
+  padding: 6px 16px;
+  border-radius: 12px;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.tm-stamp-want {
+  right: 22px;
+  /* rotate is applied via the motion transform in JS (inline scale would clobber a CSS rotate). */
+  color: var(--marigold);
+  border: 3px solid var(--marigold);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  background: rgba(11, 10, 16, 0.28);
+  transition: box-shadow 0.14s ease, background 0.14s ease;
+}
+
+/* #1 — `is-armed` fires the instant the card crosses the commit threshold while still dragging:
+   the stamp glows + solidifies so the decision reads locked-in BEFORE the player releases. */
+.tm-stamp-want.is-armed {
+  background: rgba(var(--accent-rgb), 0.92);
+  color: var(--tm-bg);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.45), 0 8px 24px rgba(var(--accent-rgb), 0.4);
+}
+
+.tm-stamp-nah {
+  left: 22px;
+  color: #fff;
+  border: 3px solid var(--litchi);
+  -webkit-text-stroke: 1px var(--litchi);
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  background: rgba(11, 10, 16, 0.28);
+  transition: box-shadow 0.14s ease, background 0.14s ease;
+}
+
+.tm-stamp-nah.is-armed {
+  background: rgba(var(--litchi-rgb), 0.92);
+  -webkit-text-stroke: 0;
+  box-shadow: 0 0 0 3px rgba(var(--litchi-rgb), 0.45), 0 8px 24px rgba(var(--litchi-rgb), 0.4);
+}
+
+/* #1 — live colour TINT washes over the card photo; opacity driven by the drag motion value. */
+.tm-card-tint {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
+.tm-card-tint-want {
+  background: radial-gradient(120% 100% at 80% 50%, rgba(var(--accent-rgb), 0.85), transparent 70%);
+}
+
+.tm-card-tint-nah {
+  background: radial-gradient(120% 100% at 20% 50%, rgba(var(--litchi-rgb), 0.85), transparent 70%);
+}
+
+.tm-card-eyebrow {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  z-index: 3;
+  font-size: 0.7rem;
+  letter-spacing: 0.12em;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--marigold);
+  /* dark backing pill so marigold clears AA over the UNSCRIMMED bright photo top.
+     0.82 alpha guarantees ≥4.5:1 even over a worst-case pure-white photo pixel
+     (blended backing L stays dark enough that marigold #f4b942 clears the AA small-text floor). */
+  background: rgba(11, 10, 16, 0.82);
+  border-left: 2px solid var(--tm-hairline);
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.tm-card-eyebrow-litchi {
+  color: var(--marigold);
+}
+
+/* "Lab-tested" trust badge — shown ONLY on the demand-only pantry cards (honey + ghee). Sits top-RIGHT,
+   opposite the tagline eyebrow. MaLLADE's quality promise; signals these are coming-soon, never-buyable
+   demand-vote items. Tokens-only; NO animation (inert under reduced-motion — needs no kill-switch entry).
+   AA: light cream --tm-ink text on the same 0.82-alpha near-black backing pill the eyebrow uses (clears
+   the AA small-text floor over a worst-case bright photo pixel). The forest-green hairline border carries
+   the trust SIGNAL (a quiet "verified" frame) and the gold tick reads bright on the dark pill + ties into
+   the card's gold-hairline editorial system — neither is small TEXT, so neither needs to clear 4.5:1. */
+.tm-lab-badge {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.7rem;
+  letter-spacing: 0.1em;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--tm-ink);
+  background: rgba(11, 10, 16, 0.82);
+  border: 1px solid var(--forest);
+  border-radius: 999px;
+  padding: 4px 10px 4px 8px;
+}
+
+.tm-lab-badge-tick {
+  /* gold check — bright on the dark pill, ties into the card's gold-hairline editorial system (icon,
+     not small text, so the contrast floor for small text does not apply). */
+  color: var(--marigold);
+  flex: none;
+}
+
+.tm-card-foot {
+  position: absolute;
+  left: 20px;
+  right: 20px;
+  bottom: 20px;
+  z-index: 3;
+  text-align: left;
+}
+
+.tm-card-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 2rem;
+  line-height: 1.08;
+  color: var(--tm-ink);
+  margin: 0 0 8px;
+}
+
+.tm-card-fact {
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: var(--tm-ink-dim);
+  margin: 0 0 16px;
+}
+
+/* decorative chips on the swipe card (the real controls are the drag gesture / static buttons). */
+.tm-card-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.tm-card-chip {
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 999px;
+}
+
+.tm-card-chip-nah {
+  color: var(--tm-ink-dim);
+  border: 1px solid rgba(246, 241, 234, 0.28);
+}
+
+.tm-card-chip-want {
+  color: var(--tm-bg);
+  background: var(--marigold);
+}
+
+/* reduced-motion STATIC card — real tappable buttons replace the gesture. */
+.tm-static-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.tm-static-btn {
+  flex: 1;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.95rem;
+  padding: 12px;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.tm-static-btn-nah {
+  color: var(--tm-ink);
+  background: rgba(246, 241, 234, 0.1);
+  border: 1px solid rgba(246, 241, 234, 0.28);
+}
+
+.tm-static-btn-want {
+  color: var(--tm-bg);
+  background: var(--marigold);
+  border: 1px solid var(--marigold);
+}
+
+.tm-static-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(244, 185, 66, 0.5);
+}
+
+.tm-deck-hint {
+  margin: 16px 0 0;
+  font-size: 0.8rem;
+  color: var(--tm-ink-dim);
+  text-align: center;
+}
+
+/* #3 — MID-DECK SOCIAL-PROOF FLASH. A small, transient "X% also wanted this" pill that fades in over the
+   deck after a swipe and auto-dismisses. pointer-events:none so it NEVER blocks the next swipe. Numbers
+   are illustrative/static (see SOCIAL_PROOF in TasteMatch.tsx) — prototype only. */
+.tm-social-proof {
+  position: absolute;
+  left: 50%;
+  bottom: 64px;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 6;
+  pointer-events: none;
+  max-width: 92%;
+  text-align: center;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--tm-ink);
+  background: rgba(11, 10, 16, 0.86);
+  border: 1px solid var(--tm-hairline);
+  border-radius: 999px;
+  padding: 9px 16px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(6px);
+}
+
+.tm-social-proof-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--marigold);
+  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.3);
+  flex: 0 0 auto;
+}
+
+/* the deck-wrap is the positioning context for the flash + needs relative for the absolute pill. */
+.tm-deck-wrap {
+  position: relative;
+}
+
+/* ---- PHASE 3 · loud persona reveal + share card ---- */
+.tm-persona-card {
+  position: relative;
+  margin: 0 auto 18px;
+  max-width: 320px;
+}
+
+/* #2 — JUICIER CLIMAX. A restrained gold SHIMMER sweep glides across the persona card once on reveal,
+   plus a tasteful SPARK burst. Both are decorative overlays clipped to the card; both collapse to nothing
+   under reduced-motion (the .tm-celebrate class isn't even applied in JS when reduce is on, and the
+   keyframes are killed in the @media block below as a belt-and-braces second layer). */
+.tm-persona-card.tm-celebrate {
+  border-radius: 20px;
+}
+
+.tm-shimmer {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  border-radius: 20px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.tm-shimmer::before {
+  content: '';
+  position: absolute;
+  top: -20%;
+  left: -60%;
+  width: 45%;
+  height: 140%;
+  background: linear-gradient(
+    100deg,
+    transparent 0%,
+    rgba(var(--accent-rgb), 0.0) 30%,
+    rgba(255, 240, 200, 0.55) 50%,
+    rgba(var(--accent-rgb), 0.0) 70%,
+    transparent 100%
+  );
+  transform: skewX(-18deg);
+  animation: tm-shimmer-sweep 1.5s ease-out 0.45s 1 both;
+}
+
+@keyframes tm-shimmer-sweep {
+  0% { left: -60%; opacity: 0; }
+  20% { opacity: 1; }
+  100% { left: 130%; opacity: 0; }
+}
+
+/* SPARK burst — a few gold specks puff outward from behind the card. Pure CSS via radial dots on a
+   pseudo-element that scales+fades. Subtle, premium, NOT confetti-cheesy. */
+.tm-sparks {
+  position: absolute;
+  left: 50%;
+  top: 38%;
+  width: 4px;
+  height: 4px;
+  z-index: 4;
+  pointer-events: none;
+  border-radius: 50%;
+  box-shadow:
+    -64px -36px 0 1px rgba(var(--accent-rgb), 0.9),
+    58px -48px 0 0px rgba(255, 230, 170, 0.9),
+    -48px 40px 0 1px rgba(var(--accent-rgb), 0.8),
+    66px 30px 0 0px rgba(255, 230, 170, 0.85),
+    0 -68px 0 0px rgba(var(--accent-rgb), 0.85),
+    30px 60px 0 1px rgba(255, 230, 170, 0.8);
+  transform-origin: center;
+  animation: tm-spark-burst 0.9s ease-out 0.5s 1 both;
+}
+
+@keyframes tm-spark-burst {
+  0% { opacity: 0; transform: scale(0.2); }
+  35% { opacity: 1; }
+  100% { opacity: 0; transform: scale(1.5); }
+}
+
+/* #5 — the natural, composed descriptive line. Conversational, read-from-you. */
+.tm-reveal-copy {
+  margin: 0 auto 4px;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: var(--tm-ink);
+  max-width: 34ch;
+}
+
+/* #1 — count-up number gets a slightly larger, brighter treatment than the surrounding stat text.
+   (Renamed from V4's .tm-rarity-num — now the HONEST match % in "You're <n>% <persona>".) */
+.tm-match-num {
+  color: var(--marigold);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums; /* no width-jitter as the number climbs */
+}
+
+/* the share-card FACE — reused on-screen AND in the off-screen 1080×1920 capture node. */
+.tm-sharecard {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 9 / 16;
+  border-radius: 20px;
+  overflow: hidden;
+  background: var(--tm-bg);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+  text-align: left;
+}
+
+.tm-sharecard-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* V5 (#2): same TIGHTENED editorial grade as the deck cards so the shareable PNG is cohesive. */
+  filter: saturate(1.18) contrast(1.08) brightness(0.9) sepia(0.06);
+}
+
+.tm-sharecard-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(11,10,16,0.45) 0%, rgba(11,10,16,0.15) 36%, rgba(11,10,16,0.97) 100%);
+}
+
+.tm-sharecard-rare {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--marigold);
+  border: 1px solid var(--tm-hairline);
+  /* 0.82 alpha guarantees ≥4.5:1 AA even over a worst-case pure-white photo pixel
+     (covers the on-screen reveal badge AND the .tm-sharecard-big capture variant — it
+     overrides only top/font-size/padding/radius, so it inherits this background) */
+  background: rgba(11, 10, 16, 0.82);
+  padding: 6px 14px;
+  border-radius: 999px;
+}
+
+.tm-sharecard-mid {
+  position: absolute;
+  left: 22px;
+  right: 22px;
+  bottom: 80px;
+  z-index: 2;
+}
+
+.tm-sharecard-kicker {
+  display: block;
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--marigold);
+  margin-bottom: 6px;
+}
+
+.tm-sharecard-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 2rem;
+  line-height: 1.04;
+  color: var(--tm-ink);
+  margin: 0 0 10px;
+}
+
+.tm-sharecard-blurb {
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--tm-ink-dim);
+  margin: 0;
+}
+
+.tm-sharecard-foot {
+  position: absolute;
+  left: 22px;
+  right: 22px;
+  bottom: 20px;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border-top: 1px solid var(--tm-hairline);
+  padding-top: 12px;
+}
+
+.tm-sharecard-wordmark {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1rem;
+  letter-spacing: 0.06em;
+  color: var(--tm-ink);
+}
+
+.tm-sharecard-cta {
+  font-size: 0.74rem;
+  font-weight: 600;
+  color: var(--marigold);
+}
+
+/* the BIG variant — sized to the 1080×1920 off-screen capture node. */
+.tm-sharecard-big {
+  border-radius: 0;
+}
+.tm-sharecard-big .tm-sharecard-rare {
+  top: 64px;
+  font-size: 2.4rem;
+  padding: 18px 42px;
+  border-radius: 999px;
+}
+.tm-sharecard-big .tm-sharecard-mid {
+  left: 72px;
+  right: 72px;
+  bottom: 300px;
+}
+.tm-sharecard-big .tm-sharecard-kicker {
+  font-size: 2.2rem;
+  margin-bottom: 22px;
+}
+.tm-sharecard-big .tm-sharecard-name {
+  font-size: 6.4rem;
+  margin-bottom: 32px;
+}
+.tm-sharecard-big .tm-sharecard-blurb {
+  font-size: 2.5rem;
+  line-height: 1.45;
+}
+.tm-sharecard-big .tm-sharecard-foot {
+  left: 72px;
+  right: 72px;
+  bottom: 80px;
+  padding-top: 40px;
+}
+.tm-sharecard-big .tm-sharecard-wordmark {
+  font-size: 3.2rem;
+}
+.tm-sharecard-big .tm-sharecard-cta {
+  font-size: 2.3rem;
+}
+
+/* OFF-SCREEN 9:16 capture stage — far off-screen (NOT display:none, which html-to-image can't size). */
+.tm-capture-stage {
+  position: fixed;
+  left: -10000px;
+  top: 0;
+  pointer-events: none;
+}
+.tm-capture-node {
+  width: 1080px;
+  height: 1920px;
+}
+
+/* V3 (drag #3): the climax-first reveal hierarchy. Kicker → big persona card → rarity stat → loud
+   share/swipe-again actions ALL come before any capture ask. */
+.tm-reveal-kicker {
+  margin: 0 0 10px;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.82rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--marigold);
+}
+
+/* #1: the HONEST headline — loud, centred: "You're <matchPct>% <persona>" (real cosine-derived match). */
+.tm-reveal-stat {
+  margin: 16px auto 4px;
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 1.05rem;
+  line-height: 1.4;
+  color: var(--tm-ink);
+  max-width: 30ch;
+}
+
+.tm-reveal-stat strong {
+  color: var(--marigold);
+  font-weight: 700;
+}
+
+.tm-reveal-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.tm-share {
+  width: 100%;
+}
+
+/* drag #4: "Swipe again" is a real, prominent secondary button now (was a thin underlined link). */
+.tm-replay {
+  width: 100%;
+  background: rgba(246, 241, 234, 0.08);
+  color: var(--tm-ink);
+  border: 1px solid var(--tm-hairline);
+  font-weight: 600;
+  font-size: 0.98rem;
+  padding: 12px;
+}
+
+.tm-replay:hover {
+  background: rgba(246, 241, 234, 0.14);
+}
+
+.tm-reveal-note {
+  background: rgba(var(--accent-rgb), 0.12);
+  border: 1px solid var(--tm-hairline);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: var(--marigold);
+  margin: 20px 0 0;
+  text-align: left;
+}
+
+/* #4 — the reveal STREAK RESULT line. Sits below the climax/actions; a centred gold-tinted pill that
+   celebrates an advanced streak / reassures a same-day replay / welcomes back a reset. Tokens-only. */
+.tm-streak-result {
+  margin: 18px auto 0;
+  max-width: 32ch;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  color: var(--marigold);
+  background: rgba(var(--accent-rgb), 0.1);
+  border: 1px solid var(--tm-hairline);
+  border-radius: 12px;
+  padding: 11px 14px;
+}
+
+/* #4 — honest footnote: the streak is per-device localStorage, not server-truth. Tiny + muted. */
+.tm-streak-fine {
+  margin: 16px 0 0;
+  font-size: 0.74rem;
+  line-height: 1.4;
+  color: var(--tm-ink-dim);
+  text-align: center;
+}
+
+/* ── V3 (drag #3): the SECONDARY capture — below the fold, behind a soft toggle ────────────────── */
+.tm-capture-block {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(246, 241, 234, 0.1);
+}
+
+.tm-capture-toggle {
+  width: 100%;
+  background: none;
+  border: 1px dashed var(--tm-hairline);
+  border-radius: 12px;
+  color: var(--marigold);
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.92rem;
+  padding: 13px 14px;
+  cursor: pointer;
+  transition: background 160ms ease;
+}
+
+.tm-capture-toggle:hover {
+  background: rgba(var(--accent-rgb), 0.08);
+}
+
+.tm-capture-toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(244, 185, 66, 0.5);
+}
+
+.tm-capture-panel {
+  text-align: left;
+}
+
+.tm-capture-lede {
+  margin: 0 0 14px;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--tm-ink-dim);
+}
+
+/* ════════════════════════════════════════════════════════════════════════════════════════════
+   V7 — the GO-LIVE conversion + persistence layer (tokens-only; no raw hex, no Tailwind).
+     login-to-claim  inline panel grafted into the reveal flow, under the celebration banners
+     exit-intent     a gentle, once-per-session bottom toast
+     address footprint  the State-first <select> styling (shared coming-soon-field wrapper)
+   All scoped under .taste-match / .tm-standalone via the existing block; motion is CSS-expand +
+   the parent reveal() stagger only — no motion-value transforms here, so the @media reduce layer
+   below + the JS reduce flag fully cover it (two-layer kill-switch).
+   ════════════════════════════════════════════════════════════════════════════════════════════ */
+
+/* ── LOGIN-TO-CLAIM — inline panel (never hides the achievement above it) ────────────────────── */
+.tm-claim {
+  margin-top: 18px;
+}
+
+/* the collapsed cue — a warm, honest invitation keyed to what was earned. */
+.tm-claim-cue {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--tm-hairline);
+  background:
+    radial-gradient(140% 120% at 0% 0%, rgba(var(--accent-rgb), 0.14), transparent 60%),
+    var(--tm-card);
+  color: var(--tm-ink);
+  font-family: var(--font-body);
+  transition: background 160ms ease, transform 120ms ease;
+}
+
+.tm-claim-cue:hover {
+  background:
+    radial-gradient(140% 120% at 0% 0%, rgba(var(--accent-rgb), 0.2), transparent 60%),
+    var(--tm-card);
+  transform: translateY(-1px);
+}
+
+.tm-claim-cue:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(244, 185, 66, 0.5);
+}
+
+.tm-claim-cue-head {
+  font-weight: 700;
+  font-size: 0.98rem;
+  color: var(--marigold);
+}
+
+.tm-claim-cue-sub {
+  font-size: 0.84rem;
+  color: var(--tm-ink-dim);
+}
+
+/* the expanded panel. */
+.tm-claim-panel {
+  text-align: left;
+  padding: 18px;
+  border-radius: 16px;
+  border: 1px solid var(--tm-hairline);
+  background: var(--tm-card);
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.4);
+  /* CSS expand only; static under reduce (handled in the @media block). */
+  animation: tm-claim-in 220ms ease both;
+}
+
+@keyframes tm-claim-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tm-claim-panel-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.tm-claim-panel-lede {
+  margin: 0;
+  flex: 1;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--tm-ink-dim);
+}
+
+.tm-claim-panel-lede strong {
+  color: var(--tm-ink);
+}
+
+.tm-claim-close {
+  flex: none;
+  background: none;
+  border: none;
+  color: var(--tm-ink-dim);
+  font-size: 1rem;
+  line-height: 1;
+  padding: 4px 6px;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: color 140ms ease, background 140ms ease;
+}
+
+.tm-claim-close:hover {
+  color: var(--tm-ink);
+  background: rgba(246, 241, 234, 0.08);
+}
+
+.tm-claim-close:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(244, 185, 66, 0.5);
+}
+
+/* Google button slot — GIS paints its own button; we just reserve a centred row. */
+.tm-claim-google {
+  display: flex;
+  justify-content: center;
+  min-height: 44px;
+  margin-bottom: 12px;
+}
+
+/* the "or" divider between Google and the email/phone fallback. */
+.tm-claim-or {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 12px;
+  color: var(--tm-ink-dim);
+  font-size: 0.78rem;
+}
+
+.tm-claim-or::before,
+.tm-claim-or::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(246, 241, 234, 0.12);
+}
+
+.tm-claim-form {
+  display: flex;
+  flex-direction: column;
+}
+
+.tm-claim-submit {
+  margin-top: 12px;
+  width: 100%;
+}
+
+.tm-claim-toggle-mode {
+  margin-top: 12px;
+  background: none;
+  border: none;
+  color: var(--marigold);
+  font-family: var(--font-body);
+  font-size: 0.84rem;
+  cursor: pointer;
+  padding: 4px 0;
+  text-align: left;
+}
+
+.tm-claim-toggle-mode:hover {
+  text-decoration: underline;
+}
+
+.tm-claim-toggle-mode:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(244, 185, 66, 0.5);
+  border-radius: 6px;
+}
+
+/* always-visible no-thanks path — never a trap. */
+.tm-claim-skip {
+  margin-top: 6px;
+  background: none;
+  border: none;
+  color: var(--tm-ink-dim);
+  font-family: var(--font-body);
+  font-size: 0.84rem;
+  cursor: pointer;
+  padding: 6px 0;
+  text-align: left;
+}
+
+.tm-claim-skip:hover {
+  color: var(--tm-ink);
+}
+
+.tm-claim-skip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(244, 185, 66, 0.5);
+  border-radius: 6px;
+}
+
+.tm-claim-fine {
+  margin: 12px 0 0;
+  font-size: 0.74rem;
+  line-height: 1.4;
+  color: var(--tm-ink-dim);
+}
+
+/* post-claim confirmation (also the logged-in earner's line shares the -saved variant). */
+.tm-claim-done,
+.tm-claim-saved {
+  margin-top: 18px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--tm-leaf);
+  background: rgba(74, 124, 31, 0.14);
+  color: var(--tm-ink);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+.tm-claim-saved {
+  /* the logged-in confirmation is a plain status paragraph; keep it centred-left and calm. */
+  text-align: left;
+}
+
+.tm-claim-tick {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--tm-leaf);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.tm-claim-done-copy {
+  margin: 0;
+}
+
+.tm-claim-done-copy strong {
+  color: var(--marigold);
+}
+
+/* ── EXIT-INTENT NUDGE — a gentle bottom toast (rubric-capped: once/session, dismissible) ────── */
+.tm-exit-nudge {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 60;
+  width: min(440px, calc(100vw - 28px));
+  padding: 16px 18px;
+  border-radius: 16px;
+  /* On the near-black page (--tm-bg) a pure-black shadow is invisible and --tm-card barely separates, so
+     the toast read as "off / not visible". Lift it with the theme's warm marigold glow (the same rgba the
+     rest of the dark surfaces use) + a fuller rim + a slightly raised aubergine fill. */
+  border: 1px solid rgba(244, 185, 66, 0.72);
+  background: linear-gradient(180deg, var(--tm-bg-2), var(--tm-card));
+  box-shadow: 0 20px 52px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(244, 185, 66, 0.18),
+    0 8px 30px rgba(244, 185, 66, 0.16);
+  color: var(--tm-ink);
+}
+
+.tm-exit-nudge-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.tm-exit-nudge-copy {
+  margin: 0;
+  flex: 1;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--tm-ink-dim);
+}
+
+.tm-exit-nudge-copy strong {
+  color: var(--tm-ink);
+}
+
+.tm-exit-nudge-close {
+  flex: none;
+  background: none;
+  border: none;
+  color: var(--tm-ink-dim);
+  font-size: 1rem;
+  line-height: 1;
+  padding: 2px 6px;
+  cursor: pointer;
+  border-radius: 8px;
+  transition: color 140ms ease, background 140ms ease;
+}
+
+.tm-exit-nudge-close:hover {
+  color: var(--tm-ink);
+  background: rgba(246, 241, 234, 0.08);
+}
+
+.tm-exit-nudge-close:focus-visible,
+.tm-exit-nudge-cta:focus-visible,
+.tm-exit-nudge-skip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(244, 185, 66, 0.5);
+}
+
+.tm-exit-nudge-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+.tm-exit-nudge-cta {
+  flex: none;
+  text-decoration: none;
+}
+
+.tm-exit-nudge-skip {
+  background: none;
+  border: none;
+  color: var(--tm-ink-dim);
+  font-family: var(--font-body);
+  font-size: 0.86rem;
+  cursor: pointer;
+  padding: 6px 2px;
+}
+
+.tm-exit-nudge-skip:hover {
+  color: var(--tm-ink);
+}
+
+/* ── ADDRESS FOOTPRINT — the State-first <select> + the shared field wrapper ─────────────────── */
+.coming-soon-field {
+  display: contents;
+}
+
+.coming-soon-select {
+  /* match .coming-soon-input but add a chevron affordance for the native select. */
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) calc(50% - 2px),
+    calc(100% - 13px) calc(50% - 2px);
+  background-size: 5px 5px, 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 34px;
+  cursor: pointer;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════════════════════
+   V6 — the three founder-picked gated surfaces (tokens-only; no raw hex, no Tailwind).
+     S3C  the reveal HERO card + progressive-disclosure accordion
+     S1B  the drawn fruit-mascot taste rank (evolves slowly across tiers)
+     S2A  the literal India silhouette + glowing region pins fruit passport
+   ════════════════════════════════════════════════════════════════════════════════════════════ */
+
+/* ── S3C — HERO SUMMARY CARD (identity first; the insight is the headline) ─────────────────── */
+.tm-reveal-v6 {
+  width: 100%;
+  max-width: 460px;
+  margin: 0 auto;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════════════════════
+   DIRECTION A — "PROGRESSION-FIRST STACK" (founder-chosen over the recommended hero-first B).
+   The reveal now reads top→bottom: (1) login/guest indicator · (2) progression strip (rank + tier
+   bar + disclosed XP chips + compact passport + accuracy/confidence) · (3) persona + match% hero.
+   Tokens-only (no raw hex, no Tailwind); the confidence pip uses EXISTING --forest / --marigold /
+   --tm-ink-dim by LABEL so colour is never load-bearing (AA). No motion-value transforms here.
+   ════════════════════════════════════════════════════════════════════════════════════════════ */
+
+/* (1) LOGIN / GUEST INDICATOR — very top, small. */
+.tm-id-strip {
+  display: flex;
+  justify-content: center;
+  margin: 0 auto 12px;
+  max-width: 460px;
+}
+.tm-id-saved {
+  font-size: 0.8rem;
+  font-weight: 600;
+  /* Text is --tm-ink (16.4:1 on the dark bg) not --forest (#2d5016 = 1.99:1, fails AA): the green-tinted
+     pill bg + border + the ✓ glyph carry the "saved / success" identity; the text just needs to be legible. */
+  color: var(--tm-ink);
+  background: rgba(45, 80, 22, 0.16);
+  border: 1px solid rgba(45, 80, 22, 0.4);
+  padding: 5px 12px;
+  border-radius: 999px;
+}
+.tm-id-guest {
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--marigold);
+  background: rgba(var(--accent-rgb), 0.12);
+  border: 1px solid var(--tm-hairline);
+  padding: 5px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.tm-id-guest:hover {
+  background: rgba(var(--accent-rgb), 0.2);
+}
+.tm-id-guest:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(244, 185, 66, 0.5);
+}
+
+/* (2) PROGRESSION STRIP — above the persona card. */
+.tm-strip {
+  margin: 0 auto 18px;
+  max-width: 460px;
+  padding: 18px 16px 16px;
+  border-radius: 18px;
+  background:
+    radial-gradient(120% 90% at 50% -20%, rgba(var(--accent-rgb), 0.1), transparent 60%),
+    var(--tm-card);
+  border: 1px solid var(--tm-hairline);
+}
+.tm-strip-rank {
+  text-align: center;
+}
+/* disclosed XP component-weight chips (FICO-style; values come from the engine constants). */
+.tm-xp-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  justify-content: center;
+  margin: 10px 0 4px;
+}
+.tm-xp-chip {
+  font-size: 0.72rem;
+  letter-spacing: 0.01em;
+  color: var(--tm-ink-dim);
+  background: rgba(246, 241, 234, 0.06);
+  border: 1px solid rgba(244, 185, 66, 0.28);
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+.tm-xp-chip b {
+  color: var(--marigold);
+  font-weight: 700;
+}
+/* compact passport divider inside the strip. */
+.tm-strip-passport {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(244, 185, 66, 0.22);
+}
+
+/* (4) ACCURACY + CONFIDENCE — selfFit count + a labelled confidence pip (colour never load-bearing). */
+.tm-accuracy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 14px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(244, 185, 66, 0.22);
+}
+.tm-accuracy-fit {
+  font-size: 0.84rem;
+  color: var(--tm-ink-dim);
+}
+.tm-accuracy-fit b {
+  color: var(--tm-ink);
+  font-weight: 700;
+}
+/* the confidence pip — the TEXT LABEL is always present and always --tm-ink (cream, AA-safe on the dark
+   strip ~13:1); the COLOURED DOT + tinted border/fill are decorative REINFORCEMENT only, so hue is never
+   load-bearing. Mapped to EXISTING tokens by label — NO new token: high→forest, medium→marigold, low→dim. */
+.tm-conf-pip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--tm-ink);
+  padding: 4px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--tm-hairline);
+  background: rgba(246, 241, 234, 0.05);
+}
+.tm-conf-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+.tm-conf-pip.is-high .tm-conf-dot {
+  background: var(--forest);
+  box-shadow: 0 0 0 2px rgba(45, 80, 22, 0.35);
+}
+.tm-conf-pip.is-medium .tm-conf-dot {
+  background: var(--marigold);
+}
+.tm-conf-pip.is-low .tm-conf-dot {
+  background: var(--tm-ink-dim);
+}
+
+/* (3) low-confidence hero — "Still learning…" replaces the confident persona label (copy fix a). */
+.tm-hero-learning {
+  font-size: clamp(1.3rem, 5.5vw, 1.7rem);
+  line-height: 1.18;
+  color: var(--tm-ink);
+}
+.tm-hero-learning-body {
+  color: var(--tm-ink-dim);
+}
+
+.tm-hero-card {
+  position: relative;
+  overflow: hidden;
+  text-align: center;
+  padding: 30px 22px 26px;
+  border-radius: 22px;
+  background:
+    radial-gradient(120% 90% at 50% -10%, rgba(var(--accent-rgb), 0.16), transparent 60%),
+    var(--tm-card);
+  border: 1px solid var(--tm-hairline);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.42);
+}
+
+.tm-hero-kick {
+  display: block;
+  font-size: 0.72rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--marigold);
+  margin-bottom: 8px;
+}
+
+.tm-hero-name {
+  margin: 0 0 12px;
+  font-family: 'Poppins', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: clamp(1.7rem, 7vw, 2.3rem);
+  line-height: 1.06;
+  color: var(--tm-ink);
+}
+
+/* the IDENTITY insight — prominent, BEFORE the % (Spotify-Wrapped: who you are, not how you scored). */
+.tm-hero-insight {
+  margin: 0 auto 16px;
+  max-width: 36ch;
+  font-size: 1.04rem;
+  line-height: 1.5;
+  color: var(--tm-ink);
+}
+
+.tm-hero-match {
+  margin: 0 0 10px;
+  font-size: 0.96rem;
+  color: var(--tm-ink-dim);
+}
+.tm-hero-match .tm-match-num {
+  font-family: 'Poppins', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 1.2rem;
+  color: var(--marigold);
+}
+
+.tm-hero-body {
+  margin: 0 auto 16px;
+  max-width: 40ch;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--tm-ink-dim);
+}
+
+.tm-hero-words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  justify-content: center;
+  margin: 0 0 18px;
+}
+.tm-hero-word {
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+  padding: 4px 11px;
+  border-radius: 999px;
+  color: var(--marigold);
+  background: rgba(var(--accent-rgb), 0.1);
+  border: 1px solid var(--tm-hairline);
+}
+
+.tm-hero-share {
+  position: relative;
+  z-index: 2;
+}
+
+.tm-replay-v6 {
+  display: block;
+  width: 100%;
+  margin: 14px auto 0;
+  max-width: 460px;
+}
+
+/* celebration banners (tier-up / new badges / new regions) — honest, derived from the recorded run. */
+.tm-evolve-banner,
+.tm-region-pop {
+  text-align: center;
+  margin: 16px auto 0;
+  max-width: 460px;
+  font-size: 0.92rem;
+  color: var(--marigold);
+}
+.tm-evolve-banner strong,
+.tm-region-pop strong {
+  color: var(--tm-ink);
+}
+.tm-badge-pop {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin: 14px auto 0;
+  max-width: 460px;
+}
+.tm-badge-chip {
+  font-size: 0.76rem;
+  padding: 5px 12px;
+  border-radius: 999px;
+  color: var(--tm-ink);
+  background: rgba(var(--accent-rgb), 0.14);
+  border: 1px solid var(--tm-hairline);
+}
+
+/* ── S3C — ACCORDION (progressive disclosure; the detail lives below the climax) ───────────── */
+.tm-acc {
+  margin: 22px auto 0;
+  max-width: 460px;
+  border-top: 1px solid rgba(244, 185, 66, 0.22);
+}
+
+.tm-acc-row {
+  border-bottom: 1px solid rgba(244, 185, 66, 0.22);
+}
+
+.tm-acc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  padding: 15px 4px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--tm-ink);
+  font-size: 0.98rem;
+  font-weight: 600;
+  font-family: inherit;
+  text-align: left;
+}
+.tm-acc-head:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(244, 185, 66, 0.5);
+  border-radius: 8px;
+}
+
+.tm-acc-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.tm-acc-icon {
+  font-size: 1.1rem;
+}
+.tm-acc-chev {
+  font-size: 1.4rem;
+  font-weight: 400;
+  line-height: 1;
+  color: var(--marigold);
+}
+
+.tm-acc-body {
+  padding: 2px 4px 18px;
+}
+.tm-acc-empty {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--tm-ink-dim);
+}
+
+/* 📍 picks-by-origin provenance list */
+.tm-prov-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 13px;
+}
+.tm-prov-item {
+  padding: 12px 14px;
+  border-radius: 13px;
+  background: rgba(var(--accent-rgb), 0.06);
+  border: 1px solid rgba(244, 185, 66, 0.2);
+}
+.tm-prov-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin-bottom: 5px;
+}
+.tm-prov-name {
+  font-size: 0.96rem;
+  color: var(--tm-ink);
+}
+.tm-prov-meta {
+  font-size: 0.78rem;
+  color: var(--tm-ink-dim);
+}
+.tm-prov-gi {
+  color: var(--forest);
+  font-weight: 700;
+  /* lift the forest green for AA contrast on the dark card */
+  filter: brightness(2.1) saturate(1.3);
+}
+.tm-prov-story {
+  margin: 0;
+  font-size: 0.84rem;
+  line-height: 1.5;
+  color: var(--tm-ink-dim);
+}
+
+/* 💛 also loved */
+.tm-loved {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: var(--tm-ink);
+}
+.tm-loved b {
+  color: var(--marigold);
+}
+.tm-loved-origin {
+  color: var(--tm-ink-dim);
+}
+
+/* ── S1B — DRAWN FRUIT-MASCOT (taste rank; evolves slowly across the 5 XP tiers) ───────────── */
+.tm-rank {
+  text-align: center;
+}
+.tm-rank-stage {
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  height: 150px;
+  margin-bottom: 6px;
+}
+
+/* the mascot is a stack of absolutely-placed CSS shapes inside a fixed box. Per-tier `.is-tN` swaps the
+   aura brightness, the body sheen and the expression so the character visibly "levels up." */
+.tm-mascot {
+  position: relative;
+  width: 116px;
+  height: 132px;
+}
+.tm-mascot-bob {
+  animation: tm-mascot-bob 3.4s ease-in-out infinite;
+}
+@keyframes tm-mascot-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-7px); }
+}
+
+/* aura ring behind the body — dim at sprout, bright/animated at the top tiers. */
+.tm-mascot-aura {
+  position: absolute;
+  left: 50%;
+  top: 56%;
+  width: 130px;
+  height: 130px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(var(--accent-rgb), 0.32), transparent 68%);
+  opacity: 0.22;
+}
+.tm-mascot.is-t2 .tm-mascot-aura { opacity: 0.4; }
+.tm-mascot.is-t3 .tm-mascot-aura { opacity: 0.58; }
+.tm-mascot.is-t4 .tm-mascot-aura {
+  opacity: 0.78;
+  background: radial-gradient(circle, rgba(var(--accent-rgb), 0.4), rgba(214, 76, 92, 0.12) 50%, transparent 70%);
+}
+.tm-mascot.is-t5 .tm-mascot-aura {
+  opacity: 1;
+  background: radial-gradient(circle, rgba(244, 185, 66, 0.55), rgba(214, 76, 92, 0.2) 48%, transparent 72%);
+  animation: tm-aura-pulse 2.8s ease-in-out infinite;
+}
+@keyframes tm-aura-pulse {
+  0%, 100% { transform: translate(-50%, -50%) scale(1); }
+  50% { transform: translate(-50%, -50%) scale(1.08); }
+}
+
+/* the orange-style body — a soft citrus sphere with a litchi→marigold sheen that warms with tier. */
+.tm-mascot-body {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 96px;
+  height: 96px;
+  transform: translateX(-50%);
+  border-radius: 50% 50% 48% 48%;
+  background:
+    radial-gradient(circle at 36% 32%, rgba(255, 255, 255, 0.4), transparent 42%),
+    radial-gradient(circle at 64% 70%, var(--litchi), var(--marigold) 78%);
+  box-shadow: inset -8px -10px 16px rgba(0, 0, 0, 0.22);
+}
+.tm-mascot.is-t1 .tm-mascot-body {
+  background:
+    radial-gradient(circle at 36% 32%, rgba(255, 255, 255, 0.3), transparent 42%),
+    radial-gradient(circle at 64% 70%, var(--tm-sprout), var(--marigold) 82%);
+}
+.tm-mascot.is-t5 .tm-mascot-body {
+  background:
+    radial-gradient(circle at 36% 30%, rgba(255, 255, 255, 0.55), transparent 44%),
+    radial-gradient(circle at 64% 72%, var(--litchi), var(--marigold) 70%);
+}
+
+/* leaf sprig poking from the crown */
+.tm-mascot-leaf {
+  position: absolute;
+  left: 56%;
+  top: 4px;
+  width: 26px;
+  height: 16px;
+  transform: rotate(-28deg);
+  border-radius: 0 100% 0 100%;
+  background: linear-gradient(135deg, var(--tm-leaf), var(--forest));
+  z-index: 3;
+}
+
+/* face — two eyes + a smiling mouth. Expression sharpens (eye + smile size) with tier. */
+.tm-mascot-eye {
+  position: absolute;
+  bottom: 52px;
+  width: 9px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--tm-ink-face);
+  z-index: 4;
+}
+.tm-mascot-eye-l { left: 36%; }
+.tm-mascot-eye-r { left: 53%; }
+.tm-mascot-eye::after {
+  content: '';
+  position: absolute;
+  top: 1px;
+  left: 1.5px;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+}
+.tm-mascot-mouth {
+  position: absolute;
+  left: 50%;
+  bottom: 36px;
+  width: 28px;
+  height: 14px;
+  transform: translateX(-50%);
+  border: 0 solid var(--tm-ink-face);
+  border-bottom-width: 3px;
+  border-radius: 0 0 28px 28px;
+  z-index: 4;
+}
+.tm-mascot.is-t1 .tm-mascot-mouth { width: 18px; height: 9px; }
+.tm-mascot.is-t4 .tm-mascot-mouth,
+.tm-mascot.is-t5 .tm-mascot-mouth { width: 34px; height: 17px; }
+
+/* per-tier ACCESSORY (the tasteXp emoji: 🌱 / 🍴 / 🧑‍🍳 / 🎩 / 👑) — sits above the crown. */
+.tm-mascot-acc {
+  position: absolute;
+  left: 50%;
+  top: -14px;
+  transform: translateX(-50%);
+  font-size: 1.5rem;
+  z-index: 5;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
+}
+.tm-mascot.is-t1 .tm-mascot-acc { font-size: 1.15rem; top: -8px; opacity: 0.8; }
+.tm-mascot.is-t5 .tm-mascot-acc { font-size: 1.75rem; top: -18px; }
+
+.tm-rank-name {
+  font-family: 'Poppins', system-ui, sans-serif;
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--tm-ink);
+}
+.tm-rank-name span {
+  font-weight: 500;
+  font-size: 0.86rem;
+  color: var(--tm-ink-dim);
+}
+
+/* the litchi→marigold gradient XP band */
+.tm-rank-band {
+  position: relative;
+  height: 9px;
+  margin: 10px auto 8px;
+  max-width: 240px;
+  border-radius: 999px;
+  background: rgba(246, 241, 234, 0.1);
+  overflow: hidden;
+}
+.tm-rank-band > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--litchi), var(--marigold));
+  transition: width 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.tm-rank-xp {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--tm-ink-dim);
+}
+
+/* ── S2A — FRUIT PASSPORT (literal India silhouette + glowing region pins) ─────────────────── */
+.tm-passport {
+  text-align: center;
+}
+.tm-map-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+.tm-map {
+  width: 100%;
+  max-width: 240px;
+  height: auto;
+}
+
+/* the silhouette — a low-opacity forest fill with a hairline gold edge (decorative, not survey-grade). */
+.tm-map-land {
+  fill: rgba(45, 80, 22, 0.28);
+  stroke: var(--tm-hairline);
+  stroke-width: 1.2;
+  stroke-linejoin: round;
+}
+
+/* pins — locked (dim) / discovered (marigold glow) / region-complete (litchi ring). */
+.tm-pin-dot {
+  fill: rgba(246, 241, 234, 0.22);
+  transition: fill 0.4s ease;
+}
+.tm-pin.is-on .tm-pin-dot,
+.tm-pin.is-done .tm-pin-dot {
+  fill: var(--marigold);
+  filter: drop-shadow(0 0 5px rgba(var(--accent-rgb), 0.9));
+}
+.tm-pin.is-done .tm-pin-dot {
+  fill: var(--litchi);
+}
+.tm-pin-ring {
+  fill: none;
+  stroke: var(--litchi);
+  stroke-width: 2;
+  opacity: 0.85;
+}
+.tm-pin-num {
+  fill: var(--tm-ink-face);
+  font-size: 9px;
+  font-weight: 700;
+  font-family: 'Poppins', system-ui, sans-serif;
+}
+/* discovered pins pulse — only on the .tm-map-live variant (dropped when reduce is on; layer two). */
+.tm-map-live .tm-pin.is-on .tm-pin-dot,
+.tm-map-live .tm-pin.is-done .tm-pin-dot {
+  animation: tm-pin-pulse 2.6s ease-in-out infinite;
+}
+@keyframes tm-pin-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+.tm-map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  justify-content: center;
+  margin-bottom: 12px;
+  font-size: 0.74rem;
+  color: var(--tm-ink-dim);
+}
+.tm-map-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.tm-leg {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+.tm-leg-on { background: var(--marigold); }
+.tm-leg-done { background: var(--litchi); box-shadow: 0 0 0 2px rgba(214, 76, 92, 0.4); }
+.tm-leg-off { background: rgba(246, 241, 234, 0.22); }
+
+.tm-map-bar {
+  height: 8px;
+  margin: 0 auto 8px;
+  max-width: 240px;
+  border-radius: 999px;
+  background: rgba(246, 241, 234, 0.1);
+  overflow: hidden;
+}
+.tm-map-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--litchi), var(--marigold));
+  transition: width 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.tm-map-prog {
+  margin: 0;
+  font-size: 0.82rem;
+  color: var(--tm-ink-dim);
+}
+
+/* Second a11y layer (§3): collapse Taste Match CSS transitions under reduced-motion. The JS-driven
+   swipe/drag/stamp motion-value transforms are ALSO gated via useReducedMotion() in TasteMatch.tsx —
+   under reduce the static-button card mounts INSTEAD of the draggable card (a media query can't stop
+   motion-value inline transforms). Both layers are required. */
+@media (prefers-reduced-motion: reduce) {
+  .tm-card,
+  .tm-static-btn,
+  .tm-replay,
+  .tm-capture-toggle,
+  .tm-progress-fill,
+  .tm-stamp-want,
+  .tm-stamp-nah,
+  .tm-rank-band > span,
+  .tm-map-bar > span,
+  .tm-pin-dot,
+  .tm-claim-cue,
+  .tm-claim-close,
+  .tm-exit-nudge-close {
+    transition: none;
+  }
+  /* V7 — kill the claim panel's CSS expand keyframe (the exit-nudge slide is JS-gated via the reduce
+     flag in TasteMatch.tsx; this covers the one CSS animation). */
+  .tm-claim-panel {
+    animation: none;
+  }
+  /* #2/#3 — kill the climax shimmer/spark sweeps and any flash animation. (JS also gates these: the
+     shimmer/spark spans aren't even rendered when useReducedMotion() is true; this is layer two.) */
+  .tm-shimmer::before,
+  .tm-sparks {
+    animation: none;
+    opacity: 0;
+  }
+  /* V6 — kill the mascot bob/aura-pulse and the passport-pin pulse. (JS layer one: the .tm-mascot-bob
+     class isn't added and the .tm-map-live variant isn't applied when useReducedMotion() is true.) */
+  .tm-mascot-bob,
+  .tm-mascot-aura,
+  .tm-map-live .tm-pin-dot,
+  .tm-swipe-card .tm-card-photo {
+    animation: none;
+  }
+  /* V6 — belt-and-suspenders: the ambient hero video isn't mounted under reduce (JS), but if a UA still
+     paints a poster frame, hide it so only the static daily-drop photo shows. */
+  .tm-intro-hero-video {
+    display: none;
+  }
+}
+

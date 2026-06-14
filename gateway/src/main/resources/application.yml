@@ -46,6 +46,41 @@ spring:
                   factor: 2
                   basedOnPreviousValue: false
 
+        # /api/auth/** also lands on auth-service. Today this carries Google Sign-In
+        # (POST /api/auth/google, public — see AuthFilter PUBLIC_PATHS); kept as a sibling of /auth/**
+        # so the storefront's `/api/`-prefixed auth call reaches auth-service rather than the SPA
+        # catch-all. Same CircuitBreaker/Retry posture as the /auth/** route above.
+        - id: auth-service-api
+          uri: http://${AUTH_HOST:localhost}:8081
+          predicates:
+            - Path=/api/auth/**
+          filters:
+            - name: CircuitBreaker
+              args:
+                # Own breaker instance (NOT the shared "auth-service"): /api/auth/google deliberately
+                # returns a clean 503 {disabled:true} when Google Sign-In isn't configured. That is a
+                # valid application response, not an outage — it must NOT count toward, or trip, the
+                # login breaker on the /auth/** route.
+                name: auth-service-api
+                fallbackUri: forward:/fallback/unavailable
+                # SERVICE_UNAVAILABLE intentionally OMITTED: the disabled-google path returns 503 by
+                # contract, so treating 503 as an upstream failure would mask the {disabled:true} body
+                # with the generic fallback. Real upstream failure still surfaces as a connect/timeout
+                # exception (which the breaker counts) or BAD_GATEWAY/GATEWAY_TIMEOUT below.
+                statusCodes:
+                  - BAD_GATEWAY
+                  - GATEWAY_TIMEOUT
+            - name: Retry
+              args:
+                retries: 2
+                statuses: BAD_GATEWAY,SERVICE_UNAVAILABLE,GATEWAY_TIMEOUT
+                methods: GET
+                backoff:
+                  firstBackoff: 50ms
+                  maxBackoff: 500ms
+                  factor: 2
+                  basedOnPreviousValue: false
+
         - id: catalog-service
           uri: http://${CATALOG_HOST:localhost}:8090
           predicates:
@@ -256,6 +291,8 @@ resilience4j:
     instances:
       auth-service:
         baseConfig: default
+      auth-service-api:
+        baseConfig: default
       catalog-service:
         baseConfig: default
       cart-service:
@@ -282,6 +319,8 @@ resilience4j:
         cancelRunningFuture: true
     instances:
       auth-service:
+        baseConfig: default
+      auth-service-api:
         baseConfig: default
       catalog-service:
         baseConfig: default

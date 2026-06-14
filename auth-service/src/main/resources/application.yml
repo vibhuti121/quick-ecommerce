@@ -94,6 +94,13 @@ app:
     secret: ${JWT_SECRET}
     expiration-ms: 86400000   # 24 hours
   frontend-url: ${FRONTEND_URL:http://localhost:5173}
+  google:
+    # Taste Match V7 Google Sign-In. /api/auth/google verifies the browser's Google ID-token
+    # `credential` and requires its `aud` to equal THIS client id. Blank / the compose
+    # `dummy-client-id` placeholder = feature DISABLED → the endpoint returns a clean 503 (never
+    # crashes). Set a real value once the founder creates the Google OAuth client. Reads the same
+    # GOOGLE_CLIENT_ID env the Spring OAuth2 client registration above uses.
+    client-id: ${GOOGLE_CLIENT_ID:}
   # Comma-separated email allowlist promoted to the ADMIN role at login (Phase 3, Pillar 1).
   # Empty by default → no admins, so the platform is locked-down out of the box.
   admin-emails: ${ADMIN_EMAILS:}

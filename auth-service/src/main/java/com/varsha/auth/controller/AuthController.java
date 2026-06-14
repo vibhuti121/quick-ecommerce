@@ -2,6 +2,7 @@ package com.varsha.auth.controller;
 
 import com.varsha.auth.model.User;
 import com.varsha.auth.service.DuplicateAccountException;
+import com.varsha.auth.service.GoogleAuthService;
 import com.varsha.auth.service.JwtService;
 import com.varsha.auth.service.OtpService;
 import com.varsha.auth.service.UserService;
@@ -25,11 +26,14 @@ public class AuthController {
     private final JwtService jwtService;
     private final UserService userService;
     private final OtpService otpService;
+    private final GoogleAuthService googleAuthService;
 
-    public AuthController(JwtService jwtService, UserService userService, OtpService otpService) {
+    public AuthController(JwtService jwtService, UserService userService, OtpService otpService,
+                          GoogleAuthService googleAuthService) {
         this.jwtService = jwtService;
         this.userService = userService;
         this.otpService = otpService;
+        this.googleAuthService = googleAuthService;
     }
 
     @GetMapping("/health")
@@ -80,6 +84,31 @@ public class AuthController {
         if (user.isEmpty()) {
             // GENERIC — never reveal whether identifier or password was wrong (anti-enumeration).
             return ResponseEntity.status(401).body(Map.of("error", "invalid credentials"));
+        }
+        User u = user.get();
+        String resolved = userService.resolvedName(u);
+        String token = jwtService.generate(u.getId(), u.getEmail(), resolved, u.getRole());
+        return ResponseEntity.ok(Map.of("token", token, "displayName", resolved));
+    }
+
+    // ---- Google Sign-In (Taste Match V7) ---------------------------------------------------------
+    // The browser sends a Google ID-token `credential`; we VERIFY it with Google server-side and mint
+    // OUR JWT. Public at the gateway (the caller has no token yet). DISABLED-SAFE: when no real
+    // GOOGLE_CLIENT_ID is configured (founder hasn't created the OAuth client) we return a clean 503
+    // {disabled:true} — never throw, never crash. CONTRACT: { credential } → { token, displayName }.
+    record GoogleLoginRequest(@NotBlank @Size(max = 4096) String credential) {}
+
+    @PostMapping("/api/auth/google")
+    public ResponseEntity<Map<String, Object>> google(@Valid @RequestBody GoogleLoginRequest req) {
+        if (!googleAuthService.isEnabled()) {
+            // Clean, explicit "feature off" — distinct from a 401 (bad token) or 500 (crash).
+            return ResponseEntity.status(503).body(Map.of("disabled", true,
+                    "error", "Google sign-in is not configured"));
+        }
+        Optional<User> user = googleAuthService.verifyAndUpsert(req.credential());
+        if (user.isEmpty()) {
+            // Invalid / aud-mismatched / unverified credential, or Google unreachable.
+            return ResponseEntity.status(401).body(Map.of("error", "invalid Google credential"));
         }
         User u = user.get();
         String resolved = userService.resolvedName(u);
