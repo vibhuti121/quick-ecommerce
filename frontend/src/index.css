@@ -5095,7 +5095,9 @@ textarea:focus-visible,
 .tm-id-saved {
   font-size: 0.8rem;
   font-weight: 600;
-  color: var(--forest);
+  /* Text is --tm-ink (16.4:1 on the dark bg) not --forest (#2d5016 = 1.99:1, fails AA): the green-tinted
+     pill bg + border + the ✓ glyph carry the "saved / success" identity; the text just needs to be legible. */
+  color: var(--tm-ink);
   background: rgba(45, 80, 22, 0.16);
   border: 1px solid rgba(45, 80, 22, 0.4);
   padding: 5px 12px;
