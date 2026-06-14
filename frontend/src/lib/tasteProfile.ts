@@ -47,6 +47,7 @@ interface MiniClaims {
   sub?: string;
   userId?: string;
   role?: string;
+  exp?: number; // JWT expiry, epoch SECONDS — set by both generate() and generateGuest() server-side.
 }
 function decode(token: string): MiniClaims {
   try {
@@ -75,6 +76,10 @@ export function isLoggedIn(): boolean {
   if (!id) return false;
   if (id.startsWith('guest-')) return false;
   if ((c.role ?? '').toUpperCase() === 'GUEST') return false;
+  // An EXPIRED (or expiry-less) non-guest token is a dead session, not a logged-in one — treating it as
+  // logged-in permanently suppresses the claim CTA and shows a dishonest "saved to your profile". The
+  // server stamps `exp` on every JWT; honour it. (Pure check — api.ts evicts the dead token on the next 401.)
+  if (typeof c.exp !== 'number' || Date.now() >= c.exp * 1000) return false;
   return true;
 }
 

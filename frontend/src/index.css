@@ -4964,9 +4964,13 @@ textarea:focus-visible,
   width: min(440px, calc(100vw - 28px));
   padding: 16px 18px;
   border-radius: 16px;
-  border: 1px solid var(--tm-hairline);
-  background: var(--tm-card);
-  box-shadow: 0 18px 52px rgba(0, 0, 0, 0.5);
+  /* On the near-black page (--tm-bg) a pure-black shadow is invisible and --tm-card barely separates, so
+     the toast read as "off / not visible". Lift it with the theme's warm marigold glow (the same rgba the
+     rest of the dark surfaces use) + a fuller rim + a slightly raised aubergine fill. */
+  border: 1px solid rgba(244, 185, 66, 0.72);
+  background: linear-gradient(180deg, var(--tm-bg-2), var(--tm-card));
+  box-shadow: 0 20px 52px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(244, 185, 66, 0.18),
+    0 8px 30px rgba(244, 185, 66, 0.16);
   color: var(--tm-ink);
 }
 
@@ -5071,6 +5075,151 @@ textarea:focus-visible,
   width: 100%;
   max-width: 460px;
   margin: 0 auto;
+}
+
+/* ════════════════════════════════════════════════════════════════════════════════════════════
+   DIRECTION A — "PROGRESSION-FIRST STACK" (founder-chosen over the recommended hero-first B).
+   The reveal now reads top→bottom: (1) login/guest indicator · (2) progression strip (rank + tier
+   bar + disclosed XP chips + compact passport + accuracy/confidence) · (3) persona + match% hero.
+   Tokens-only (no raw hex, no Tailwind); the confidence pip uses EXISTING --forest / --marigold /
+   --tm-ink-dim by LABEL so colour is never load-bearing (AA). No motion-value transforms here.
+   ════════════════════════════════════════════════════════════════════════════════════════════ */
+
+/* (1) LOGIN / GUEST INDICATOR — very top, small. */
+.tm-id-strip {
+  display: flex;
+  justify-content: center;
+  margin: 0 auto 12px;
+  max-width: 460px;
+}
+.tm-id-saved {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--forest);
+  background: rgba(45, 80, 22, 0.16);
+  border: 1px solid rgba(45, 80, 22, 0.4);
+  padding: 5px 12px;
+  border-radius: 999px;
+}
+.tm-id-guest {
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: inherit;
+  color: var(--marigold);
+  background: rgba(var(--accent-rgb), 0.12);
+  border: 1px solid var(--tm-hairline);
+  padding: 5px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+.tm-id-guest:hover {
+  background: rgba(var(--accent-rgb), 0.2);
+}
+.tm-id-guest:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(244, 185, 66, 0.5);
+}
+
+/* (2) PROGRESSION STRIP — above the persona card. */
+.tm-strip {
+  margin: 0 auto 18px;
+  max-width: 460px;
+  padding: 18px 16px 16px;
+  border-radius: 18px;
+  background:
+    radial-gradient(120% 90% at 50% -20%, rgba(var(--accent-rgb), 0.1), transparent 60%),
+    var(--tm-card);
+  border: 1px solid var(--tm-hairline);
+}
+.tm-strip-rank {
+  text-align: center;
+}
+/* disclosed XP component-weight chips (FICO-style; values come from the engine constants). */
+.tm-xp-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  justify-content: center;
+  margin: 10px 0 4px;
+}
+.tm-xp-chip {
+  font-size: 0.72rem;
+  letter-spacing: 0.01em;
+  color: var(--tm-ink-dim);
+  background: rgba(246, 241, 234, 0.06);
+  border: 1px solid rgba(244, 185, 66, 0.28);
+  padding: 4px 10px;
+  border-radius: 999px;
+}
+.tm-xp-chip b {
+  color: var(--marigold);
+  font-weight: 700;
+}
+/* compact passport divider inside the strip. */
+.tm-strip-passport {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(244, 185, 66, 0.22);
+}
+
+/* (4) ACCURACY + CONFIDENCE — selfFit count + a labelled confidence pip (colour never load-bearing). */
+.tm-accuracy {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px 14px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(244, 185, 66, 0.22);
+}
+.tm-accuracy-fit {
+  font-size: 0.84rem;
+  color: var(--tm-ink-dim);
+}
+.tm-accuracy-fit b {
+  color: var(--tm-ink);
+  font-weight: 700;
+}
+/* the confidence pip — the TEXT LABEL is always present and always --tm-ink (cream, AA-safe on the dark
+   strip ~13:1); the COLOURED DOT + tinted border/fill are decorative REINFORCEMENT only, so hue is never
+   load-bearing. Mapped to EXISTING tokens by label — NO new token: high→forest, medium→marigold, low→dim. */
+.tm-conf-pip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--tm-ink);
+  padding: 4px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--tm-hairline);
+  background: rgba(246, 241, 234, 0.05);
+}
+.tm-conf-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+}
+.tm-conf-pip.is-high .tm-conf-dot {
+  background: var(--forest);
+  box-shadow: 0 0 0 2px rgba(45, 80, 22, 0.35);
+}
+.tm-conf-pip.is-medium .tm-conf-dot {
+  background: var(--marigold);
+}
+.tm-conf-pip.is-low .tm-conf-dot {
+  background: var(--tm-ink-dim);
+}
+
+/* (3) low-confidence hero — "Still learning…" replaces the confident persona label (copy fix a). */
+.tm-hero-learning {
+  font-size: clamp(1.3rem, 5.5vw, 1.7rem);
+  line-height: 1.18;
+  color: var(--tm-ink);
+}
+.tm-hero-learning-body {
+  color: var(--tm-ink-dim);
 }
 
 .tm-hero-card {

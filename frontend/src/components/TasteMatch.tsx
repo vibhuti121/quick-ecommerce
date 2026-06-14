@@ -34,7 +34,14 @@ import {
   recordRun,
   type StreakUpdate,
 } from '../lib/tasteStreak';
-import { awardRun, peekTier, type XpAward } from '../lib/tasteXp';
+import {
+  awardRun,
+  peekTier,
+  DISCOVERY_PER_FRUIT,
+  STREAK_BONUS,
+  FIRST_PLAY_BONUS,
+  type XpAward,
+} from '../lib/tasteXp';
 import {
   recordDiscoveries,
   peekPassport,
@@ -249,10 +256,8 @@ export default function TasteMatch() {
   // #1 — HONEST persona match. scorePersona() returns the closest archetype + a REAL match % (cosine of
   // the player's swipe-vector to the archetype profile) + the ordered demand-signal winner slugs +
   // the player's normalised taste vector (feeds the composed "taste in three words").
-  const { persona, matchPct, winnerSlugs, playerVector, confidence } = useMemo(
-    () => scorePersona(picks, skips),
-    [picks, skips],
-  );
+  const { persona, matchPct, winnerSlugs, playerVector, confidence, selfFit, selfFitN, engineConfidence } =
+    useMemo(() => scorePersona(picks, skips), [picks, skips]);
   // #5 — natural reveal copy composed from the ACTUAL wants + skips + the HONEST match % (so the share
   // line quotes a real number, never a fabricated population stat). playerVector + confidence feed the
   // "taste in three words" + the tone, so two players on the same persona who swiped differently differ.
@@ -479,6 +484,9 @@ export default function TasteMatch() {
             persona={persona}
             matchPct={matchPct}
             winnerSlugs={winnerSlugs}
+            selfFit={selfFit}
+            selfFitN={selfFitN}
+            engineConfidence={engineConfidence}
             copy={copy}
             honeyLean={honeyLean}
             streakResult={streakResult}
@@ -759,6 +767,9 @@ function Reveal({
   persona,
   matchPct,
   winnerSlugs,
+  selfFit,
+  selfFitN,
+  engineConfidence,
   copy,
   honeyLean,
   streakResult,
@@ -773,6 +784,9 @@ function Reveal({
   persona: TastePersona;
   matchPct: number;
   winnerSlugs: string[];
+  selfFit: number;
+  selfFitN: number;
+  engineConfidence: 'high' | 'medium' | 'low';
   copy: RevealCopy;
   honeyLean: boolean;
   streakResult: StreakUpdate | null;
@@ -812,6 +826,34 @@ function Reveal({
   const tier = xpResult ?? peekTier();
   const passport = passportResult ?? peekPassport();
 
+  // ── DIRECTION A — PROGRESSION-FIRST STACK ────────────────────────────────────────────────────────
+  // (A) Login/guest indicator — re-read at mount; loggedInAtMount already computed above for the claim CTA.
+  // (B) Disclosed XP component-weight chips — read the REAL constants from tasteXp (FICO-style disclosure;
+  //     never hardcode the numbers, they're the engine's truth). "discovery +16 · streak +4 · daily +6".
+  const xpChips: { label: string; value: number }[] = [
+    { label: 'discovery', value: DISCOVERY_PER_FRUIT },
+    { label: 'streak', value: STREAK_BONUS },
+    { label: 'daily', value: FIRST_PLAY_BONUS },
+  ];
+
+  // (C) ACCURACY — "Explains N of your picks." selfFit is the fraction the fitted model re-predicts; ×selfFitN
+  //     gives the honest count. NEVER render posteriorStd (prints "Infinity" on a zero-swipe run — internal only).
+  const explainedN = Math.round(selfFit * selfFitN);
+
+  // (D) CONFIDENCE — text label so colour is NEVER load-bearing (AA). Map to EXISTING tokens by label, no new
+  //     token: high → --forest (AA-safe success), medium → --marigold (highlight), low → dim ink.
+  const lowConfidence = engineConfidence === 'low';
+  const confidenceMeta: { label: string; cls: string } =
+    engineConfidence === 'high'
+      ? { label: 'High confidence', cls: 'is-high' }
+      : engineConfidence === 'medium'
+        ? { label: 'Medium confidence', cls: 'is-medium' }
+        : { label: 'Still learning', cls: 'is-low' };
+
+  // COPY FIX (a): on a low-confidence read (no-swipe / contradictory run) do NOT print a confident persona
+  //   label — show "Still learning your taste — play again to sharpen it" + the dim pip instead.
+  const STILL_LEARNING = 'Still learning your taste — play again to sharpen it';
+
   // 💛 ALSO LOVED — "the one you're missing." Honest taste-affinity (never a fabricated %), routed only to
   // the 14 buyable fruits (honey/ghee are never an also-loved). Empty on a no-wants run.
   const loved = useMemo(() => alsoLoved(winnerSlugs, 1)[0], [winnerSlugs]);
@@ -835,32 +877,108 @@ function Reveal({
         ? { initial: false }
         : { variants: staggerVariants, initial: 'hidden', animate: 'show' }) as MotionProps)}
     >
-      {/* ── 3C HERO CARD — identity FIRST. The insight line is the headline read (Spotify-Wrapped). ── */}
+      {/* ── DIRECTION A · (1) LOGIN / GUEST INDICATOR — very top, small. Logged-in → quiet confirmation;
+          guest → a route INTO the existing TasteClaim inline panel (reuse it, never a new auth surface).
+          We jump focus to the claim panel anchor when present, else expand the capture block as the
+          sign-in affordance fallback (a guest with no earned-claim still has the capture form to sign in). */}
+      <motion.div className="tm-id-strip" {...reveal()}>
+        {loggedInAtMount ? (
+          <span className="tm-id-saved" role="status">✓ Saved to your profile</span>
+        ) : (
+          <button
+            type="button"
+            className="tm-id-guest"
+            onClick={() => {
+              const panel = document.getElementById('tm-claim-anchor');
+              if (panel) panel.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'center' });
+              else setShowCapture(true);
+            }}
+          >
+            Guest — sign in to save your rank →
+          </button>
+        )}
+      </motion.div>
+
+      {/* ── DIRECTION A · (2) PROGRESSION STRIP — the core of A. Rank + tier bar + disclosed XP chips +
+          compact fruit passport sit ABOVE the persona card (the accordion is gone). ── */}
+      <motion.div className="tm-strip" {...reveal()}>
+        <div className="tm-strip-rank">
+          {/* rank mascot + its tier bar / "N XP to <next>" (TasteRankMascot already renders the band). */}
+          <TasteRankMascot tier={tier} reduce={reduce} />
+          {/* disclosed XP component-weight chips (FICO-style; values read from the engine constants). */}
+          <div className="tm-xp-chips" aria-label="How you earn taste XP">
+            {xpChips.map((c) => (
+              <span key={c.label} className="tm-xp-chip">
+                {c.label} <b>+{c.value}</b>
+              </span>
+            ))}
+          </div>
+        </div>
+        {/* compact fruit passport with the N/14 count (the component renders its own count bar). */}
+        <div className="tm-strip-passport">
+          <FruitPassportMap passport={passport} reduce={reduce} />
+        </div>
+        {/* (4) ACCURACY + CONFIDENCE — on the strip, just under the progression. selfFit×selfFitN → an
+            honest "explains N of your picks"; the confidence pip carries a TEXT label so colour is never
+            load-bearing (AA). Shown only when there were swipes to measure (selfFitN > 0). */}
+        {selfFitN > 0 && (
+          <div className="tm-accuracy">
+            <span className="tm-accuracy-fit">
+              Explains <b>{explainedN}</b> of your {selfFitN} picks
+            </span>
+            <span className={'tm-conf-pip ' + confidenceMeta.cls}>
+              <span className="tm-conf-dot" aria-hidden="true" />
+              {confidenceMeta.label}
+            </span>
+          </div>
+        )}
+      </motion.div>
+
+      {/* ── DIRECTION A · (3) PERSONA + HONEST MATCH% HERO — BELOW the strip; the shareable climax is kept
+          intact (persona.name, count-up %, taste-words, Share). COPY FIX (a): a low-confidence read shows
+          "Still learning…" + the dim pip INSTEAD of a confident persona label. ── */}
       <motion.div className={'tm-hero-card' + (reduce ? '' : ' tm-celebrate')} {...reveal()}>
         {!reduce && <span className="tm-shimmer" aria-hidden="true" />}
         {!reduce && <span className="tm-sparks" aria-hidden="true" />}
         <span className="tm-hero-kick">Your fruit persona</span>
-        <h2 className="tm-hero-name">{persona.name}</h2>
-        {/* D (B3): the IDENTITY insight — who you are, not how you scored. Prominent, before the %. */}
-        <p className="tm-hero-insight">{copy.insight}</p>
-        <p className="tm-hero-match">
-          You&apos;re <MatchCountUp reduce={reduce} target={matchPct} /> a match
-        </p>
-        {/* the natural, composed descriptive line (names the player's real wants/skips). */}
-        <p className="tm-hero-body">{copy.descriptive}</p>
-        {/* "your taste in three words" — small, true, derived from the vector. */}
-        {copy.words.length > 0 && (
-          <div className="tm-hero-words" aria-label="Your taste in three words">
-            {copy.words.map((w) => (
-              <span key={w} className="tm-hero-word">
-                {w}
-              </span>
-            ))}
-          </div>
+        {lowConfidence ? (
+          <h2 className="tm-hero-name tm-hero-learning">{STILL_LEARNING}</h2>
+        ) : (
+          <>
+            <h2 className="tm-hero-name">{persona.name}</h2>
+            {/* D (B3): the IDENTITY insight — who you are, not how you scored. Prominent, before the %. */}
+            <p className="tm-hero-insight">{copy.insight}</p>
+            <p className="tm-hero-match">
+              You&apos;re <MatchCountUp reduce={reduce} target={matchPct} /> a match
+            </p>
+          </>
         )}
-        <div className="tm-hero-share">
-          <ShareButton persona={persona} matchPct={matchPct} shareLine={copy.shareLine} />
-        </div>
+        {lowConfidence ? (
+          // COPY FIX (a): on a low-confidence read we do NOT print a confident descriptive / taste-words /
+          // share line (sharing a confident persona we don't actually believe would be dishonest). Just a
+          // gentle nudge to play again so the engine has more to learn from.
+          <p className="tm-hero-body tm-hero-learning-body">
+            A few more swipes and we&apos;ll pin down your taste — give it another round.
+          </p>
+        ) : (
+          <>
+            {/* the natural, composed descriptive line (names the player's real wants/skips). */}
+            <p className="tm-hero-body">{copy.descriptive}</p>
+            {/* "your taste in three words" — small, true, derived from the vector. */}
+            {copy.words.length > 0 && (
+              <div className="tm-hero-words" aria-label="Your taste in three words">
+                {copy.words.map((w) => (
+                  <span key={w} className="tm-hero-word">
+                    {w}
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="tm-hero-share">
+              <ShareButton persona={persona} matchPct={matchPct} shareLine={copy.shareLine} />
+            </div>
+          </>
+        )}
       </motion.div>
 
       {/* swipe-again sits right under the hero (a real, prominent secondary action). */}
@@ -894,7 +1012,7 @@ function Reveal({
           achievement is ALREADY visible above it), only when something real was earned this run and the
           player isn't logged in. Logged-in earners get a calm "saved to your profile" line instead. ── */}
       {claimable && !loggedInAtMount && (
-        <motion.div {...reveal()}>
+        <motion.div id="tm-claim-anchor" {...reveal()}>
           <TasteClaim
             reduce={reduce}
             claimable={claimable}
@@ -945,16 +1063,8 @@ function Reveal({
             <p className="tm-acc-empty">Swipe right on a few fruits and we&apos;ll find your next match.</p>
           )}
         </AccRow>
-
-        <AccRow icon="🏅" title="Your taste rank">
-          {/* SURFACE 1 — 1B drawn fruit-mascot, evolving slowly across plays. */}
-          <TasteRankMascot tier={tier} reduce={reduce} />
-        </AccRow>
-
-        <AccRow icon="🗺️" title={`Fruit passport · ${passport.fruitsCount}/${passport.fruitsTotal}`}>
-          {/* SURFACE 2 — 2A literal India silhouette + glowing region pins. */}
-          <FruitPassportMap passport={passport} reduce={reduce} />
-        </AccRow>
+        {/* DIRECTION A: the taste-rank + fruit-passport accordion rows were PROMOTED to the progression
+            strip at the TOP of the reveal (the accordion is no longer where progression lives). */}
       </motion.div>
 
       {/* #4 — the streak result line/pill. Animated in with the same reveal() stagger; reduce-safe. */}
