@@ -9,10 +9,18 @@
 // tasteStreak). A real cross-device rank needs a backend account table (future). Zero network I/O; never
 // touches cart/checkout/notify.
 //
-// ── THE XP CURVE (designed for ~3-4 months to the top tier) ────────────────────────────────────────
-// Per run a player earns ~10-25 XP (see xpForRun). Tier thresholds 0/120/360/900/2000 mean: at a typical
-// ~15-25 XP/day the climb to "Taste Master" takes roughly 3-4 months of near-daily play — a real long-game
-// reason to come back, not an instant unlock. The steps grow ~1.5-2.2× so each tier feels earned.
+// ── THE XP CURVE — DISCOVERY-SPINE (Phase 4) ─────────────────────────────────────────────────────────
+// North-star unification: XP is no longer a flat "engagement" number — its BIG, dominant lever is
+// DISCOVERY. A *first-time* WANT on a never-seen fruit earns a large chunk (DISCOVERY_PER_FRUIT); re-wanting
+// a fruit you already own earns only a small, CAPPED trickle (REPEAT_CAP). This makes the rank track the
+// fruit-passport (the same discovery signal that feeds demand) instead of a parallel curve, and it makes XP
+// UN-FARMABLE: you cannot spam WANT-IT to climb, because the only big earn is finite (14 collectibles, one
+// discovery each). Tier thresholds stay 0/120/360/900/2000 — the harness (scoreSim §9) confirms a daily
+// player still takes ~3-4 months to "Taste Master": discovery front-loads the first ~week (the dopamine of
+// filling the passport), then the small daily base + streak + first-play bonuses carry the long tail.
+//
+// Component weights (FICO-style, disclosed): base 8 · discovery 16/new-fruit · repeat 1×min(4) · streak +4
+// · first-play-of-day +6. Early "collecting" runs spike to ~70-90 XP; steady post-collection runs ~15-22 XP.
 
 const STORAGE_KEY = 'mallade.tastematch.xp.v6';
 
@@ -64,12 +72,33 @@ function write(s: XpState): void {
   }
 }
 
-// ── XP PER RUN ──────────────────────────────────────────────────────────────────────────────────────
-// xpForRun(wants, streakDay, firstPlayToday) = 10 (base) + min(5, wants) (engagement, capped so spamming
-// WANT-IT can't farm XP) + 5 (if this run is on a live streak day) + 5 (if it's the first play today).
-// Range 10-25. The streakDay / firstPlayToday flags come from the streak module's update.
-export function xpForRun(wants: number, streakDay: boolean, firstPlayToday: boolean): number {
-  return 10 + Math.min(5, Math.max(0, wants)) + (streakDay ? 5 : 0) + (firstPlayToday ? 5 : 0);
+// ── XP PER RUN — DISCOVERY-SPINE (disclosed component weights) ─────────────────────────────────────
+// xpForRun = BASE + DISCOVERY_PER_FRUIT·newDiscoveries + min(REPEAT_CAP, repeatWants) + streak + firstPlay.
+//   • newDiscoveries = collectible fruits WANT-IT'd for the FIRST time this run (from the passport) — the
+//     BIG earn, and inherently un-farmable (only 14 collectibles exist, one discovery each, ever).
+//   • repeatWants    = wants that were NOT new discoveries (already-owned fruits + demand-only honey/ghee) —
+//     a small CAPPED trickle so spamming WANT-IT cannot farm rank.
+//   • streakDay / firstPlayToday — modest daily-return nudges (flags from the streak module).
+// Early "collecting" runs spike (e.g. 3 new fruits + first-play + streak = 8+48+0+6+4 = 66); steady
+// post-collection runs settle ~15-22. Harness (scoreSim §9) confirms ~3-4 months to the top tier.
+export const XP_BASE = 8;
+export const DISCOVERY_PER_FRUIT = 16;
+export const REPEAT_CAP = 4;
+export const STREAK_BONUS = 4;
+export const FIRST_PLAY_BONUS = 6;
+export function xpForRun(
+  newDiscoveries: number,
+  repeatWants: number,
+  streakDay: boolean,
+  firstPlayToday: boolean,
+): number {
+  return (
+    XP_BASE +
+    DISCOVERY_PER_FRUIT * Math.max(0, newDiscoveries) +
+    Math.min(REPEAT_CAP, Math.max(0, repeatWants)) +
+    (streakDay ? STREAK_BONUS : 0) +
+    (firstPlayToday ? FIRST_PLAY_BONUS : 0)
+  );
 }
 
 // The tier a given cumulative XP sits in (the highest tier whose threshold is ≤ xp).
@@ -128,14 +157,17 @@ export interface XpAward extends TierProgress {
 // Award XP for a COMPLETED run (call once when the reveal lands, alongside streak.recordRun). Returns the
 // new progress + whether the player evolved a tier this run.
 export function awardRun(args: {
-  wants: number;
+  /** Collectible fruits WANT-IT'd for the first time this run (passport.newlyDiscovered.length). */
+  newDiscoveries: number;
+  /** Wants that were NOT new discoveries (already-owned fruits + demand-only honey/ghee). */
+  repeatWants: number;
   streakDay: boolean;
   firstPlayToday: boolean;
   now?: Date;
 }): XpAward {
   const prev = read();
   const fromTier = tierFor(prev.xp);
-  const gained = xpForRun(args.wants, args.streakDay, args.firstPlayToday);
+  const gained = xpForRun(args.newDiscoveries, args.repeatWants, args.streakDay, args.firstPlayToday);
   const next: XpState = { xp: prev.xp + gained, plays: prev.plays + 1 };
   write(next);
   const prog = tierProgress(next.xp);

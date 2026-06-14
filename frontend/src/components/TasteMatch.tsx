@@ -262,9 +262,11 @@ export default function TasteMatch() {
   );
 
   // V6 — record the run's PROGRESSION EXACTLY ONCE when the reveal phase is entered (not on every render).
-  // recordRun (streak), awardRun (XP/tier), recordDiscoveries (passport) all mutate localStorage, so they
+  // recordRun (streak), recordDiscoveries (passport), awardRun (XP/tier) all mutate localStorage, so they
   // must fire once per run; the effect is keyed to `phase` and guarded with a ref so a re-render in the
-  // reveal phase never double-counts. ORDER matters: streak first (its flags feed the XP award math).
+  // reveal phase never double-counts. ORDER matters (Phase 4 discovery-spine): streak first (its flags feed
+  // the XP math), then passport (it tells us how many fruits are NEWLY discovered — the big XP lever), then
+  // XP last (it consumes the discovery split).
   const [streakResult, setStreakResult] = useState<StreakUpdate | null>(null);
   const [xpResult, setXpResult] = useState<XpAward | null>(null);
   const [passportResult, setPassportResult] = useState<PassportUpdate | null>(null);
@@ -278,24 +280,30 @@ export default function TasteMatch() {
     const streak = recordRun();
     setStreakResult(streak);
 
-    // 2) XP / TIER — slow-evolving rank. firstPlayToday = an advance that isn't a same-day replay; a live
-    //    streak day grants the streak bonus. Surfaces tieredUp for the "you evolved!" mascot celebration.
-    const firstPlayToday = streak.advanced && !streak.sameDay;
-    const xp = awardRun({
-      wants: winnerSlugs.length,
-      streakDay: streakIsLive(),
-      firstPlayToday,
-    });
-    setXpResult(xp);
-
-    // 3) PASSPORT — record the WANT-IT slugs (only the 14 collectibles count; honey/ghee are ignored
-    //    inside recordDiscoveries). Then recompute badges and surface any newly-earned this run.
+    // 2) PASSPORT — record the WANT-IT slugs (only the 14 collectibles count; honey/ghee are ignored inside
+    //    recordDiscoveries). Snapshot badges BEFORE the mutation so we can diff what was newly earned. The
+    //    returned newlyDiscovered drives the discovery-weighted XP below.
     const beforeBadges = computeBadges({ bestStreak: streak.best });
     const passport = recordDiscoveries(winnerSlugs);
     setPassportResult(passport);
     const afterBadges = computeBadges({ discovered: passport.discovered, bestStreak: streak.best });
     const beforeIds = new Set(beforeBadges.filter((b) => b.unlocked).map((b) => b.id));
     setNewBadges(afterBadges.filter((b) => b.unlocked && !beforeIds.has(b.id)));
+
+    // 3) XP / TIER — DISCOVERY-SPINE. The big earn is newly-discovered collectibles this run; everything
+    //    else (already-owned fruits + demand-only honey/ghee) is a small capped repeat trickle. firstPlayToday
+    //    = an advance that isn't a same-day replay; a live streak day grants the streak bonus. Surfaces
+    //    tieredUp for the "you evolved!" mascot celebration.
+    const firstPlayToday = streak.advanced && !streak.sameDay;
+    const newDiscoveries = passport.newlyDiscovered.length;
+    const repeatWants = Math.max(0, winnerSlugs.length - newDiscoveries);
+    const xp = awardRun({
+      newDiscoveries,
+      repeatWants,
+      streakDay: streakIsLive(),
+      firstPlayToday,
+    });
+    setXpResult(xp);
   }, [phase, winnerSlugs]);
 
   // Static/animated prop helper — finished state, no transition, when reduce-motion is on.

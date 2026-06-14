@@ -191,7 +191,9 @@ const FRUITS: DuelFruit[] = [
 // ghee). The pantry items keep `demandOnly: true` (never buyable, never GI, never the daily-drop hero,
 // never counted in the passport). They have NO real GI/origin-collection role, so origin is a flavour
 // descriptor and gi is null.
-const POOL: DuelFruit[] = [
+// NOTE: exported purely so the dev-only measurement harness (scoreSim.ts) can drive the Phase-3 adaptive
+// deck over the full candidate set. Additive — changes no runtime behaviour.
+export const POOL: DuelFruit[] = [
   ...FRUITS,
   {
     slug: 'honey', name: 'Wildflower Honey', tagline: 'Raw, single-origin', emoji: '🍯', accent: 'honey',
@@ -287,6 +289,81 @@ export function introHero(now: number = Date.now()): string {
   return dailyDropFruit(now).imageUrl;
 }
 
+// ── PHASE 3 — EIG ADAPTIVE DECK (flag-gated; default OFF) ────────────────────────────────────────────
+// Today buildDeck() = daily-drop + seeded shuffle: card order is RANDOM, so a run can spend swipes on cards
+// that reveal nothing new about the player's palate. The adaptive deck instead picks each NEXT card to
+// MAXIMISE expected information gain (EIG) about WHICH of the 5 archetypes the player is — so persona +
+// per-axis demand sharpen in FEWER swipes. The math (a Bayesian sequential experiment over the persona
+// posterior — the same family as the Phase-2 logit, run at the archetype level for cheap card selection):
+//
+//   belief P(k) over the 5 archetypes (uniform prior).
+//   per-archetype want-prob for a card:  p_k(card) = σ(EIG_GAIN·(profile_k[axis(card)] − PROFILE_MID))
+//   Bayes update after a swipe y∈{want,skip}:  P(k|y) ∝ P(k)·( y ? p_k : 1−p_k )
+//   EIG(card) = H(P) − E_y[ H(P(·|y)) ],   with   p_want = Σ_k P(k)·p_k(card)
+//   greedy: show argmax_card EIG, observe the real swipe, update P, repeat.
+//
+// Card 1 stays the daily-drop (shareable + streak anchor); the driver reserves the final slot as a pure
+// DEMAND probe (a slow pantry item) so every run still casts a honey/ghee demand vote. Proven in the sim
+// (scoreSim.ts §8): adaptive reaches the same recovery/persona accuracy in fewer swipes than random.
+// ADAPTIVE_DECK stays false → buildDeck()'s shipped behaviour is byte-for-byte unchanged; the interactive
+// runtime wiring (TasteMatch.tsx) is deferred to the founder-gated surface phase.
+export const ADAPTIVE_DECK = false;
+
+const EIG_GAIN = 4.0; // logistic scale: how sharply an archetype's axis-affinity maps to a want-probability
+const PROFILE_MID = 0.5; // midpoint of the archetype profile range (~0.15..1.0) — centres p_k(card) across 0..1
+
+// P(want this card | player is archetype k), from k's axis profile. Unknown axis → 0.5 (no signal).
+export function archetypeWantProb(profile: Record<string, number>, card: DuelFruit): number {
+  const ax = AXIS_OF[card.slug];
+  if (ax == null) return 0.5;
+  const aff = profile[ax] ?? 0;
+  return 1 / (1 + Math.exp(-EIG_GAIN * (aff - PROFILE_MID)));
+}
+
+// Shannon entropy (nats) of a discrete belief.
+function entropy(p: number[]): number {
+  let h = 0;
+  for (const q of p) if (q > 1e-12) h -= q * Math.log(q);
+  return h;
+}
+
+export function uniformPersonaPrior(): number[] {
+  return ARCHETYPES.map(() => 1 / ARCHETYPES.length);
+}
+
+// Bayes-update the persona posterior after one swipe.
+export function updatePersonaPosterior(prior: number[], card: DuelFruit, want: boolean): number[] {
+  const post = prior.map((pk, k) => {
+    const pw = archetypeWantProb(ARCHETYPES[k].profile, card);
+    return pk * (want ? pw : 1 - pw);
+  });
+  const Z = post.reduce((s, v) => s + v, 0);
+  return Z > 0 ? post.map((v) => v / Z) : prior.slice();
+}
+
+// Expected information gain (nats) of showing `card` under the current posterior.
+export function expectedInfoGain(posterior: number[], card: DuelFruit): number {
+  const pWant = posterior.reduce((s, pk, k) => s + pk * archetypeWantProb(ARCHETYPES[k].profile, card), 0);
+  const h0 = entropy(posterior);
+  const hWant = entropy(updatePersonaPosterior(posterior, card, true));
+  const hSkip = entropy(updatePersonaPosterior(posterior, card, false));
+  return h0 - (pWant * hWant + (1 - pWant) * hSkip);
+}
+
+// Pick the index (into `remaining`) of the most-informative next card. Ties broken by first occurrence.
+export function nextEigCardIndex(posterior: number[], remaining: DuelFruit[]): number {
+  let best = -1;
+  let bestEig = -Infinity;
+  for (let i = 0; i < remaining.length; i++) {
+    const eig = expectedInfoGain(posterior, remaining[i]);
+    if (eig > bestEig) {
+      bestEig = eig;
+      best = i;
+    }
+  }
+  return best;
+}
+
 // ── C. PROVENANCE HELPERS ─────────────────────────────────────────────────────────────────────────
 // The "Name · Origin · GI ✓" provenance string for a card. The GI ✓ shows ONLY for a verified GI
 // (cite-or-kill); a null gi shows origin alone (mangosteen, dragon-fruit, the pantry). Honey/ghee never
@@ -366,12 +443,16 @@ export interface TastePersona {
 // space is a small set of flavour/heritage AXES; every fruit maps to one axis (AXIS_OF), and the player
 // vector + archetype profiles live in axis-space. This keeps cosine matching meaningful + the archetypes
 // hand-authorable. honey + ghee are the 'pantry' axis (a real axis — a WANT-IT on them shapes the persona).
-const AXES = ['tropical', 'berry-jewel', 'tangy-crisp', 'heritage-mango', 'exotic-rare', 'pantry'] as const;
-type Axis = (typeof AXES)[number];
+// NOTE: AXES / Axis / AXIS_OF / ARCHETYPES / cosine / playerVectorFrom / displayPct are EXPORTED purely so
+// the dev-only measurement harness (src/lib/__sim__/scoreSim.ts, run via `npx tsx`) can import the REAL
+// scoring internals and measure them. These exports are ADDITIVE — they change no runtime behaviour and
+// `scorePersona` / `winnerSlugs` are byte-for-byte unchanged.
+export const AXES = ['tropical', 'berry-jewel', 'tangy-crisp', 'heritage-mango', 'exotic-rare', 'pantry'] as const;
+export type Axis = (typeof AXES)[number];
 
 // slug → taste axis. Every collectible fruit + the pantry items are assigned. (Mangoes split: the iconic
 // summer kings → heritage-mango; the rest of the tropical/floral lane → tropical.)
-const AXIS_OF: Record<string, Axis> = {
+export const AXIS_OF: Record<string, Axis> = {
   // heritage-mango — the iconic GI mango lane
   'alphonso-mango': 'heritage-mango',
   'gir-kesar-mango': 'heritage-mango',
@@ -399,7 +480,7 @@ const AXIS_OF: Record<string, Axis> = {
 // 5 adult, tasteful archetypes for a premium 25-35 Indian fruit/honey brand. Each profile is a real
 // weighting over the AXES; cosine match makes the % honest. insightLines map each archetype to 2-3 of the
 // 12 identity lines (B3 selection rule).
-const ARCHETYPES: TastePersona[] = [
+export const ARCHETYPES: TastePersona[] = [
   {
     id: 'tropical-romantic',
     name: 'The Tropical Romantic',
@@ -479,7 +560,7 @@ const INSIGHT_LINES: string[] = [
 ];
 
 // Cosine similarity between two axis-weighted vectors. Returns 0..1.
-function cosine(a: Record<string, number>, b: Record<string, number>): number {
+export function cosine(a: Record<string, number>, b: Record<string, number>): number {
   let dot = 0;
   let na = 0;
   let nb = 0;
@@ -504,6 +585,20 @@ export interface PersonaMatch {
   playerVector: Record<string, number>;
   /** D (B1): confidence = wants / DECK_SIZE — used ONLY to choose copy TONE, never to inflate the %. */
   confidence: number;
+  /** PHASE 2 — the 6 SIGNED ridge-logit weights (per-axis): + = pull, − = turn-off. THIS is the demand
+   *  footprint that feeds sourcing — the game's score and the business KPI are derived from the same w. */
+  demandWeights: Record<Axis, number>;
+  /** PHASE 2 (A1) — predictive self-fit: fraction of the player's OWN swipes the fitted model re-predicts
+   *  correctly. The honest "does this actually explain YOUR picks?" accuracy number, shown in the reveal. */
+  selfFit: number;
+  /** PHASE 2 — how many own swipes the self-fit was measured over (selfFit's denominator; for "7/8" copy). */
+  selfFitN: number;
+  /** PHASE 2 — honest confidence band, keyed on evidence (#swipes) + coherence (selfFit). Drives copy tone;
+   *  NEVER inflates the %. (Posterior-Σ measured near-constant under the ridge prior — see posteriorStd.) */
+  engineConfidence: 'high' | 'medium' | 'low';
+  /** PHASE 2 — raw Laplace posterior std (RMS over the 6 weights) = the model's own uncertainty. Exposed for
+   *  honesty/telemetry; not the band driver (near-constant under λ — measured in __sim__/REPORT.md §6). */
+  posteriorStd: number;
 }
 
 // ── D (B1) — build the player's taste vector over the AXES, with SOFT-NEGATIVE skips ──────────────────
@@ -512,7 +607,7 @@ export interface PersonaMatch {
 // out, never goes negative — cosine over non-negative archetype vectors stays well-defined). Kept gentle so
 // it sharpens, doesn't distort. Skips are passed separately so the soft-negative is explicit + honest.
 const SKIP_WEIGHT = 0.35;
-function playerVectorFrom(wants: string[], skips: string[] = []): Record<string, number> {
+export function playerVectorFrom(wants: string[], skips: string[] = []): Record<string, number> {
   const v: Record<string, number> = {};
   for (const ax of AXES) v[ax] = 0;
   for (const slug of wants) {
@@ -533,13 +628,253 @@ function playerVectorFrom(wants: string[], skips: string[] = []): Record<string,
   return v;
 }
 
-// ── THE HONEST MATCH ──────────────────────────────────────────────────────────────────────────────
-// Map the raw cosine through a gentle 70-99 floor (presentation transform, NOT a fabrication — monotonic
-// in the real similarity, order-preserving, documented). The RANKING is the raw cosine; only the shown
-// integer is eased.
-function displayPct(cos: number): number {
+// ── THE OLD MATCH (kept for reference + the sim's "before" measurement) ─────────────────────────────
+// displayPct mapped the raw cosine through a 70-99 floor. THE BUG: all 5 archetype profiles are positive on
+// every axis, so the cosine of two all-positive 6-vectors clusters 0.75-0.98 → everyone lands 88-98%
+// (measured in REPORT.md: std-dev 3.5). It also throws away the two signals that actually vary — the MARGIN
+// (best vs runner-up) and decisiveness. Superseded by calibratePct below; retained only so the dev harness
+// can quote the old formula. No longer called by scorePersona.
+export function displayPct(cos: number): number {
   const pct = 70 + cos * 29;
   return Math.round(Math.max(70, Math.min(99, pct)));
+}
+
+// ── PHASE 1 — THE HONEST % (mean-centre + margin + ECDF calibration) ─────────────────────────────────
+// The fix, proven in src/lib/__sim__/scoreSim.ts (REPORT.md: match% std 3.5 → 14.3, p10 91 → 55, p90 95):
+//   1. MEAN-CENTRE the archetype vectors per-axis (remove the all-positive common component) → the 5
+//      directions de-correlate, so scores actually separate instead of saturating.
+//   2. Score the MARGIN  m = s_best − s_runnerUp  (decisiveness — the signal displayPct discarded).
+//   3. ECDF-CALIBRATE m against the offline-simulated margin distribution (MARGIN_KNOTS) → a guaranteed,
+//      monotone 50-99 band. The shown % IS a percentile of the possibility-space — honest by construction
+//      ("fits better than X% of POSSIBLE palates", never a fabricated player-population stat → cite-or-kill).
+
+// Mean-centred, L2-normalised archetype vectors (computed once). Per-axis: subtract the across-archetype mean
+// → removes the common all-positive baseline so the 5 archetype directions de-correlate.
+const ARCH_CENTRED: { persona: TastePersona; vec: Record<string, number> }[] = (() => {
+  const axisMean: Record<string, number> = {};
+  for (const ax of AXES) {
+    let s = 0;
+    for (const a of ARCHETYPES) s += a.profile[ax] ?? 0;
+    axisMean[ax] = s / ARCHETYPES.length;
+  }
+  return ARCHETYPES.map((a) => {
+    const c: Record<string, number> = {};
+    let mag = 0;
+    for (const ax of AXES) {
+      c[ax] = (a.profile[ax] ?? 0) - axisMean[ax];
+      mag += c[ax] * c[ax];
+    }
+    mag = Math.sqrt(mag) || 1;
+    for (const ax of AXES) c[ax] /= mag;
+    return { persona: a, vec: c };
+  });
+})();
+
+// The player's SIGNED taste vector — same +1 / −SKIP_WEIGHT idea as playerVectorFrom but it KEEPS the sign
+// (no clamp-at-0), because it's scored against the signed, mean-centred archetypes. L2-normalised so the
+// score is about taste DIRECTION, not swipe count. (playerVectorFrom stays clamped + unchanged — it's the
+// public vector tasteWords/insightLine read.)
+function playerVectorSigned(wants: string[], skips: string[]): Record<string, number> {
+  const v: Record<string, number> = {};
+  for (const ax of AXES) v[ax] = 0;
+  for (const slug of wants) {
+    const ax = AXIS_OF[slug];
+    if (ax) v[ax] += 1;
+  }
+  for (const slug of skips) {
+    const ax = AXIS_OF[slug];
+    if (ax) v[ax] -= SKIP_WEIGHT;
+  }
+  let mag = 0;
+  for (const ax of AXES) mag += v[ax] * v[ax];
+  mag = Math.sqrt(mag);
+  if (mag > 0) for (const ax of AXES) v[ax] /= mag;
+  return v;
+}
+
+function dotAxis(a: Record<string, number>, b: Record<string, number>): number {
+  let d = 0;
+  for (const ax of AXES) d += (a[ax] ?? 0) * (b[ax] ?? 0);
+  return d;
+}
+
+// MARGIN_KNOTS[p] = the p-th percentile (p = 0..100) of the margin over the offline-simulated palate space.
+// GENERATED by src/lib/__sim__/scoreSim.ts — DO NOT hand-edit; re-run the sim to refresh when the catalogue
+// or archetypes change (it prints a fresh block into REPORT.md §6).
+const MARGIN_KNOTS: number[] = [
+  0.00002, 0.00572, 0.01042, 0.01602, 0.02216, 0.02776, 0.033, 0.03794, 0.04382, 0.04855, // p0-9
+  0.05417, 0.05897, 0.06361, 0.06736, 0.07178, 0.07696, 0.08146, 0.08586, 0.08994, 0.09451, // p10-19
+  0.09932, 0.10427, 0.10903, 0.11393, 0.11912, 0.12411, 0.12954, 0.1349, 0.14052, 0.1467, // p20-29
+  0.15484, 0.16134, 0.1676, 0.17282, 0.17972, 0.18529, 0.19078, 0.19638, 0.20083, 0.20634, // p30-39
+  0.21269, 0.2182, 0.22429, 0.2306, 0.23679, 0.2428, 0.25049, 0.25822, 0.26578, 0.27356, // p40-49
+  0.28182, 0.28958, 0.2977, 0.30574, 0.31302, 0.32005, 0.32763, 0.3357, 0.3434, 0.35143, // p50-59
+  0.359, 0.3666, 0.37437, 0.38144, 0.38795, 0.39539, 0.40389, 0.41222, 0.42195, 0.43313, // p60-69
+  0.44499, 0.45445, 0.46471, 0.47611, 0.48488, 0.49503, 0.50378, 0.51343, 0.52326, 0.53195, // p70-79
+  0.54164, 0.55248, 0.5624, 0.57404, 0.58789, 0.60079, 0.61393, 0.62837, 0.64186, 0.65619, // p80-89
+  0.66996, 0.69155, 0.71174, 0.73317, 0.75337, 0.77601, 0.80519, 0.84018, 0.88292, 0.94501, // p90-99
+  1.18117, // p100
+];
+
+// Calibrate a margin → an honest 50-99 % via binary search over the ECDF knots (monotone by construction).
+function calibratePct(margin: number): number {
+  let lo = 0;
+  let hi = MARGIN_KNOTS.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (MARGIN_KNOTS[mid] < margin) lo = mid + 1;
+    else hi = mid;
+  }
+  return 50 + Math.round((lo / 100) * 49);
+}
+
+// ── PHASE 2 — THE PER-USER RIDGE-LOGIT ENGINE (the live spine: persona + % + demand from ONE fit) ─────
+// Reframe the swipe game as a per-session CHOICE-BASED CONJOINT instrument. Each swipe is one labelled row
+// (axis one-hot → want/skip); we fit 6 signed weights w + bias b by minimising the ridge cross-entropy
+//     J(w) = −Σ[ y·ln p + (1−y)·ln(1−p) ] + λ‖w‖²,   p = σ(w·x + b)
+// via Newton/IRLS:  θ ← θ + (XᵀSX + λI_reg)⁻¹ Xᵀ(y − p),  S = diag(p(1−p)),  ridge on the 6 weights (not b).
+// The fitted w is the single source of truth: persona = argmax_k (w·ĉ_k), demand = the 6 weights, and the
+// % = the calibrated MARGIN of those same utilities — so the game's score and the sourcing KPI are literally
+// one number. λ‖w‖² is the "learns over time" story: 8 swipes → w shrinks toward 0 (honest "no strong
+// opinion yet"); as plays accumulate the data term outweighs λ and w sharpens (a single-user Bayesian update,
+// the exact reduction of the Phase-2 Hierarchical-Bayes upgrade). VERIFIED in __sim__/REPORT.md §6: this path
+// keeps the spread (p10≈55/p90≈94, std≈14.1) AND persona balance (max share 22.2%). The Phase-1 signed-vector
+// path above is retained as the cold-start/degenerate-fit fallback.
+const RIDGE_LAMBDA = 1.5; // ridge / Bayes-prior strength (matches the harness; re-tune there, not here)
+const D_AX = AXES.length; // 6
+const AXIS_IDX: Record<string, number> = {};
+AXES.forEach((ax, i) => (AXIS_IDX[ax] = i));
+const sigmoid = (z: number): number => 1 / (1 + Math.exp(-z));
+
+interface LogitFit {
+  w: number[]; // 6 signed axis weights
+  b: number; // bias
+}
+
+// One-hot ℝ⁶ feature for a fruit slug (matches the harness featureisation). Unknown slug → zero vector.
+function featureOf(slug: string): number[] {
+  const x = new Array(D_AX).fill(0);
+  const ax = AXIS_OF[slug];
+  if (ax != null) x[AXIS_IDX[ax]] = 1;
+  return x;
+}
+
+// Gaussian elimination with partial pivoting — solves A·x = g for the small (7×7) Newton system.
+function solveLinear(A: number[][], g: number[]): number[] {
+  const n = g.length;
+  const M = A.map((row, i) => [...row, g[i]]);
+  for (let col = 0; col < n; col++) {
+    let piv = col;
+    for (let r = col + 1; r < n; r++) if (Math.abs(M[r][col]) > Math.abs(M[piv][col])) piv = r;
+    if (Math.abs(M[piv][col]) < 1e-12) continue; // ridge keeps singular cases rare; leave the row
+    [M[col], M[piv]] = [M[piv], M[col]];
+    const d = M[col][col];
+    for (let c = col; c <= n; c++) M[col][c] /= d;
+    for (let r = 0; r < n; r++) {
+      if (r === col) continue;
+      const f = M[r][col];
+      if (f === 0) continue;
+      for (let c = col; c <= n; c++) M[r][c] -= f * M[col][c];
+    }
+  }
+  return M.map((row) => row[n]);
+}
+
+// Fit w∈ℝ⁶, b∈ℝ by IRLS (≤8 Newton steps; 7 dims, ≤8 rows → sub-millisecond, client-side).
+function fitLogit(rows: { x: number[]; y: number }[], lambda = RIDGE_LAMBDA, iters = 8): LogitFit {
+  const n = D_AX + 1; // weights + bias
+  const theta = new Array(n).fill(0); // [w0..w5, b]
+  if (rows.length === 0) return { w: theta.slice(0, D_AX), b: 0 };
+  for (let it = 0; it < iters; it++) {
+    const g = new Array(n).fill(0);
+    const H = Array.from({ length: n }, () => new Array(n).fill(0));
+    for (const { x, y } of rows) {
+      const xa = [...x, 1]; // augment with the bias feature
+      let z = 0;
+      for (let j = 0; j < n; j++) z += theta[j] * xa[j];
+      const p = sigmoid(z);
+      const s = Math.max(p * (1 - p), 1e-6); // floor keeps S well-conditioned
+      for (let a = 0; a < n; a++) {
+        g[a] += (y - p) * xa[a];
+        for (let bb = 0; bb < n; bb++) H[a][bb] += s * xa[a] * xa[bb];
+      }
+    }
+    for (let j = 0; j < D_AX; j++) {
+      // ridge: penalise the 6 weights, NOT the bias
+      g[j] -= lambda * theta[j];
+      H[j][j] += lambda;
+    }
+    const step = solveLinear(H, g);
+    for (let j = 0; j < n; j++) theta[j] += step[j];
+  }
+  return { w: theta.slice(0, D_AX), b: theta[D_AX] };
+}
+
+// Predicted P(want) for a feature row under the fit (used for the A1 self-fit accuracy).
+function predictWant(fit: LogitFit, x: number[]): number {
+  let z = fit.b;
+  for (let j = 0; j < D_AX; j++) z += fit.w[j] * x[j];
+  return sigmoid(z);
+}
+
+// Laplace posterior std: Σ = (XᵀSX + λI_reg)⁻¹ at the fit; RMS std over the 6 weights. Honest raw
+// uncertainty (exposed, not the band driver — measured near-constant under λ in __sim__/REPORT.md §6).
+function posteriorStdOf(rows: { x: number[]; y: number }[], fit: LogitFit, lambda = RIDGE_LAMBDA): number {
+  const n = D_AX + 1;
+  if (rows.length === 0) return Infinity;
+  const H = Array.from({ length: n }, () => new Array(n).fill(0));
+  for (const { x } of rows) {
+    const xa = [...x, 1];
+    let z = fit.b;
+    for (let j = 0; j < D_AX; j++) z += fit.w[j] * x[j];
+    const p = sigmoid(z);
+    const s = Math.max(p * (1 - p), 1e-6);
+    for (let a = 0; a < n; a++) for (let bb = 0; bb < n; bb++) H[a][bb] += s * xa[a] * xa[bb];
+  }
+  for (let j = 0; j < D_AX; j++) H[j][j] += lambda;
+  let acc = 0;
+  for (let j = 0; j < D_AX; j++) {
+    const e = new Array(n).fill(0);
+    e[j] = 1;
+    const col = solveLinear(H, e); // column j of Σ; its j-th entry is the posterior variance of weight j
+    acc += Math.max(col[j], 0);
+  }
+  return Math.sqrt(acc / D_AX);
+}
+
+// Utility of archetype k under the fit = w · (mean-centred archetype vector). Same as the harness's wUtilities.
+function archUtility(w: number[], centred: Record<string, number>): number {
+  let u = 0;
+  for (const ax of AXES) u += w[AXIS_IDX[ax]] * (centred[ax] ?? 0);
+  return u;
+}
+
+// W_MARGIN_KNOTS[p] = p-th percentile (p=0..100) of the FITTED-w utility margin over the offline-simulated
+// palate space. GENERATED by src/lib/__sim__/scoreSim.ts (§7) — DO NOT hand-edit; re-run the sim to refresh.
+// The fitted w lives on a different scale than the Phase-1 signed vector, so it carries its OWN knots.
+const W_MARGIN_KNOTS: number[] = [
+  0.0, 0.0, 0.0, 0.00193, 0.00481, 0.00746, 0.01061, 0.01249, 0.01487, 0.01737, // p0-9
+  0.02031, 0.02341, 0.02613, 0.02866, 0.03146, 0.0338, 0.03659, 0.03951, 0.04256, 0.0455, // p10-19
+  0.0478, 0.05038, 0.05311, 0.0567, 0.05949, 0.06324, 0.06714, 0.06938, 0.0728, 0.07603, // p20-29
+  0.07934, 0.08377, 0.08702, 0.09133, 0.09462, 0.09803, 0.10198, 0.10607, 0.11047, 0.11459, // p30-39
+  0.11748, 0.12138, 0.12622, 0.12998, 0.13484, 0.13873, 0.14211, 0.14612, 0.15209, 0.15648, // p40-49
+  0.16051, 0.16577, 0.17046, 0.17487, 0.18015, 0.18563, 0.19004, 0.19604, 0.20086, 0.20734, // p50-59
+  0.21236, 0.21885, 0.22369, 0.23031, 0.23705, 0.24255, 0.24779, 0.25415, 0.25983, 0.26585, // p60-69
+  0.27388, 0.28282, 0.29104, 0.29872, 0.30821, 0.31825, 0.32787, 0.338, 0.34661, 0.3565, // p70-79
+  0.36509, 0.37511, 0.38523, 0.39776, 0.40722, 0.41668, 0.42735, 0.44116, 0.45334, 0.47068, // p80-89
+  0.48511, 0.5067, 0.52704, 0.54339, 0.56728, 0.59581, 0.63711, 0.67481, 0.74103, 0.8179, // p90-99
+  1.12443, // p100
+];
+
+// Calibrate a fitted-w utility margin → an honest 50-99 % via binary search over the ECDF knots.
+function calibratePctW(margin: number): number {
+  let lo = 0;
+  let hi = W_MARGIN_KNOTS.length - 1;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (W_MARGIN_KNOTS[mid] < margin) lo = mid + 1;
+    else hi = mid;
+  }
+  return 50 + Math.round((lo / 100) * 49);
 }
 
 export function scorePersona(picks: string[], skips: string[] = []): PersonaMatch {
@@ -558,22 +893,92 @@ export function scorePersona(picks: string[], skips: string[] = []): PersonaMatc
   const playerVector = playerVectorFrom(picks, skips);
   const confidence = DECK_SIZE > 0 ? Math.min(1, picks.length / DECK_SIZE) : 0;
 
-  // No wants at all → fall back to the default archetype with an honest LOW match (they gave us nothing
-  // to match on). Surfaced honestly in the reveal copy too.
+  const ZERO_DEMAND = AXES.reduce((m, ax) => ((m[ax] = 0), m), {} as Record<Axis, number>);
+
+  // No wants at all → honest FLOOR match against the default archetype (they gave us nothing to match on).
   if (winnerSlugs.length === 0) {
-    return { persona: DEFAULT_PERSONA, matchPct: 70, winnerSlugs: [], playerVector, confidence };
+    return {
+      persona: DEFAULT_PERSONA,
+      matchPct: 50,
+      winnerSlugs: [],
+      playerVector,
+      confidence,
+      demandWeights: ZERO_DEMAND,
+      selfFit: 0,
+      selfFitN: 0,
+      engineConfidence: 'low',
+      posteriorStd: Infinity,
+    };
   }
 
-  let best = ARCHETYPES[0];
-  let bestCos = -1;
-  for (const a of ARCHETYPES) {
-    const c = cosine(playerVector, a.profile);
-    if (c > bestCos) {
-      bestCos = c;
-      best = a;
-    }
+  // ── PHASE 2 SPINE: fit the per-user ridge-logit, derive persona + % + demand from the SAME w ──────────
+  // Every swipe is a labelled row: each distinct WANT = y:1, each SKIP = y:0 (a SKIP is now a first-class
+  // negative, not the clamped-away −0.35 the old algo discarded). Fit 6 signed weights → those weights ARE
+  // the demand footprint; persona = the archetype whose mean-centred direction the weights most align with;
+  // the % = the calibrated margin between the top-2 archetype utilities. One fit, three outputs.
+  const skipSet = new Set(skips);
+  const wantRows = winnerSlugs.map((s) => ({ x: featureOf(s), y: 1 }));
+  const skipRows = [...skipSet].filter((s) => !counts.has(s)).map((s) => ({ x: featureOf(s), y: 0 }));
+  const rows = [...wantRows, ...skipRows];
+  const fit = fitLogit(rows);
+
+  const utils = ARCH_CENTRED.map((a) => ({ persona: a.persona, u: archUtility(fit.w, a.vec) }));
+  const finite = utils.every((x) => Number.isFinite(x.u));
+  const ranked = utils.sort((a, b) => b.u - a.u);
+  const margin = ranked.length > 1 ? ranked[0].u - ranked[1].u : ranked[0].u;
+
+  // A1 self-fit — fraction of the player's OWN swipes the fitted model re-predicts correctly. The honest
+  // "does this explain YOUR picks?" accuracy (shown as "explains 7/8 of your picks"). Coherent palate → high.
+  let correct = 0;
+  for (const r of rows) if (Math.round(predictWant(fit, r.x)) === r.y) correct++;
+  const selfFit = rows.length > 0 ? correct / rows.length : 0;
+
+  const demandWeights = AXES.reduce(
+    (m, ax) => ((m[ax] = fit.w[AXIS_IDX[ax]]), m),
+    {} as Record<Axis, number>,
+  );
+  const posteriorStd = posteriorStdOf(rows, fit);
+
+  // Honest confidence band: evidence (#swipes) × coherence (selfFit). NOT the posterior Σ — measured
+  // near-constant under the ridge prior (REPORT.md §6), so it can't discriminate; #swipes + selfFit can.
+  const nSwipes = rows.length;
+  const engineConfidence: 'high' | 'medium' | 'low' =
+    nSwipes >= 6 && selfFit >= 0.75 ? 'high' : nSwipes <= 3 || selfFit < 0.6 ? 'low' : 'medium';
+
+  // Degenerate fit (non-finite utilities — e.g. a pathological 1-row case) → fall back to the Phase-1
+  // signed-vector margin so we never surface a NaN %. The cosine/signed path is retained for exactly this.
+  if (!finite) {
+    const signed = playerVectorSigned(winnerSlugs, skips);
+    const fb = ARCH_CENTRED.map((a) => ({ persona: a.persona, s: dotAxis(signed, a.vec) })).sort(
+      (a, b) => b.s - a.s,
+    );
+    const fbMargin = fb.length > 1 ? fb[0].s - fb[1].s : fb[0].s;
+    return {
+      persona: fb[0].persona,
+      matchPct: calibratePct(fbMargin),
+      winnerSlugs,
+      playerVector,
+      confidence,
+      demandWeights: ZERO_DEMAND,
+      selfFit,
+      selfFitN: nSwipes,
+      engineConfidence,
+      posteriorStd,
+    };
   }
-  return { persona: best, matchPct: displayPct(bestCos), winnerSlugs, playerVector, confidence };
+
+  return {
+    persona: ranked[0].persona,
+    matchPct: calibratePctW(margin),
+    winnerSlugs,
+    playerVector,
+    confidence,
+    demandWeights,
+    selfFit,
+    selfFitN: nSwipes,
+    engineConfidence,
+    posteriorStd,
+  };
 }
 
 // ── D (B1) — "your taste in three words" ──────────────────────────────────────────────────────────
