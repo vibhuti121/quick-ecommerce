@@ -19,9 +19,12 @@ PROJECT PROFILE + the scoped task. Spawn independent domains in parallel.
 | Domain | Prefer (tuned project agent) | Generic fallback |
 |---|---|---|
 | Frontend / storefront UI / catalogue / `.tsx` / CSS / component | **fe-lead** | `frontend-orchestrator` |
+| Design direction for a UI surface (2-3 directions + preview, Figma) | **fe-design** | `design-agent` |
+| Catalogue / commerce-UX / product surfaces / `api.ts`+`types.ts` over existing endpoints | **fe-commerce** | `domain-ux-agent` |
+| Frontend a11y / perf / visual-QA / served-bundle proof / "QA-green ≠ done" | **fe-quality** | `frontend-qa-agent` |
 | Deploy / `docker-compose.prod` / Cloudflare / TLS / backups / "take it live" / "box" | **devops** | `devops-orchestrator` |
-| Architecture / scaling / 0→1M roadmap / schema design / service split-merge / cost-at-N | **sysdesign** | — |
-| "Where is X / how does Y work / which file owns Z" / repo orientation | **codebase-explorer** | — |
+| Architecture / scaling / 0→1M roadmap / schema design / service split-merge / cost-at-N | **sysdesign** | `architecture-agent` |
+| "Where is X / how does Y work / which file owns Z" / repo orientation | **codebase-explorer** | `code-navigator` |
 | Backend service / REST endpoint / entity / DB query / business logic | — | `backend-orchestrator` |
 | QA gate / tsc / build broken / contract check (auto after every change) | — | `qa-orchestrator` |
 | Infra / `.env` / OAuth client / secrets / cloud project setup | — | `infra-orchestrator` |
@@ -35,6 +38,12 @@ PROJECT PROFILE + the scoped task. Spawn independent domains in parallel.
 
 - `fe-lead` runs its own design-choice protocol and spawns fe-design / fe-build / fe-commerce /
   fe-quality — do **not** also spawn `frontend-orchestrator` for storefront UI.
+- The spoke-level generic fallbacks (`design-agent`, `domain-ux-agent`, `frontend-qa-agent`) are
+  **read-only researchers** and normally reached *through* their fallback parent (`frontend-orchestrator`
+  / `qa-orchestrator`), not spawned directly — they only fire when `fe-lead`/`fe-quality` is absent or
+  reports out-of-scope. They never write; the write-owner stays `fe-lead`/`fe-commerce` (tuned) or
+  Varsha. `architecture-agent` is the generic mirror of `sysdesign` (decide-only); `code-navigator`
+  mirrors `codebase-explorer` (map-first, read-only).
 - `devops` owns the go-live runbook + prod override; `sysdesign` *decides* architecture and `devops`
   *executes* it. For an architecture decision spawn `sysdesign` first, then hand its decision to
   `devops` to provision.

@@ -1,8 +1,8 @@
 ---
 name: frontend-orchestrator
-description: "Builds and fixes the project's frontend in its detected framework (React/Vite/TS by default — read from the PROJECT PROFILE). Trigger: Task touches .tsx, .ts, CSS, Vite config, React component. Spawns router-agent, pages-agent, hooks-agent, styles-agent, tsc-agent. FALLBACK ONLY for storefront / UI / .tsx / React / Vite work — PREFER the project's fe-lead when one exists; spawn this only if no tuned project frontend agent is present."
+description: "Builds and fixes the project's frontend in its detected framework (React/Vite/TS by default — read from the PROJECT PROFILE). Trigger: Task touches .tsx, .ts, CSS, Vite config, React component. Spawns router-agent, pages-agent, hooks-agent, styles-agent, tsc-agent, design-agent, domain-ux-agent. FALLBACK ONLY for storefront / UI / .tsx / React / Vite work — PREFER the project's fe-lead when one exists; spawn this only if no tuned project frontend agent is present."
 model: sonnet
-tools: Read, Bash, Grep, Agent(router-agent,pages-agent,hooks-agent,styles-agent,tsc-agent)
+tools: Read, Bash, Grep, Agent(router-agent,pages-agent,hooks-agent,styles-agent,tsc-agent,design-agent,domain-ux-agent)
 ---
 
 # Frontend Orchestrator Agent — Layer 1
