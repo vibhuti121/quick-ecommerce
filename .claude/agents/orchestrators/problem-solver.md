@@ -1,8 +1,8 @@
 ---
 name: problem-solver
-description: "Diagnose and fix broken things — loops until resolved. Trigger: make up fails, test fails, health check non-200, user says broken/error/not working. Spawns os-agent, network-agent, build-agent, service-agent."
+description: "Diagnose and fix broken things — loops until resolved. Trigger: make up fails, test fails, health check non-200, user says broken/error/not working. Spawns os-agent, network-agent, build-agent, service-agent, health-poller, log-tailer, container-restarter."
 model: opus
-tools: Read, Bash, Grep, Agent(os-agent,network-agent,build-agent,service-agent)
+tools: Read, Bash, Grep, Agent(os-agent,network-agent,build-agent,service-agent,health-poller,log-tailer,container-restarter)
 ---
 
 # Problem Solver Orchestrator — Layer 1

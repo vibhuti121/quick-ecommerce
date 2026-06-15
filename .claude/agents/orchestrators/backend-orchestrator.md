@@ -1,8 +1,8 @@
 ---
 name: backend-orchestrator
-description: "Builds and maintains all backend services in the project's detected stack (Spring Boot / Node.js / Go / Python — read from the PROJECT PROFILE). Trigger: Task touches Java service, REST endpoint, DB schema, Node.js service. Spawns model-agent, controller-agent, config-agent, build-agent, service-agent, test-agent."
+description: "Builds and maintains all backend services in the project's detected stack (Spring Boot / Node.js / Go / Python — read from the PROJECT PROFILE). Trigger: Task touches Java service, REST endpoint, DB schema, Node.js service. Spawns model-agent, controller-agent, config-agent, build-agent, service-agent, test-agent, security-agent, migration-agent."
 model: sonnet
-tools: Read, Bash, Grep, Agent(model-agent,controller-agent,config-agent,build-agent,service-agent,test-agent)
+tools: Read, Bash, Grep, Agent(model-agent,controller-agent,config-agent,build-agent,service-agent,test-agent,security-agent,migration-agent)
 ---
 
 # Backend Orchestrator Agent — Layer 1

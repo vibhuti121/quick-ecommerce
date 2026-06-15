@@ -1,8 +1,8 @@
 ---
 name: infra-orchestrator
-description: "Cloud setup, OAuth credentials, secrets management. Trigger: Task touches .env, gcloud, OAuth client, cloud provider setup. Spawns gcloud-agent, oauth-agent, secrets-agent."
+description: "Cloud setup, OAuth credentials, secrets management. Trigger: Task touches .env, gcloud, OAuth client, cloud provider setup. Spawns gcloud-agent, oauth-agent, secrets-agent, env-validator."
 model: sonnet
-tools: Read, Bash, Grep, Agent(gcloud-agent,oauth-agent,secrets-agent)
+tools: Read, Bash, Grep, Agent(gcloud-agent,oauth-agent,secrets-agent,env-validator)
 ---
 
 # Infra Orchestrator Agent — Layer 1

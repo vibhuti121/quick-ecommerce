@@ -1,8 +1,8 @@
 ---
 name: qa-orchestrator
-description: "Auto-runs after every code change — TypeScript check, builds, contract validation. Trigger: AUTO — runs after every file change in any service. Spawns tsc-agent, build-agent, contract-agent, uat-agent, frontend-qa-agent."
+description: "Auto-runs after every code change — TypeScript check, builds, contract validation. Trigger: AUTO — runs after every file change in any service. Spawns tsc-agent, build-agent, contract-agent, uat-agent, frontend-qa-agent, bundle-sizer, dependency-auditor."
 model: sonnet
-tools: Read, Bash, Grep, Agent(tsc-agent,build-agent,contract-agent,uat-agent,frontend-qa-agent)
+tools: Read, Bash, Grep, Agent(tsc-agent,build-agent,contract-agent,uat-agent,frontend-qa-agent,bundle-sizer,dependency-auditor)
 ---
 
 # QA Orchestrator Agent — Layer 1

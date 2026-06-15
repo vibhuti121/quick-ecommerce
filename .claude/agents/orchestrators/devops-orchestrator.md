@@ -1,8 +1,8 @@
 ---
 name: devops-orchestrator
-description: "Manages Docker, Compose, Nginx, K8s, Caddy config. Trigger: Task touches Dockerfile, docker-compose, nginx.conf, K8s manifests, Caddyfile. Spawns docker-agent, compose-agent, nginx-agent, k8s-agent, network-agent. FALLBACK ONLY for deploy / docker-compose / prod work — PREFER the project's devops agent when one exists; spawn this only if no tuned project deploy agent is present."
+description: "Manages Docker, Compose, Nginx, K8s, Caddy config. Trigger: Task touches Dockerfile, docker-compose, nginx.conf, K8s manifests, Caddyfile. Spawns docker-agent, compose-agent, nginx-agent, k8s-agent, network-agent, caddy-agent, port-checker. FALLBACK ONLY for deploy / docker-compose / prod work — PREFER the project's devops agent when one exists; spawn this only if no tuned project deploy agent is present."
 model: sonnet
-tools: Read, Bash, Grep, Agent(docker-agent,compose-agent,nginx-agent,k8s-agent,network-agent)
+tools: Read, Bash, Grep, Agent(docker-agent,compose-agent,nginx-agent,k8s-agent,network-agent,caddy-agent,port-checker)
 ---
 
 # DevOps Orchestrator Agent — Layer 1
