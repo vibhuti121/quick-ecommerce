@@ -11,9 +11,29 @@ const ADVANCE_MS = 4000;
 interface UpdatesCarouselProps {
   // Open the notify popup for a banner's subject (honey launch, litchi season, …).
   onNotify: (topic: NotifyTopic) => void;
+  // Open the "Taste Arcade" Games Hub overlay — fired by the dedicated Taste Match slide's "Play now".
+  onPlayGames: () => void;
 }
 
-export default function UpdatesCarousel({ onNotify }: UpdatesCarouselProps) {
+// A "Taste Arcade" slide is woven in as the FIRST item. It is NOT a notify subject — its CTA routes to
+// the Games Hub overlay (onPlayGames) instead of opening the notify popup. Marked with `game: true` so
+// the render branch knows to swap the "🔔 Notify me" button for a "Play now" button.
+interface GameSlide {
+  game: true;
+  icon: string;
+  text: string;
+  sub: string;
+  image: string;
+}
+const GAME_SLIDE: GameSlide = {
+  game: true,
+  icon: '🎮',
+  text: 'Play Taste Match — find your fruit twin',
+  sub: 'Swipe to your taste persona & earn a Taste Rank. Free, 30 seconds.',
+  image: '/taste-match-proto/litchi.jpg',
+};
+
+export default function UpdatesCarousel({ onNotify, onPlayGames }: UpdatesCarouselProps) {
   const [index, setIndex] = useState(0);
   const [hovering, setHovering] = useState(false);
 
@@ -22,17 +42,21 @@ export default function UpdatesCarousel({ onNotify }: UpdatesCarouselProps) {
   const indexRef = useRef(index);
   indexRef.current = index;
 
+  // The Taste Arcade slide leads, then the curated UPDATES banners.
+  const slides: (GameSlide | (typeof UPDATES)[number])[] = [GAME_SLIDE, ...UPDATES];
+
   useEffect(() => {
     // Advance ONLY while hovered — the timer doesn't even exist when the cursor is away.
-    if (!hovering || UPDATES.length <= 1) return;
+    if (!hovering || slides.length <= 1) return;
     const id = setInterval(() => {
-      setIndex((indexRef.current + 1) % UPDATES.length);
+      setIndex((indexRef.current + 1) % slides.length);
     }, ADVANCE_MS);
     return () => clearInterval(id);
-  }, [hovering]);
+  }, [hovering, slides.length]);
 
-  if (UPDATES.length === 0) return null;
-  const current = UPDATES[index];
+  if (slides.length === 0) return null;
+  const current = slides[index];
+  const isGame = 'game' in current;
 
   return (
     <section
@@ -47,24 +71,37 @@ export default function UpdatesCarousel({ onNotify }: UpdatesCarouselProps) {
         <img className="updates-slide-img" src={current.image} alt={current.text} />
         <div className="updates-overlay" />
         <div className="updates-caption">
+          {isGame && <span className="updates-eyebrow">New · Taste Arcade</span>}
           <div className="updates-caption-row">
             <span className="updates-icon" aria-hidden="true">
               {current.icon}
             </span>
             <span className="updates-text">{current.text}</span>
           </div>
-          <button
-            type="button"
-            className="updates-notify"
-            onClick={() => onNotify(current.notify)}
-          >
-            🔔 Notify me
-          </button>
+          {isGame ? (
+            <>
+              <span className="updates-sub">{(current as GameSlide).sub}</span>
+              <button type="button" className="updates-notify" onClick={onPlayGames}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true">
+                  <path d="M5 12h14M13 6l6 6-6 6" />
+                </svg>
+                Play now
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              className="updates-notify"
+              onClick={() => onNotify((current as (typeof UPDATES)[number]).notify)}
+            >
+              🔔 Notify me
+            </button>
+          )}
         </div>
       </div>
-      {UPDATES.length > 1 && (
+      {slides.length > 1 && (
         <div className="updates-dots" role="tablist" aria-label="Choose an update">
-          {UPDATES.map((u, i) => (
+          {slides.map((u, i) => (
             <button
               key={i}
               type="button"

@@ -5,6 +5,8 @@ import TrustBand from './components/TrustBand';
 import FruitQuiz from './components/FruitQuiz';
 import TasteMatch from './components/TasteMatch';
 import HoneyTeaser from './components/HoneyTeaser';
+import GamesHub from './components/GamesHub';
+import GameTeaser from './components/GameTeaser';
 import SocialProof from './components/SocialProof';
 import ProductGrid from './components/ProductGrid';
 import CatalogControls from './components/CatalogControls';
@@ -126,6 +128,13 @@ function Storefront() {
   // Wishlist is client-side (localStorage) — seed from storage on mount so hearts render correctly.
   const [wishlist, setWishlist] = useState<WishlistItem[]>(() => getWishlist());
 
+  // "Taste Arcade" Games Hub — an OVERLAY rendered INSIDE the storefront (NOT a separate app), so
+  // opening/closing it never re-mounts the catalogue/cart/auth tree (auth + cart state persist). Routed
+  // by a ?games URL param via pushState/popstate so the browser Back button returns home cleanly.
+  const [gamesOpen, setGamesOpen] = useState<boolean>(
+    () => typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('games'),
+  );
+
   // Gated live video call (reuses the FamilyCall WebRTC stack). The gate modal resolves eligibility
   // and asks videocall-service for a short-lived grant; on success it hands back a CallStart and we
   // mount the full-screen CallRoom. `joinRoomId` is set when arriving via a shared invite link
@@ -146,6 +155,43 @@ function Storefront() {
       const qs = params.toString();
       window.history.replaceState(null, '', window.location.pathname + (qs ? `?${qs}` : ''));
     }
+  }, []);
+
+  // ── GAMES HUB ROUTING (?games overlay) ──────────────────────────────────────────────────────────
+  // Open the hub by PUSHING a ?games history entry (so Back pops it), and keep React state in sync with
+  // the URL via popstate — that's what makes the browser Back button return home WITHOUT re-mounting the
+  // storefront (auth/cart/profile state all survive because Storefront never unmounts). Closing from the
+  // in-hub "Back to shop" button uses history.back() when we pushed the entry, else strips the param.
+  const openGames = useCallback(() => {
+    if (gamesOpen) return;
+    const params = new URLSearchParams(window.location.search);
+    params.set('games', '1');
+    const qs = params.toString();
+    window.history.pushState({ games: true }, '', window.location.pathname + (qs ? `?${qs}` : ''));
+    setGamesOpen(true);
+  }, [gamesOpen]);
+
+  const closeGames = useCallback(() => {
+    if (!gamesOpen) return;
+    // If we pushed a ?games entry, popping it (Back) is the cleanest close — it restores the prior URL
+    // and our popstate handler flips the state. Guard against an empty history by also clearing state.
+    if (window.history.state && (window.history.state as { games?: boolean }).games) {
+      window.history.back();
+    } else {
+      const params = new URLSearchParams(window.location.search);
+      params.delete('games');
+      const qs = params.toString();
+      window.history.replaceState(null, '', window.location.pathname + (qs ? `?${qs}` : ''));
+      setGamesOpen(false);
+    }
+  }, [gamesOpen]);
+
+  useEffect(() => {
+    const onPop = () => {
+      setGamesOpen(new URLSearchParams(window.location.search).has('games'));
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
   }, []);
 
   useEffect(() => {
@@ -478,12 +524,20 @@ function Storefront() {
     setCartOpen(false);
   }, []);
 
+  // Launch the Taste Match game. It lives behind the module-load gate IS_TASTE_MATCH (?taste-match) so it
+  // mounts the standalone prototype shell — navigating there is the cleanest entry (and keeps the game's
+  // PROTOTYPE_MODE stub intact). A real hard nav is intentional: the game is a separate render tree.
+  const handlePlayGame = useCallback(() => {
+    window.location.assign(window.location.pathname + '?taste-match');
+  }, []);
+
   return (
     <div className="app">
       <Header
         itemCount={itemCount}
         onOpenCart={() => setCartOpen(true)}
         onOpenProfile={handleOpenProfile}
+        onOpenGames={openGames}
       />
 
       <Hero onShopClick={handleScrollToCatalog} onHoneyClick={handleHoneyCta} />
@@ -508,7 +562,7 @@ function Storefront() {
       />
 
       <main className="main" id="catalog">
-        <UpdatesCarousel onNotify={setNotifyTopic} />
+        <UpdatesCarousel onNotify={setNotifyTopic} onPlayGames={openGames} />
 
         {error && (
           <div className="banner banner-error">
@@ -575,6 +629,11 @@ function Storefront() {
           />
         )}
       </main>
+
+      {/* Taste Arcade home teaser — a light editorial block that opens the Games Hub overlay. Placed
+          beside the honey hook (both are "what's new" desire-builders). No cart/checkout/notify here:
+          it only routes to the hub (?games overlay). */}
+      <GameTeaser onOpenGames={openGames} onPlay={handlePlayGame} />
 
       {/* The honey hook lives below the catalogue: the storefront sells litchi today and teases the
           honey launch. Same launch list as the card/carousel/modal — saveNotify('honey') + notify. */}
@@ -687,6 +746,20 @@ function Storefront() {
           iceServers={activeCall.iceServers}
           onLeave={() => { setActiveCall(null); setJoinRoomId(undefined); }}
         />
+      )}
+
+      {/* Games Hub overlay — full-screen dark "Taste Arcade" rendered ON TOP of the storefront (which
+          stays mounted underneath, preserving auth/cart). Closed via the in-hub Back button (history
+          pop) or the browser Back button (popstate). */}
+      {gamesOpen && (
+        <div className="games-hub-overlay" role="dialog" aria-modal="true" aria-label="Taste Arcade">
+          <GamesHub
+            onBack={closeGames}
+            onPlay={handlePlayGame}
+            onSignIn={() => setAuthOpen(true)}
+            displayName={profile && !profile.isGuest ? (profile.displayName || profile.email || null) : null}
+          />
+        </div>
       )}
     </div>
   );

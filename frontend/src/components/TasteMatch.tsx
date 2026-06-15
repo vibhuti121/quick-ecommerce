@@ -52,6 +52,7 @@ import {
 import { TIERS } from '../lib/tasteXp';
 import {
   isLoggedIn,
+  deviceSnapshot,
   claimableFrom,
   claimWithGoogle,
   claimWithPassword,
@@ -61,6 +62,7 @@ import {
   GOOGLE_ENABLED,
   type Claimable,
 } from '../lib/tasteProfile';
+import { upsertTasteProfile } from '../api';
 
 // ============================================================================================
 // "Taste Match" V6 — a clickable PROTOTYPE (frontend-only · LOCAL · NOT deployed · NOT committed).
@@ -309,6 +311,16 @@ export default function TasteMatch() {
       firstPlayToday,
     });
     setXpResult(xp);
+
+    // 4) PERSISTENCE (V7) — LOGGED-IN ONLY, best-effort. The local progression above is already the source
+    //    of truth on this device; if the player is on a real account we also push a device snapshot up so the
+    //    rank/passport follow them across devices (the game's analogue of guest-cart carry-over). The api seam
+    //    is stub-tolerant (404 in local dev → null, errors swallowed) so a failed round-trip is non-fatal and
+    //    NEVER down-ranks the local state. Guests skip this entirely (no token → no write). deviceSnapshot
+    //    reads straight off the just-mutated localStorage libs, so it captures THIS run's earnings.
+    if (isLoggedIn()) {
+      void upsertTasteProfile(deviceSnapshot({ persona: persona.id }));
+    }
   }, [phase, winnerSlugs]);
 
   // Static/animated prop helper — finished state, no transition, when reduce-motion is on.
@@ -1510,12 +1522,12 @@ function AccRow({
 // No motion-value transforms — a CSS-only idle bob gated under the @media reduce layer + the JS `reduce`
 // flag (we drop the bob class entirely when reduce is on; two-layer kill-switch).
 // ============================================================================================
-function TasteRankMascot({ tier, reduce }: { tier: XpAward | ReturnType<typeof peekTier>; reduce: boolean }) {
+export function TasteRankMascot({ tier, reduce }: { tier: XpAward | ReturnType<typeof peekTier>; reduce: boolean }) {
   const idx = TIERS.findIndex((t) => t.id === tier.tier.id);
   const lvl = idx + 1; // Lvl 1..5
   const pct = Math.round(tier.fraction * 100);
   return (
-    <div className="tm-rank">
+    <div className="tm-rank tm-rank-mascot">
       <div className="tm-rank-stage">
         <div
           className={
@@ -1540,7 +1552,7 @@ function TasteRankMascot({ tier, reduce }: { tier: XpAward | ReturnType<typeof p
       <div className="tm-rank-name">
         {tier.tier.name} <span>· Lvl {lvl}</span>
       </div>
-      <div className="tm-rank-band" aria-hidden="true">
+      <div className="tm-rank-band tm-xp-bar" aria-hidden="true">
         <span style={{ width: `${pct}%` }} />
       </div>
       <p className="tm-rank-xp">
@@ -1577,7 +1589,7 @@ const REGION_PINS: { region: string; x: number; y: number }[] = [
   { region: 'Kerala', x: 173.4, y: 566.8 },
 ];
 
-function FruitPassportMap({
+export function FruitPassportMap({
   passport,
   reduce,
 }: {
@@ -1602,7 +1614,7 @@ function FruitPassportMap({
   const fruitPct = passport.fruitsTotal > 0 ? (passport.fruitsCount / passport.fruitsTotal) * 100 : 0;
 
   return (
-    <div className="tm-passport">
+    <div className="tm-passport tm-passport-map">
       <div className="tm-map-wrap">
         <svg
           viewBox={INDIA_VIEWBOX}

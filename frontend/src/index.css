@@ -5783,3 +5783,501 @@ textarea:focus-visible,
   }
 }
 
+/* ============================================================================================
+   TASTE MATCH ON HOME — Games Hub ("Taste Arcade"), home teaser, header reward chip, carousel
+   game slide. Structural source of truth: proto-shots/taste-home/mockup.html (reproduced here with
+   TOKENS ONLY — no raw hex beyond copying existing token values / the established tm-* scrim idiom).
+   The hub root carries `.taste-match` so the existing scoped dark tm-* tokens + mascot/passport/badge
+   styles (reused via the exported TasteRankMascot / FruitPassportMap) apply unchanged.
+   REDUCED-MOTION: hub entrance + teaser rise are JS-gated (useReducedMotion in GamesHub/GameTeaser);
+   the only new CSS transitions (game-play / gt-cta hover) are killed in the reduce block at the end.
+   ============================================================================================ */
+
+/* ── Overlay shell: the hub is rendered INSIDE the Storefront (auth/cart never drop) and floats over
+   the page as a full-viewport scrollable surface. ── */
+.games-hub-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  overflow-y: auto;
+  background: var(--tm-bg, #0b0a10);
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Hub chrome (dark; scoped under .hub so the dark .btn-ghost/.btn-gold never clobber the light ones) ── */
+.hub {
+  min-height: 100%;
+  background: radial-gradient(120% 90% at 50% -10%, var(--tm-bg-2), var(--tm-bg) 60%);
+  color: var(--tm-ink);
+}
+.hub-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px clamp(16px, 4vw, 32px);
+  border-bottom: 1px solid rgba(244, 185, 66, 0.18);
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  background: linear-gradient(180deg, var(--tm-bg-2), rgba(11, 10, 16, 0.92));
+  backdrop-filter: blur(6px);
+}
+.hub-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px 9px 12px;
+  border-radius: 999px;
+  background: rgba(246, 241, 234, 0.06);
+  border: 1px solid var(--tm-hairline);
+  color: var(--tm-ink);
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.hub-back svg { width: 16px; height: 16px; }
+.hub-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.15rem;
+  letter-spacing: 0.01em;
+}
+.hub-title .eyebrow {
+  display: block;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.68rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--marigold);
+}
+.hub-spacer { flex: 1; }
+.hub-prof {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 14px 6px 6px;
+  border-radius: 999px;
+  background: rgba(246, 241, 234, 0.06);
+  border: 1px solid rgba(244, 185, 66, 0.18);
+  font-size: 0.85rem;
+  color: var(--tm-ink-dim);
+}
+.hub-prof b { color: var(--tm-ink); font-weight: 600; }
+.hub-prof .av {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--litchi), var(--marigold));
+}
+.hub .btn-gold {
+  padding: 11px 22px;
+  border-radius: 999px;
+  border: none;
+  background: var(--marigold);
+  color: var(--tm-bg);
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+.hub .btn-ghost {
+  padding: 11px 22px;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--tm-ink);
+  border: 1px solid var(--tm-hairline);
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+}
+.hub .btn-ghost.hub-login { padding: 8px 18px; }
+
+.hub-body { padding: clamp(20px, 4vw, 30px) clamp(16px, 4vw, 32px) 44px; }
+.hub-sec-label {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.05rem;
+  margin: 28px 0 14px;
+  color: var(--tm-ink);
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.hub-sec-label small {
+  font-family: var(--font-body);
+  font-weight: 500;
+  font-size: 0.8rem;
+  color: var(--tm-ink-dim);
+}
+
+/* ── Reward panel (logged-in) ── */
+.reward-panel {
+  border: 1px solid rgba(244, 185, 66, 0.18);
+  border-radius: 18px;
+  background: linear-gradient(160deg, rgba(28, 23, 34, 0.9), rgba(11, 10, 16, 0.6));
+  padding: clamp(18px, 3vw, 24px);
+}
+.reward-grid {
+  display: grid;
+  grid-template-columns: 260px 1fr 1fr;
+  gap: 26px;
+  align-items: start;
+}
+.reward-col-title {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--marigold);
+  margin: 0 0 12px;
+}
+
+/* Locked badge variant (the hub shows the FULL set; locked ones dimmed) — extends the existing
+   .tm-badge-chip already defined in the tm-* block. */
+.tm-badge-chip.locked {
+  color: var(--tm-ink-dim);
+  background: rgba(246, 241, 234, 0.04);
+  border-color: rgba(246, 241, 234, 0.12);
+}
+.tm-badge-chip.locked .lk { opacity: 0.5; }
+.hub-badges { justify-content: flex-start; }
+
+/* ── Guest reward placeholder ── */
+.reward-guest {
+  border: 1px dashed var(--tm-hairline);
+  border-radius: 18px;
+  padding: clamp(28px, 5vw, 40px) 30px;
+  text-align: center;
+  background: rgba(246, 241, 234, 0.03);
+}
+.reward-guest .gm { font-size: 3rem; margin-bottom: 10px; opacity: 0.85; }
+.reward-guest h3 {
+  font-family: var(--font-display);
+  font-size: 1.4rem;
+  color: var(--tm-ink);
+  margin: 0 0 8px;
+}
+.reward-guest p {
+  color: var(--tm-ink-dim);
+  margin: 0 auto 18px;
+  max-width: 44ch;
+  font-size: 0.95rem;
+}
+.reward-guest .nudge { display: inline-flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+
+/* ── Games grid ── */
+.games-grid {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr 1fr;
+  gap: 16px;
+}
+.game-card {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(244, 185, 66, 0.18);
+  min-height: 230px;
+  display: flex;
+  background: var(--tm-card);
+}
+.game-card-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.game-card-scrim { position: absolute; inset: 0; background: var(--tm-scrim); }
+.game-card-body {
+  position: relative;
+  margin-top: auto;
+  padding: 18px 20px 20px;
+  width: 100%;
+}
+.game-tag {
+  display: inline-block;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--tm-bg);
+  background: var(--marigold);
+  padding: 4px 10px;
+  border-radius: 999px;
+  margin-bottom: 10px;
+}
+.game-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--tm-ink);
+  font-size: 1.45rem;
+  margin: 0 0 5px;
+}
+.featured .game-name { font-size: 1.85rem; }
+.game-desc {
+  font-size: 0.86rem;
+  color: var(--tm-ink-dim);
+  margin: 0 0 14px;
+  max-width: 30ch;
+}
+.game-play {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 999px;
+  border: none;
+  /* AA: white on --honey ≈ 3.06:1 FAIL. Match the hub's own .btn-gold standard —
+     --marigold fill + --tm-bg (near-black) label = 11.14:1 PASS, and on-brand gold. */
+  background: var(--marigold);
+  color: var(--tm-bg);
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 0.92rem;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
+  transition: transform 0.12s ease, filter 0.12s ease;
+}
+.game-play:hover { filter: brightness(1.06); transform: translateY(-1px); }
+.game-card.soon {
+  align-items: center;
+  justify-content: center;
+  background: rgba(246, 241, 234, 0.03);
+}
+.game-card.soon .game-card-body { margin: 0; text-align: center; }
+.game-soon-emoji { font-size: 2.6rem; display: block; margin-bottom: 8px; opacity: 0.8; }
+.game-soon-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  color: var(--tm-ink);
+  font-size: 1.1rem;
+}
+.game-soon-desc { font-size: 0.78rem; color: var(--tm-ink-dim); margin-top: 4px; }
+.game-soon-badge {
+  display: inline-block;
+  font-size: 0.64rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--tm-bg);
+  background: var(--marigold);
+  padding: 4px 10px;
+  border-radius: 999px;
+  margin-top: 10px;
+}
+
+/* responsive: stack the reward grid + games grid on narrow viewports */
+@media (max-width: 820px) {
+  .reward-grid { grid-template-columns: 1fr; gap: 22px; }
+  .games-grid { grid-template-columns: 1fr; }
+}
+
+/* ── Home teaser block (LIGHT — sits near HoneyTeaser) ── */
+.home-game-section { margin: clamp(36px, 7vw, 72px) auto 0; max-width: 1100px; padding: 0 clamp(16px, 4vw, 36px); }
+.game-teaser {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 0;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--surface);
+  box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border);
+}
+.gt-copy {
+  padding: clamp(28px, 4vw, 40px) clamp(28px, 4vw, 44px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.gt-eyebrow {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  /* AA: --honey-dark on --bg = 4.08:1 FAIL for 0.72rem; --text (#3d3d3d) = 10.25:1 PASS. */
+  color: var(--text);
+  margin-bottom: 12px;
+}
+.gt-title {
+  font-family: var(--font-display);
+  font-size: clamp(1.7rem, 4vw, 2.25rem);
+  line-height: 1.1;
+  margin: 0 0 14px;
+  color: var(--text);
+}
+.gt-title em { font-style: normal; color: var(--litchi-dark); }
+.gt-desc { font-size: 1.02rem; color: var(--muted); margin: 0 0 24px; max-width: 36ch; }
+.gt-row { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+.gt-cta {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 13px 26px;
+  border-radius: 999px;
+  border: none;
+  /* AA: white on --honey ≈ 3.06:1 FAIL. --text (#3d3d3d) on --marigold (#f4b942) = 6.14:1 PASS —
+     the established house pairing (see .fruit-quiz-card-badge). Keeps the warm gold CTA identity. */
+  background: var(--marigold);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 1rem;
+  cursor: pointer;
+  box-shadow: var(--shadow);
+  transition: transform 0.12s ease, filter 0.12s ease;
+}
+.gt-cta:hover { filter: brightness(1.06); transform: translateY(-1px); }
+.gt-meta { font-size: 0.85rem; color: var(--muted); }
+.gt-meta b { color: var(--forest); }
+.gt-art {
+  position: relative;
+  min-height: 320px;
+  background: linear-gradient(150deg, #221a12, #0b0a10);
+  overflow: hidden;
+}
+.gt-art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0.92; }
+.gt-art-scrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, var(--surface) 0%, rgba(255, 255, 255, 0) 40%);
+}
+.gt-stamp {
+  position: absolute;
+  right: 26px;
+  bottom: 26px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: 14px;
+  background: rgba(11, 10, 16, 0.78);
+  border: 1px solid var(--marigold);
+  color: #f6f1ea;
+  backdrop-filter: blur(4px);
+}
+.gt-stamp .sm {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  position: relative;
+  background:
+    radial-gradient(circle at 36% 32%, rgba(255, 255, 255, 0.5), transparent 42%),
+    radial-gradient(circle at 64% 70%, var(--litchi), var(--marigold) 78%);
+}
+.gt-stamp small {
+  display: block;
+  font-size: 0.66rem;
+  color: rgba(246, 241, 234, 0.7);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.gt-stamp b { font-family: var(--font-display); font-size: 0.95rem; }
+
+@media (max-width: 760px) {
+  .game-teaser { grid-template-columns: 1fr; }
+  .gt-art { min-height: 200px; order: -1; }
+  .gt-art-scrim { background: linear-gradient(0deg, var(--surface) 0%, rgba(255, 255, 255, 0) 50%); }
+}
+
+/* ── Carousel game slide additions (light; reuse the existing .updates-* vocabulary) ── */
+.updates-eyebrow {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--marigold);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+.updates-sub {
+  font-size: clamp(0.85rem, 1.6vw, 1rem);
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55);
+  max-width: 40ch;
+}
+
+/* ── Header reward chip (B1) — LIGHT header context ── */
+.reward-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  height: 42px;
+  padding: 0 14px 0 7px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.12), rgba(var(--litchi-rgb), 0.1));
+  border: 1px solid var(--marigold);
+  cursor: pointer;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+}
+.reward-chip:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+.chip-mascot {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  position: relative;
+  flex: 0 0 auto;
+  background:
+    radial-gradient(circle at 36% 32%, rgba(255, 255, 255, 0.5), transparent 42%),
+    radial-gradient(circle at 64% 70%, var(--litchi), var(--marigold) 78%);
+  box-shadow: inset -3px -3px 6px rgba(0, 0, 0, 0.18);
+}
+.chip-mascot .acc {
+  position: absolute;
+  top: -9px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.85rem;
+}
+.chip-text { display: flex; flex-direction: column; line-height: 1.15; text-align: left; }
+.chip-tier {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 0.82rem;
+  color: var(--text);
+}
+/* AA: --honey-dark on --bg = 4.08:1 FAIL at 0.82rem bold; --litchi-dark (#b83b4a) ≈ 5.6:1 PASS —
+   a warm brand accent that still pops against the charcoal "· Lvl N" beside it. */
+.chip-tier b { color: var(--litchi-dark); }
+.chip-sub { font-size: 0.68rem; color: var(--muted); font-weight: 500; }
+.chip-fruit {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 4px;
+  padding-left: 10px;
+  border-left: 1px solid rgba(var(--accent-rgb), 0.3);
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--forest);
+}
+.reward-chip.guest { border-color: var(--border); background: var(--bg); }
+.reward-chip.guest .chip-mascot { filter: grayscale(0.5) opacity(0.7); }
+.reward-chip.guest .chip-tier { color: var(--text); }
+.reward-chip.guest .chip-sub { color: var(--honey-dark); font-weight: 600; }
+
+/* Hide the chip's text/fruit detail on very narrow headers (keep just the mascot tap target). */
+@media (max-width: 560px) {
+  .reward-chip .chip-text,
+  .reward-chip .chip-fruit { display: none; }
+  .reward-chip { padding: 0 7px; gap: 0; }
+}
+
+/* ── Reduced-motion: kill the only NEW CSS transitions/hover lifts (hub entrance + teaser rise are
+   already JS-gated; mascot/passport pulses are covered by the tm-* reduce block above). ── */
+@media (prefers-reduced-motion: reduce) {
+  .game-play,
+  .gt-cta,
+  .reward-chip {
+    transition: none;
+  }
+  .game-play:hover,
+  .gt-cta:hover,
+  .reward-chip:hover {
+    transform: none;
+  }
+}
+
