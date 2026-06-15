@@ -2,7 +2,7 @@
 name: protocol-agent
 description: "Choose the best communication protocol for any inter-service or external integration, document the decision, and write the spec. Trigger: New integration / inter-service comms / external API: REST vs WebSocket vs gRPC vs MCP choice, or any new external dependency added."
 model: sonnet
-tools: Read, Grep, WebSearch, WebFetch
+tools: Read, Grep, WebSearch, WebFetch, Write, Edit
 ---
 
 # Protocol Agent — Layer 2 Specialist

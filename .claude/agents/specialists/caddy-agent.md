@@ -2,7 +2,7 @@
 name: caddy-agent
 description: "Write Caddyfile for HTTPS reverse proxy and auto-TLS. Trigger: Switching from nginx to Caddy, HTTPS cert setup."
 model: haiku
-tools: Read, Grep
+tools: Read, Grep, Write, Edit
 ---
 
 # Caddy Agent — Layer 2 Specialist

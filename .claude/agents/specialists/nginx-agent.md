@@ -2,7 +2,7 @@
 name: nginx-agent
 description: "Write nginx.conf for SPA serving and reverse proxy. Trigger: Nginx config change needed."
 model: sonnet
-tools: Read, Grep
+tools: Read, Grep, Write, Edit
 ---
 
 # Nginx Agent — Layer 2 Specialist

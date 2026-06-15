@@ -2,7 +2,7 @@
 name: docker-agent
 description: "Write multi-stage Dockerfiles for each service. Trigger: New service Dockerfile needed or existing one broken."
 model: sonnet
-tools: Read, Grep
+tools: Read, Grep, Write, Edit
 ---
 
 # Docker Agent — Layer 2 Specialist

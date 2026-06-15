@@ -2,7 +2,7 @@
 name: config-agent
 description: "Write Spring Security config, application.yml, beans. Trigger: Security config, DB config, OAuth config change needed."
 model: sonnet
-tools: Read, Grep
+tools: Read, Grep, Write, Edit
 ---
 
 # Config Agent — Layer 2 Specialist

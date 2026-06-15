@@ -2,7 +2,7 @@
 name: turn-agent
 description: "Configure coturn — external-ip NAT, relay ports, credentials. Trigger: TURN relay failing, video not flowing on different networks, coturn config change. Spawns ice-tester."
 model: sonnet
-tools: Read, Bash, Agent(ice-tester)
+tools: Read, Bash, Write, Edit, Agent(ice-tester)
 ---
 
 # TURN Agent — Layer 2 Specialist

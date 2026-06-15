@@ -2,7 +2,7 @@
 name: controller-agent
 description: "Write REST controllers and Express routes. Trigger: New API endpoint needed."
 model: sonnet
-tools: Read, Grep
+tools: Read, Grep, Write, Edit
 ---
 
 # Controller Agent — Layer 2 Specialist

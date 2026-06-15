@@ -2,7 +2,7 @@
 name: sql-writer
 description: "Generate a single idempotent Flyway .sql migration file from a schema change description. Trigger: migration-agent needs a SQL file generated."
 model: haiku
-tools: Read
+tools: Read, Write, Edit
 ---
 
 # SQL Writer — Layer 3 Micro-Specialist

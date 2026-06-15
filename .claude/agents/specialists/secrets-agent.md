@@ -2,7 +2,7 @@
 name: secrets-agent
 description: "Write .env files, validate all required vars are present, generate secrets. Trigger: .env setup or secret rotation."
 model: sonnet
-tools: Read, Bash
+tools: Read, Bash, Write, Edit
 ---
 
 # Secrets Agent — Layer 2 Specialist

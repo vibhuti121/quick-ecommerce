@@ -2,7 +2,7 @@
 name: k8s-agent
 description: "Write K8s Deployments, Services, Ingress, ConfigMaps, Secrets. Trigger: Kubernetes deployment needed (Phase 2)."
 model: sonnet
-tools: Read, Bash, Grep
+tools: Read, Bash, Grep, Write, Edit
 ---
 
 # K8s Agent — Layer 2 Specialist

@@ -2,7 +2,7 @@
 name: styles-agent
 description: "Write CSS — per-page styles and global theme. Trigger: UI styling change needed."
 model: sonnet
-tools: Read, Grep
+tools: Read, Grep, Write, Edit
 ---
 
 # Styles Agent — Layer 2 Specialist

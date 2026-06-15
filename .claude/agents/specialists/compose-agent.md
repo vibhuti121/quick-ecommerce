@@ -2,7 +2,7 @@
 name: compose-agent
 description: "Write docker-compose.yml — networks, volumes, healthchecks, env vars. Trigger: New service added to compose or networking change."
 model: sonnet
-tools: Read, Grep
+tools: Read, Grep, Write, Edit
 ---
 
 # Compose Agent — Layer 2 Specialist

@@ -2,7 +2,7 @@
 name: hooks-agent
 description: "Write the frontend's custom hooks — API/data hooks for every project, plus realtime hooks (useWebRTC etc.) when the PROFILE has realtime: yes. Trigger: New hook or WebRTC/media logic change needed."
 model: sonnet
-tools: Read, Grep
+tools: Read, Grep, Write, Edit
 ---
 
 # Hooks Agent — Layer 2 Specialist

@@ -2,7 +2,7 @@
 name: pages-agent
 description: "Write the frontend's page/route components for the routes named in the contract (e.g. Login/Home/Room in a video app; Catalog/Cart/Checkout in a storefront). Trigger: New page or major UI component needed."
 model: sonnet
-tools: Read, Grep
+tools: Read, Grep, Write, Edit
 ---
 
 # Pages Agent — Layer 2 Specialist

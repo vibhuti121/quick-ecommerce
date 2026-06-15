@@ -2,7 +2,7 @@
 name: roommanager-agent
 description: "Maintain roomManager.ts — the single source of truth for live room state. Trigger: Room state logic change, participant limit rule, reconnect behaviour."
 model: sonnet
-tools: Read, Grep
+tools: Read, Grep, Write, Edit
 ---
 
 # RoomManager Agent — Layer 3 Micro-Specialist

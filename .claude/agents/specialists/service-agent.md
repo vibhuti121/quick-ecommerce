@@ -2,7 +2,7 @@
 name: service-agent
 description: "Write Spring @Service business logic layer. Trigger: Business logic needed between controller and repository."
 model: sonnet
-tools: Read, Grep
+tools: Read, Grep, Write, Edit
 ---
 
 # Service Agent — Layer 2 Specialist

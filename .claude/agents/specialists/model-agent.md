@@ -2,7 +2,7 @@
 name: model-agent
 description: "Write Java entities, DTOs, repository interfaces. Trigger: New entity or DB schema needed."
 model: sonnet
-tools: Read, Grep
+tools: Read, Grep, Write, Edit
 ---
 
 # Model Agent — Layer 2 Specialist

@@ -2,7 +2,7 @@
 name: websocket-agent
 description: "Socket.io signaling handlers — join-room, peer-joined, offer, answer, ice-candidate, leave. Trigger: Signaling events broken, room join/leave logic change, new real-time event needed."
 model: sonnet
-tools: Read, Grep
+tools: Read, Grep, Write, Edit
 ---
 
 # WebSocket Agent — Layer 2 Specialist

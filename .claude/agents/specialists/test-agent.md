@@ -2,7 +2,7 @@
 name: test-agent
 description: "Write JUnit + MockMvc tests, Jest tests, run test suite. Trigger: Tests needed or mvn test / npm test called."
 model: sonnet
-tools: Read, Bash, Grep
+tools: Read, Bash, Grep, Write, Edit
 ---
 
 # Test Agent — Layer 2 Specialist

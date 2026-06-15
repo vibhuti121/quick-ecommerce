@@ -2,7 +2,7 @@
 name: migration-agent
 description: "Flyway SQL migration orchestration — sequences versions, validates idempotency. Trigger: DB schema change needed, new table/column/index. Spawns sql-writer."
 model: sonnet
-tools: Read, Bash, Grep, Agent(sql-writer)
+tools: Read, Bash, Grep, Write, Edit, Agent(sql-writer)
 ---
 
 # Migration Agent — Layer 2 Specialist

@@ -2,7 +2,7 @@
 name: webrtc-agent
 description: "RTCPeerConnection setup, SDP offer/answer, ICE candidate handling in useWebRTC.ts. Trigger: Video/audio not flowing, peer connection failing, SDP errors."
 model: sonnet
-tools: Read, Grep
+tools: Read, Grep, Write, Edit
 ---
 
 # WebRTC Agent — Layer 2 Specialist

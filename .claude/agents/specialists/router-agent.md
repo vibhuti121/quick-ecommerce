@@ -2,7 +2,7 @@
 name: router-agent
 description: "React Router v6 setup, protected routes, auth guards. Trigger: New route or auth guard needed."
 model: sonnet
-tools: Read, Grep
+tools: Read, Grep, Write, Edit
 ---
 
 # Router Agent — Layer 2 Specialist
