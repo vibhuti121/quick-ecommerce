@@ -1,0 +1,783 @@
+<!doctype html>
+<!--
+  THROWAWAY samples-only mockup for the LOCKED Taste-Match-on-home surfaces.
+  Tokens inlined from src/index.css :root + the scoped .taste-match dark block. NO Tailwind, NO raw hex
+  beyond copying existing token values. Renders each #shot-* block; capture-mockup.mjs screenshots them.
+  NOTHING here ships — proto-shots/taste-home/ is on the never-commit list.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Taste Match — home surfacing samples</title>
+<style>
+/* ─────────────────────────────────────────────────────────────────────────────
+   §1 LIGHT storefront tokens (copied from src/index.css :root)
+   ───────────────────────────────────────────────────────────────────────────── */
+:root {
+  --honey: #c8860e;
+  --honey-dark: #a66e07;
+  --litchi: #d64c5c;
+  --litchi-dark: #b83b4a;
+  --marigold: #f4b942;
+  --forest: #2d5016;
+  --accent: #c8860e;
+  --accent-dark: #a66e07;
+  --accent-rgb: 200, 134, 14;
+  --litchi-rgb: 214, 76, 92;
+  --bg: #faf8f5;
+  --bg-alt: #f3f7f2;
+  --surface: #ffffff;
+  --text: #3d3d3d;
+  --muted: #6b7280;
+  --border: #ece7df;
+  --danger: #dc2626;
+  --success: #2d5016;
+  --radius: 14px;
+  --shadow: 0 4px 16px rgba(61, 45, 20, 0.08);
+  --shadow-lg: 0 12px 40px rgba(61, 45, 20, 0.16);
+  --font-display: 'Poppins', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-body: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+/* the scoped DARK game palette (copied from the .taste-match block in src/index.css) */
+.taste-match, .tm-standalone {
+  --tm-bg: #0b0a10;
+  --tm-bg-2: #16121c;
+  --tm-ink: #f6f1ea;
+  --tm-ink-dim: rgba(246, 241, 234, 0.66);
+  --tm-card: #1c1722;
+  --tm-hairline: rgba(244, 185, 66, 0.55);
+  --tm-scrim: linear-gradient(180deg, rgba(11,10,16,0) 28%, rgba(11,10,16,0.58) 60%, rgba(11,10,16,0.96) 100%);
+  --tm-ink-face: #2a1a0e;
+  --tm-leaf: #4a7c1f;
+  --tm-sprout: #b8761e;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  background: #d8d2c8;
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, .display { font-family: var(--font-display); font-weight: 700; line-height: 1.2; }
+.shot { margin: 0 auto; }
+.shot + .shot { margin-top: 40px; }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   GAMES HUB (dark palette) — common chrome
+   ═══════════════════════════════════════════════════════════════════════════════ */
+.hub {
+  width: 1220px;
+  min-height: 980px;
+  background: radial-gradient(120% 90% at 50% -10%, var(--tm-bg-2), var(--tm-bg) 60%);
+  color: var(--tm-ink);
+  padding: 0;
+  overflow: hidden;
+}
+.hub-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 32px;
+  border-bottom: 1px solid rgba(244, 185, 66, 0.18);
+}
+.hub-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px 9px 12px;
+  border-radius: 999px;
+  background: rgba(246, 241, 234, 0.06);
+  border: 1px solid var(--tm-hairline);
+  color: var(--tm-ink);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+}
+.hub-back svg { width: 16px; height: 16px; }
+.hub-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.15rem;
+  letter-spacing: 0.01em;
+}
+.hub-title .eyebrow {
+  display: block;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.68rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--marigold);
+}
+.hub-spacer { flex: 1; }
+
+/* a small storefront-style profile cluster (so the hub reads like a logged-in endpoint) */
+.hub-prof {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 14px 6px 6px;
+  border-radius: 999px;
+  background: rgba(246, 241, 234, 0.06);
+  border: 1px solid rgba(244, 185, 66, 0.18);
+  font-size: 0.85rem;
+  color: var(--tm-ink-dim);
+}
+.hub-prof b { color: var(--tm-ink); font-weight: 600; }
+.hub-prof .av {
+  width: 26px; height: 26px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--litchi), var(--marigold));
+}
+
+.hub-body { padding: 30px 32px 44px; }
+
+/* section labels inside the hub */
+.hub-sec-label {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.05rem;
+  margin: 0 0 14px;
+  color: var(--tm-ink);
+  display: flex; align-items: baseline; gap: 10px;
+}
+.hub-sec-label small {
+  font-family: var(--font-body); font-weight: 500; font-size: 0.8rem; color: var(--tm-ink-dim);
+}
+
+/* ── games grid ───────────────────────────────────────────────────────────── */
+.games-grid {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr 1fr;
+  gap: 16px;
+}
+.game-card {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(244, 185, 66, 0.18);
+  min-height: 230px;
+  display: flex;
+  background: var(--tm-card);
+}
+.game-card-photo {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover;
+}
+.game-card-scrim { position: absolute; inset: 0; background: var(--tm-scrim); }
+.game-card-body {
+  position: relative;
+  margin-top: auto;
+  padding: 18px 20px 20px;
+  width: 100%;
+}
+.game-tag {
+  display: inline-block;
+  font-size: 0.64rem; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--tm-bg);
+  background: var(--marigold);
+  padding: 4px 10px; border-radius: 999px;
+  margin-bottom: 10px;
+}
+.game-name {
+  font-family: var(--font-display); font-weight: 700; color: var(--tm-ink);
+  font-size: 1.45rem; margin: 0 0 5px;
+}
+.featured .game-name { font-size: 1.85rem; }
+.game-desc { font-size: 0.86rem; color: var(--tm-ink-dim); margin: 0 0 14px; max-width: 30ch; }
+.game-play {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 10px 20px; border-radius: 999px; border: none;
+  background: var(--honey); color: #fff; font-weight: 700; font-size: 0.92rem; cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+}
+/* coming-soon slot */
+.game-card.soon { align-items: center; justify-content: center; background: rgba(246,241,234,0.03); }
+.game-card.soon .game-card-body { margin: 0; text-align: center; }
+.game-soon-emoji { font-size: 2.6rem; display:block; margin-bottom: 8px; opacity: 0.8; }
+.game-soon-badge {
+  display: inline-block; font-size: 0.64rem; font-weight: 700; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--text); background: var(--marigold);
+  padding: 4px 10px; border-radius: 999px; margin-top: 10px;
+}
+.game-soon-name { font-family: var(--font-display); font-weight: 700; color: var(--tm-ink); font-size: 1.1rem; }
+.game-soon-desc { font-size: 0.78rem; color: var(--tm-ink-dim); margin-top: 4px; }
+
+/* ── reward panel (logged-in) ─────────────────────────────────────────────── */
+.reward-panel {
+  border: 1px solid rgba(244, 185, 66, 0.18);
+  border-radius: 18px;
+  background: linear-gradient(160deg, rgba(28,23,34,0.9), rgba(11,10,16,0.6));
+  padding: 24px;
+}
+.reward-grid {
+  display: grid;
+  grid-template-columns: 260px 1fr 1fr;
+  gap: 26px;
+  align-items: start;
+}
+.reward-col-title {
+  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--marigold); margin: 0 0 12px;
+}
+
+/* mascot (copied .tm-mascot idiom) */
+.tm-rank-stage { display:flex; justify-content:center; align-items:flex-end; height: 150px; margin-bottom: 6px; }
+.tm-mascot { position: relative; width: 116px; height: 132px; }
+.tm-mascot-bob { animation: tm-mascot-bob 3.4s ease-in-out infinite; }
+@keyframes tm-mascot-bob { 0%,100%{transform:translateY(0);} 50%{transform:translateY(-7px);} }
+.tm-mascot-aura {
+  position:absolute; left:50%; top:56%; width:130px; height:130px; transform:translate(-50%,-50%);
+  border-radius:50%; background: radial-gradient(circle, rgba(var(--accent-rgb),0.32), transparent 68%); opacity:0.22;
+}
+.tm-mascot.is-t3 .tm-mascot-aura { opacity: 0.58; }
+.tm-mascot-body {
+  position:absolute; left:50%; bottom:0; width:96px; height:96px; transform:translateX(-50%);
+  border-radius:50% 50% 48% 48%;
+  background:
+    radial-gradient(circle at 36% 32%, rgba(255,255,255,0.4), transparent 42%),
+    radial-gradient(circle at 64% 70%, var(--litchi), var(--marigold) 78%);
+  box-shadow: inset -8px -10px 16px rgba(0,0,0,0.22);
+}
+.tm-mascot-leaf {
+  position:absolute; left:56%; top:4px; width:26px; height:16px; transform:rotate(-28deg);
+  border-radius:0 100% 0 100%; background: linear-gradient(135deg, var(--tm-leaf), var(--forest)); z-index:3;
+}
+.tm-mascot-eye {
+  position:absolute; bottom:52px; width:9px; height:11px; border-radius:50%; background: var(--tm-ink-face); z-index:4;
+}
+.tm-mascot-eye-l { left: 36%; }
+.tm-mascot-eye-r { left: 53%; }
+.tm-mascot-eye::after {
+  content:''; position:absolute; top:1px; left:1.5px; width:3px; height:3px; border-radius:50%; background: rgba(255,255,255,0.9);
+}
+.tm-mascot-mouth {
+  position:absolute; left:50%; bottom:36px; width:28px; height:14px; transform:translateX(-50%);
+  border:0 solid var(--tm-ink-face); border-bottom-width:3px; border-radius:0 0 28px 28px; z-index:4;
+}
+.tm-mascot-acc {
+  position:absolute; left:50%; top:-14px; transform:translateX(-50%); font-size:1.5rem; z-index:5;
+  filter: drop-shadow(0 2px 3px rgba(0,0,0,0.5));
+}
+.tm-rank-name { font-family: var(--font-display); font-weight:700; font-size:1.1rem; color: var(--tm-ink); text-align:center; }
+.tm-rank-name span { font-weight:500; font-size:0.86rem; color: var(--tm-ink-dim); }
+.tm-rank-band {
+  position:relative; height:9px; margin:10px auto 8px; max-width:240px; border-radius:999px;
+  background: rgba(246,241,234,0.1); overflow:hidden;
+}
+.tm-rank-band > span {
+  display:block; height:100%; border-radius:999px; background: linear-gradient(90deg, var(--litchi), var(--marigold));
+}
+.tm-rank-xp { margin:0; font-size:0.82rem; color: var(--tm-ink-dim); text-align:center; }
+
+/* passport map (copied idiom) */
+.tm-map-wrap { display:flex; justify-content:center; margin-bottom: 12px; }
+.tm-map { width:100%; max-width:240px; height:auto; }
+.tm-map-land { fill: rgba(45,80,22,0.28); stroke: var(--tm-hairline); stroke-width:1.2; stroke-linejoin:round; }
+.tm-pin-dot { fill: rgba(246,241,234,0.22); }
+.tm-pin.is-on .tm-pin-dot, .tm-pin.is-done .tm-pin-dot { fill: var(--marigold); filter: drop-shadow(0 0 5px rgba(var(--accent-rgb),0.9)); }
+.tm-pin.is-done .tm-pin-dot { fill: var(--litchi); }
+.tm-pin-ring { fill:none; stroke: var(--litchi); stroke-width:2; opacity:0.85; }
+.tm-pin-num { fill: var(--tm-ink-face); font-size:9px; font-weight:700; font-family: var(--font-display); }
+.tm-map-legend {
+  display:flex; flex-wrap:wrap; gap:6px 16px; justify-content:center; margin-bottom:12px;
+  font-size:0.74rem; color: var(--tm-ink-dim);
+}
+.tm-map-legend span { display:inline-flex; align-items:center; gap:6px; }
+.tm-leg { width:10px; height:10px; border-radius:50%; }
+.tm-leg-on { background: var(--marigold); }
+.tm-leg-done { background: var(--litchi); box-shadow: 0 0 0 2px rgba(214,76,92,0.4); }
+.tm-leg-off { background: rgba(246,241,234,0.22); }
+.tm-map-bar { height:8px; margin:0 auto 8px; max-width:240px; border-radius:999px; background: rgba(246,241,234,0.1); overflow:hidden; }
+.tm-map-bar > span { display:block; height:100%; border-radius:999px; background: linear-gradient(90deg, var(--marigold), var(--honey)); }
+.tm-map-prog { margin:0; font-size:0.82rem; color: var(--tm-ink-dim); text-align:center; }
+
+/* badges */
+.tm-badge-pop { display:flex; flex-wrap:wrap; gap:8px; margin: 0; }
+.tm-badge-chip {
+  font-size:0.76rem; padding:6px 12px; border-radius:999px; color: var(--tm-ink);
+  background: rgba(var(--accent-rgb),0.14); border:1px solid var(--tm-hairline);
+  display:inline-flex; align-items:center; gap:6px;
+}
+.tm-badge-chip.locked { color: var(--tm-ink-dim); background: rgba(246,241,234,0.04); border-color: rgba(246,241,234,0.12); }
+.tm-badge-chip.locked .lk { opacity: 0.5; }
+
+/* guest reward placeholder */
+.reward-guest {
+  border: 1px dashed var(--tm-hairline);
+  border-radius: 18px;
+  padding: 40px 30px;
+  text-align: center;
+  background: rgba(246,241,234,0.03);
+}
+.reward-guest .gm { font-size: 3rem; margin-bottom: 10px; opacity: 0.85; }
+.reward-guest h3 { font-size: 1.4rem; color: var(--tm-ink); margin: 0 0 8px; }
+.reward-guest p { color: var(--tm-ink-dim); margin: 0 auto 18px; max-width: 44ch; font-size: 0.95rem; }
+.reward-guest .nudge { display:inline-flex; gap:10px; }
+.btn-gold {
+  padding: 11px 22px; border-radius: 999px; border:none; background: var(--marigold); color: var(--tm-bg);
+  font-weight: 700; font-size: 0.95rem; cursor: pointer;
+}
+.btn-ghost {
+  padding: 11px 22px; border-radius: 999px; background: transparent; color: var(--tm-ink);
+  border: 1px solid var(--tm-hairline); font-weight: 600; font-size: 0.95rem; cursor: pointer;
+}
+
+/* dir B side-rail variant */
+.hub-tworail { display: grid; grid-template-columns: 1fr 320px; gap: 24px; }
+.reward-rail { border:1px solid rgba(244,185,66,0.18); border-radius:18px; padding:22px; background: linear-gradient(160deg, rgba(28,23,34,0.9), rgba(11,10,16,0.6)); }
+.reward-rail .reward-col-title { text-align:center; }
+.reward-rail .tm-badge-pop { justify-content:center; }
+.rail-div { height:1px; background: rgba(244,185,66,0.18); margin: 20px 0; }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   HEADER REWARD CHIP (Fork B1) — sits in the real (light) header
+   ═══════════════════════════════════════════════════════════════════════════════ */
+.hdr-demo {
+  width: 1220px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 16px;
+  padding: 14px 28px;
+  box-shadow: var(--shadow);
+}
+.hdr-logo { font-family: var(--font-display); font-weight:700; font-size:1.4rem; color: var(--litchi); }
+.hdr-logo span { color: var(--honey); }
+.hdr-spacer { flex: 1; }
+.hdr-search {
+  flex: 0 1 320px; height: 40px; border-radius: 999px; border: 1px solid var(--border);
+  background: var(--bg); display:flex; align-items:center; padding: 0 16px; color: var(--muted); font-size: 0.9rem; gap: 8px;
+}
+.icon-button {
+  width: 42px; height: 42px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface);
+  display:inline-flex; align-items:center; justify-content:center; color: var(--text); cursor: pointer;
+}
+.icon-button svg { width: 20px; height: 20px; }
+
+/* THE CHIP */
+.reward-chip {
+  display: inline-flex; align-items: center; gap: 9px;
+  height: 42px; padding: 0 14px 0 7px; border-radius: 999px;
+  background: linear-gradient(135deg, rgba(var(--accent-rgb), 0.12), rgba(var(--litchi-rgb), 0.10));
+  border: 1px solid var(--marigold);
+  cursor: pointer;
+}
+.chip-mascot {
+  width: 30px; height: 30px; border-radius: 50%; position: relative; flex: 0 0 auto;
+  background:
+    radial-gradient(circle at 36% 32%, rgba(255,255,255,0.5), transparent 42%),
+    radial-gradient(circle at 64% 70%, var(--litchi), var(--marigold) 78%);
+  box-shadow: inset -3px -3px 6px rgba(0,0,0,0.18);
+}
+.chip-mascot .acc { position:absolute; top:-9px; left:50%; transform:translateX(-50%); font-size:0.85rem; }
+.chip-text { display: flex; flex-direction: column; line-height: 1.15; }
+.chip-tier { font-family: var(--font-display); font-weight:700; font-size:0.82rem; color: var(--text); }
+.chip-tier b { color: var(--honey-dark); }
+.chip-sub { font-size: 0.68rem; color: var(--muted); font-weight: 500; }
+.chip-fruit {
+  display:inline-flex; align-items:center; gap:3px; margin-left: 4px; padding-left: 10px;
+  border-left: 1px solid rgba(var(--accent-rgb), 0.3); font-size: 0.8rem; font-weight: 700; color: var(--forest);
+}
+/* guest chip variant */
+.reward-chip.guest { border-color: var(--border); background: var(--bg); }
+.reward-chip.guest .chip-mascot { filter: grayscale(0.5) opacity(0.7); }
+.reward-chip.guest .chip-tier { color: var(--text); }
+.reward-chip.guest .chip-sub { color: var(--honey-dark); font-weight: 600; }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   HOME TEASER BLOCK (light) — sits near HoneyTeaser
+   ═══════════════════════════════════════════════════════════════════════════════ */
+.home-wrap { width: 1100px; padding: 36px; background: var(--bg); }
+.game-teaser {
+  display: grid; grid-template-columns: 1.1fr 1fr; gap: 0;
+  border-radius: var(--radius); overflow: hidden;
+  background: var(--surface); box-shadow: var(--shadow-lg);
+  border: 1px solid var(--border);
+}
+.gt-copy { padding: 40px 44px; display:flex; flex-direction:column; justify-content:center; }
+.gt-eyebrow {
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.16em; text-transform: uppercase; color: var(--honey-dark);
+  margin-bottom: 12px;
+}
+.gt-title { font-size: 2.25rem; line-height: 1.1; margin: 0 0 14px; color: var(--text); }
+.gt-title em { font-style: normal; color: var(--litchi-dark); }
+.gt-desc { font-size: 1.02rem; color: var(--muted); margin: 0 0 24px; max-width: 36ch; }
+.gt-row { display:flex; align-items:center; gap: 18px; }
+.gt-cta {
+  display:inline-flex; align-items:center; gap:9px; padding: 13px 26px; border-radius:999px; border:none;
+  background: var(--honey); color:#fff; font-weight:700; font-size:1rem; cursor:pointer; box-shadow: var(--shadow);
+}
+.gt-meta { font-size: 0.85rem; color: var(--muted); }
+.gt-meta b { color: var(--forest); }
+.gt-art { position: relative; min-height: 320px; background: linear-gradient(150deg, #221a12, #0b0a10); overflow: hidden; }
+.gt-art img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; opacity: 0.92; }
+.gt-art .gt-art-scrim { position:absolute; inset:0; background: linear-gradient(90deg, var(--surface) 0%, rgba(255,255,255,0) 40%); }
+.gt-stamp {
+  position:absolute; right: 26px; bottom: 26px;
+  display:flex; align-items:center; gap:10px;
+  padding: 10px 16px; border-radius: 14px; background: rgba(11,10,16,0.78);
+  border:1px solid var(--marigold); color: #f6f1ea; backdrop-filter: blur(4px);
+}
+.gt-stamp .sm {
+  width:34px; height:34px; border-radius:50%; position:relative;
+  background: radial-gradient(circle at 36% 32%, rgba(255,255,255,0.5), transparent 42%), radial-gradient(circle at 64% 70%, var(--litchi), var(--marigold) 78%);
+}
+.gt-stamp small { display:block; font-size:0.66rem; color: rgba(246,241,234,0.7); letter-spacing:0.08em; text-transform:uppercase; }
+.gt-stamp b { font-family: var(--font-display); font-size:0.95rem; }
+
+/* ═══════════════════════════════════════════════════════════════════════════════
+   UPDATES CAROUSEL SLIDE (light, reuse .updates-* vocabulary)
+   ═══════════════════════════════════════════════════════════════════════════════ */
+.car-wrap { width: 1100px; padding: 36px; background: var(--bg); }
+.updates-carousel {
+  position: relative; width: 100%; height: 340px; border-radius: var(--radius); overflow: hidden;
+  margin-bottom: 0; box-shadow: var(--shadow);
+}
+.updates-slide { position: absolute; inset: 0; }
+.updates-slide-img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; display:block; }
+.updates-overlay {
+  position:absolute; inset:0;
+  background: linear-gradient(90deg, rgba(17,24,39,0.62) 0%, rgba(17,24,39,0.28) 45%, rgba(17,24,39,0) 75%);
+}
+.updates-caption {
+  position:absolute; left: 56px; top:50%; transform: translateY(-50%); max-width: 60%;
+  display:flex; flex-direction:column; align-items:flex-start; gap: 14px; color:#fff;
+}
+.updates-eyebrow {
+  font-size:0.72rem; font-weight:700; letter-spacing:0.16em; text-transform:uppercase; color: var(--marigold);
+  text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+}
+.updates-caption-row { display:flex; align-items:center; gap:14px; }
+.updates-icon { font-size: 3.4rem; flex:0 0 auto; filter: drop-shadow(0 2px 6px rgba(0,0,0,0.35)); }
+.updates-text { font-size: 1.8rem; font-weight:700; line-height:1.3; text-shadow: 0 2px 8px rgba(0,0,0,0.45); font-family: var(--font-display); }
+.updates-sub { font-size: 1rem; color: rgba(255,255,255,0.9); text-shadow: 0 1px 6px rgba(0,0,0,0.55); max-width: 40ch; }
+.updates-notify {
+  flex:0 0 auto; display:inline-flex; align-items:center; gap:7px; padding: 11px 20px; border:none; border-radius:999px;
+  background: var(--accent); color:#fff; font-size:1rem; font-weight:700; cursor:pointer; box-shadow: 0 4px 14px rgba(0,0,0,0.35);
+}
+.updates-dots { position:absolute; bottom:16px; left:0; right:0; display:flex; justify-content:center; gap:9px; }
+.carousel-dot { width:10px; height:10px; border:none; border-radius:999px; background: rgba(255,255,255,0.5); }
+.carousel-dot.on { background: #fff; width: 22px; }
+</style>
+</head>
+<body>
+
+<!-- ════════════ HUB DIRECTION A — reward panel on TOP, games grid below ════════════ -->
+<div id="shot-hub-dirA-loggedin" class="shot hub taste-match">
+  <div class="hub-bar">
+    <button class="hub-back" aria-label="Back to storefront">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+      Back to shop
+    </button>
+    <div class="hub-title"><span class="eyebrow">MaLLADE Games</span>Taste Arcade</div>
+    <div class="hub-spacer"></div>
+    <div class="hub-prof"><span class="av"></span> Hi, <b>Aanya</b></div>
+  </div>
+  <div class="hub-body">
+    <div class="reward-panel" style="margin-bottom:28px;">
+      <div class="reward-grid">
+        <div>
+          <p class="reward-col-title">Your Taste Rank</p>
+          <div class="tm-rank-stage">
+            <div class="tm-mascot is-t3 tm-mascot-bob">
+              <span class="tm-mascot-aura"></span>
+              <span class="tm-mascot-body"></span>
+              <span class="tm-mascot-leaf"></span>
+              <span class="tm-mascot-eye tm-mascot-eye-l"></span>
+              <span class="tm-mascot-eye tm-mascot-eye-r"></span>
+              <span class="tm-mascot-mouth"></span>
+              <span class="tm-mascot-acc">🧑‍🍳</span>
+            </div>
+          </div>
+          <div class="tm-rank-name">Gourmand <span>· Lvl 3</span></div>
+          <div class="tm-rank-band"><span style="width:29%"></span></div>
+          <p class="tm-rank-xp">380 XP from Connoisseur</p>
+        </div>
+        <div>
+          <p class="reward-col-title">Fruit Passport</p>
+          <div id="passportSlotA"></div>
+        </div>
+        <div>
+          <p class="reward-col-title">Badges · 2 of 6</p>
+          <div id="badgeSlotA"></div>
+        </div>
+      </div>
+    </div>
+
+    <p class="hub-sec-label">Games <small>Play to earn your Taste Rank · more dropping soon</small></p>
+    <div class="games-grid" id="gamesGridA"></div>
+  </div>
+</div>
+
+<!-- ════════════ HUB DIRECTION B — games grid HERO, reward as side rail ════════════ -->
+<div id="shot-hub-dirB-loggedin" class="shot hub taste-match">
+  <div class="hub-bar">
+    <button class="hub-back" aria-label="Back to storefront">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+      Back to shop
+    </button>
+    <div class="hub-title"><span class="eyebrow">MaLLADE Games</span>Taste Arcade</div>
+    <div class="hub-spacer"></div>
+    <div class="hub-prof"><span class="av"></span> Hi, <b>Aanya</b></div>
+  </div>
+  <div class="hub-body">
+    <div class="hub-tworail">
+      <div>
+        <p class="hub-sec-label">Games <small>Taste Match is live · more dropping soon</small></p>
+        <div class="games-grid" id="gamesGridB" style="grid-template-columns: 1fr 1fr;"></div>
+      </div>
+      <aside class="reward-rail">
+        <p class="reward-col-title">Your Taste Rank</p>
+        <div class="tm-rank-stage" style="height:130px;">
+          <div class="tm-mascot is-t3 tm-mascot-bob">
+            <span class="tm-mascot-aura"></span>
+            <span class="tm-mascot-body"></span>
+            <span class="tm-mascot-leaf"></span>
+            <span class="tm-mascot-eye tm-mascot-eye-l"></span>
+            <span class="tm-mascot-eye tm-mascot-eye-r"></span>
+            <span class="tm-mascot-mouth"></span>
+            <span class="tm-mascot-acc">🧑‍🍳</span>
+          </div>
+        </div>
+        <div class="tm-rank-name">Gourmand <span>· Lvl 3</span></div>
+        <div class="tm-rank-band"><span style="width:29%"></span></div>
+        <p class="tm-rank-xp">380 XP from Connoisseur</p>
+        <div class="rail-div"></div>
+        <p class="reward-col-title">Fruit Passport · 5 / 14</p>
+        <div id="passportSlotB"></div>
+        <div class="rail-div"></div>
+        <p class="reward-col-title">Badges</p>
+        <div id="badgeSlotB"></div>
+      </aside>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════ HUB GUEST ════════════ -->
+<div id="shot-hub-guest" class="shot hub taste-match">
+  <div class="hub-bar">
+    <button class="hub-back" aria-label="Back to storefront">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+      Back to shop
+    </button>
+    <div class="hub-title"><span class="eyebrow">MaLLADE Games</span>Taste Arcade</div>
+    <div class="hub-spacer"></div>
+    <button class="btn-ghost" style="padding:8px 18px;">Log in</button>
+  </div>
+  <div class="hub-body">
+    <div class="reward-guest" style="margin-bottom:28px;">
+      <div class="gm">🌱</div>
+      <h3>Play to earn your Taste Rank</h3>
+      <p>Swipe the fruits you love, fill your India Fruit Passport and climb from Sprout to Taste Master.
+         Log in to save your rank, badges &amp; passport across devices — or just start playing now.</p>
+      <div class="nudge">
+        <button class="btn-gold">Play Taste Match</button>
+        <button class="btn-ghost">Log in to save progress</button>
+      </div>
+    </div>
+    <p class="hub-sec-label">Games <small>Free to play · no sign-up needed to start</small></p>
+    <div class="games-grid" id="gamesGridGuest"></div>
+  </div>
+</div>
+
+<!-- ════════════ HOME TEASER (light) ════════════ -->
+<div id="shot-home-teaser" class="shot home-wrap">
+  <div class="game-teaser">
+    <div class="gt-copy">
+      <div class="gt-eyebrow">New · MaLLADE Games</div>
+      <h2 class="gt-title">Find your <em>taste twin</em> in 30 seconds</h2>
+      <p class="gt-desc">Swipe the fruits you crave, unlock your Taste Rank and collect every GI-tagged
+        region on your India Fruit Passport.</p>
+      <div class="gt-row">
+        <button class="gt-cta">
+          Play Taste Match
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </button>
+        <span class="gt-meta"><b>Free</b> · 30 sec · earn a Taste Rank</span>
+      </div>
+    </div>
+    <div class="gt-art">
+      <img src="../../public/taste-match-proto/mango.jpg" alt="" />
+      <div class="gt-art-scrim"></div>
+      <div class="gt-stamp">
+        <span class="sm"></span>
+        <span><small>Your rank</small><b>Gourmand · Lvl 3</b></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════ CAROUSEL SLIDE (light, .updates-* idiom) ════════════ -->
+<div id="shot-carousel-slide" class="shot car-wrap">
+  <div class="updates-carousel">
+    <div class="updates-slide">
+      <img class="updates-slide-img" src="../../public/taste-match-proto/litchi.jpg" alt="" />
+      <div class="updates-overlay"></div>
+      <div class="updates-caption">
+        <span class="updates-eyebrow">New · Taste Arcade</span>
+        <div class="updates-caption-row">
+          <span class="updates-icon">🎮</span>
+          <span class="updates-text">Play Taste Match — find your fruit twin</span>
+        </div>
+        <span class="updates-sub">Swipe to your taste persona &amp; earn a Taste Rank. Free, 30 seconds.</span>
+        <button class="updates-notify">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+          Play now
+        </button>
+      </div>
+      <div class="updates-dots">
+        <span class="carousel-dot"></span>
+        <span class="carousel-dot on"></span>
+        <span class="carousel-dot"></span>
+        <span class="carousel-dot"></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════ HEADER WITH CHIP (logged-in) ════════════ -->
+<div id="shot-header-chip-loggedin" class="shot hdr-demo">
+  <span class="hdr-logo">Ma<span>LLADE</span></span>
+  <div class="hdr-spacer"></div>
+  <div class="hdr-search">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+    Search fruits, origins…
+  </div>
+  <button class="reward-chip" aria-label="Taste Rank: Gourmand level 3, 5 fruits collected, 380 XP to Connoisseur">
+    <span class="chip-mascot"><span class="acc">🧑‍🍳</span></span>
+    <span class="chip-text">
+      <span class="chip-tier"><b>Gourmand</b> · Lvl 3</span>
+      <span class="chip-sub">380 XP to Connoisseur</span>
+    </span>
+    <span class="chip-fruit">🍈 5/14</span>
+  </button>
+  <button class="icon-button" aria-label="Cart">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.6 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg>
+  </button>
+  <button class="icon-button" aria-label="Profile">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+  </button>
+</div>
+
+<!-- ════════════ HEADER WITH CHIP (guest) ════════════ -->
+<div id="shot-header-chip-guest" class="shot hdr-demo">
+  <span class="hdr-logo">Ma<span>LLADE</span></span>
+  <div class="hdr-spacer"></div>
+  <div class="hdr-search">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+    Search fruits, origins…
+  </div>
+  <button class="reward-chip guest" aria-label="Play Taste Match to earn your Taste Rank">
+    <span class="chip-mascot"><span class="acc">🌱</span></span>
+    <span class="chip-text">
+      <span class="chip-tier">Taste Rank</span>
+      <span class="chip-sub">Play to earn yours →</span>
+    </span>
+  </button>
+  <button class="icon-button" aria-label="Cart">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.6 13.4a2 2 0 0 0 2 1.6h9.7a2 2 0 0 0 2-1.6L23 6H6"/></svg>
+  </button>
+  <button class="icon-button" aria-label="Profile">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg>
+  </button>
+</div>
+
+<script>
+// The locked production India outline + region pins (copied verbatim from TasteMatch.tsx).
+const INDIA_VIEWBOX = '0 0 604 611';
+const INDIA_PATH = 'M2,259.8 L13.5,257.4 L14.7,249.7 L35.7,253 L61.2,247.8 L53.1,219.7 L41.8,214.3 L42.8,201.1 L29.6,195.9 L30.2,187.5 L48,167.5 L56.2,174.5 L78.2,168.9 L87.9,151.4 L99.5,145.3 L109.3,125.2 L118.1,121.7 L119.9,114.1 L135,100.8 L133.4,83.5 L149.3,74.7 L136.1,68.5 L135.7,62.7 L129.3,62.4 L122.1,53.1 L125.1,46.1 L121.5,41.3 L127.2,36.3 L120,33.5 L117.8,26.8 L121.2,20.7 L128.2,18.2 L157.2,24 L175.4,18.8 L200.2,2 L205.2,2.4 L211,21.7 L224.2,28.4 L219.2,34.8 L229.4,68.3 L223.2,71.5 L218.7,66.2 L212.3,67.9 L219.4,80.4 L219.6,94.4 L227.1,92.7 L235,101.7 L248.5,106.2 L249.4,111.2 L266.2,120.1 L253.7,129.7 L246.9,149.7 L301.7,178.7 L313.1,182 L329.6,179.3 L353.2,195.7 L360,193.7 L364.6,199 L409.9,203.9 L413.3,196.3 L409.7,187.2 L412.9,169.2 L426.5,167.9 L428.3,183.2 L425.2,186.3 L433.6,194.3 L492.2,193.4 L494,183.8 L483.9,177.8 L484.7,173.4 L503.5,170.7 L518,154.1 L528.5,151.9 L546.2,139 L562,145.1 L575.3,136 L581.9,140.4 L577.4,147.6 L583.5,144.8 L586.5,151.1 L580.3,158.9 L601.7,163.2 L602,169.4 L592.6,177.2 L597.2,187.6 L589.6,182.9 L578.5,184.4 L556.6,199.1 L556.7,211.4 L545.3,227.4 L548,233.4 L536,259.4 L519.5,255.2 L520.4,275.9 L516.2,278.1 L515.9,295.8 L511,301.2 L507.1,298 L504.1,301.4 L497.3,263.7 L490.8,263.6 L484.4,279.3 L480.7,274.4 L478.2,276.5 L475.1,265.9 L479.2,254.6 L489.7,252.3 L497,237.1 L501.9,235.7 L493.3,230.7 L447.7,228 L444.4,207.6 L438.2,212.2 L430.9,203.3 L427,206.8 L417.6,199.9 L419,204.2 L411.7,214.8 L429.6,228.8 L419.4,230.3 L410.5,242.7 L424.9,250.6 L421.7,263.9 L429.1,274.7 L431.6,308.6 L427.6,306.6 L425.3,310.2 L423.2,298.2 L422,308.5 L412.5,309 L414,297.9 L408.8,292.7 L413.3,298.3 L408.9,304.8 L386.5,317.9 L388.9,329.7 L384.3,338.3 L373.3,347.6 L353.4,350.6 L352,354.2 L357.4,353.5 L329.9,383.1 L294,409.6 L291.9,421.5 L271.9,426.4 L265.6,439.2 L258.7,436.2 L251.5,440.3 L246.5,454.4 L251.7,489.6 L248.6,484.5 L246.7,486.9 L252.5,492.3 L239.1,537.7 L242.3,540.3 L242.1,559.6 L231.3,561.1 L223.6,576.4 L225.3,581.5 L233.3,584.7 L213,586.6 L205.5,602.6 L194.4,609.3 L174.5,591.1 L170.3,568.5 L141.5,510 L129.9,467.2 L108.4,423.7 L98.9,375.3 L101.6,366.9 L97.4,365.6 L97.6,360.8 L101.2,361.3 L97.1,359.4 L94.6,349 L99.3,330.4 L93.5,312.9 L103.8,306.5 L92.1,307.7 L95.3,301.6 L91.6,301.5 L92.3,297.4 L97.5,295.8 L84.6,295 L86.5,299 L81.6,304.9 L86.1,311.3 L81.2,319.7 L60.8,328.9 L49.7,326.6 L18.6,294.5 L43.4,288.3 L49.8,276.8 L32.8,284.1 L24,282.2 L11.8,274.6 L7.2,266.1 L14.6,259.9 L3.4,265.6 L2,259.8Z';
+const PINS = [
+  { region: 'Gujarat', x: 60.3, y: 305.4, state: 'on', got: 1, multi: false },
+  { region: 'Maharashtra', x: 134.4, y: 367.4, state: 'done', got: 2, multi: true },
+  { region: 'Uttar Pradesh', x: 282.5, y: 225.6, state: 'off', got: 0, multi: false },
+  { region: 'Bihar', x: 356.5, y: 214.6, state: 'on', got: 1, multi: false },
+  { region: 'Karnataka', x: 157.0, y: 513.6, state: 'off', got: 0, multi: false },
+  { region: 'Kerala', x: 173.4, y: 566.8, state: 'off', got: 0, multi: false },
+];
+function passportSVG(fruitPct) {
+  const pins = PINS.map(p => `
+    <g class="tm-pin is-${p.state}">
+      ${p.state === 'done' ? `<circle class="tm-pin-ring" cx="${p.x}" cy="${p.y}" r="14"/>` : ''}
+      <circle class="tm-pin-dot" cx="${p.x}" cy="${p.y}" r="${p.got > 0 ? 9 : 6}"/>
+      ${p.multi && p.got > 0 ? `<text class="tm-pin-num" x="${p.x}" y="${p.y + 4}" text-anchor="middle">${p.got}</text>` : ''}
+    </g>`).join('');
+  return `
+  <div class="tm-passport tm-passport-map">
+    <div class="tm-map-wrap">
+      <svg viewBox="${INDIA_VIEWBOX}" class="tm-map" role="img" aria-label="India fruit passport — 3 of 6 regions lit, 5 of 14 fruits collected">
+        <path class="tm-map-land" d="${INDIA_PATH}"/>
+        ${pins}
+      </svg>
+    </div>
+    <div class="tm-map-legend">
+      <span><i class="tm-leg tm-leg-on"></i> Discovered</span>
+      <span><i class="tm-leg tm-leg-done"></i> Region complete</span>
+      <span><i class="tm-leg tm-leg-off"></i> Locked</span>
+    </div>
+    <div class="tm-map-bar"><span style="width:${fruitPct}%"></span></div>
+    <p class="tm-map-prog">5 of 14 fruits collected · 3 of 6 regions</p>
+  </div>`;
+}
+const BADGES = [
+  { emoji: '🥭', name: 'Mango Master', unlocked: true },
+  { emoji: '🔥', name: 'On a Roll', unlocked: true },
+  { emoji: '👑', name: 'Rare Taste', unlocked: false },
+  { emoji: '🗺️', name: 'Globe-Trotter', unlocked: false },
+  { emoji: '📖', name: 'Full Passport', unlocked: false },
+  { emoji: '⭐', name: 'Week of Taste', unlocked: false },
+];
+function badgesHTML() {
+  return `<div class="tm-badge-pop">` + BADGES.map(b =>
+    b.unlocked
+      ? `<span class="tm-badge-chip">${b.emoji} ${b.name}</span>`
+      : `<span class="tm-badge-chip locked"><span class="lk">🔒</span> ${b.name}</span>`
+  ).join('') + `</div>`;
+}
+function gamesHTML(featuredBig) {
+  const tm = `
+    <div class="game-card featured" ${featuredBig ? 'style="grid-row: span 2;"' : ''}>
+      <img class="game-card-photo" src="../../public/taste-match-proto/mango2.jpg" alt="" />
+      <div class="game-card-scrim"></div>
+      <div class="game-card-body">
+        <span class="game-tag">★ Featured · Live</span>
+        <h3 class="game-name">Taste Match</h3>
+        <p class="game-desc">Swipe the fruits you love → meet your taste persona &amp; earn a Taste Rank.</p>
+        <button class="game-play">
+          Play
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+        </button>
+      </div>
+    </div>`;
+  const soon1 = `
+    <div class="game-card soon">
+      <div class="game-card-body">
+        <span class="game-soon-emoji">🧠</span>
+        <div class="game-soon-name">Fruit Memory</div>
+        <div class="game-soon-desc">Match the GI pairs against the clock.</div>
+        <span class="game-soon-badge">Coming soon</span>
+      </div>
+    </div>`;
+  const soon2 = `
+    <div class="game-card soon">
+      <div class="game-card-body">
+        <span class="game-soon-emoji">📍</span>
+        <div class="game-soon-name">Origin Quiz</div>
+        <div class="game-soon-desc">Guess the GI region for each fruit.</div>
+        <span class="game-soon-badge">Coming soon</span>
+      </div>
+    </div>`;
+  return tm + soon1 + soon2;
+}
+document.getElementById('passportSlotA').innerHTML = passportSVG(36);
+document.getElementById('passportSlotB').innerHTML = passportSVG(36);
+document.getElementById('badgeSlotA').innerHTML = badgesHTML();
+document.getElementById('badgeSlotB').innerHTML = badgesHTML();
+document.getElementById('gamesGridA').innerHTML = gamesHTML(false);
+document.getElementById('gamesGridB').innerHTML = gamesHTML(true);
+document.getElementById('gamesGridGuest').innerHTML = gamesHTML(false);
+</script>
+</body>
+</html>
