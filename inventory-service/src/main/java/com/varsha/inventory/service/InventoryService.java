@@ -4,14 +4,17 @@ import com.varsha.inventory.dto.Dtos.Line;
 import com.varsha.inventory.dto.Dtos.ReservationResponse;
 import com.varsha.inventory.dto.Dtos.ReserveRequest;
 import com.varsha.inventory.exception.InventoryExceptions.ConflictException;
-import com.varsha.inventory.exception.InventoryExceptions.InsufficientStockException;
 import com.varsha.inventory.exception.InventoryExceptions.NotFoundException;
 import com.varsha.inventory.model.Reservation;
 import com.varsha.inventory.model.ReservationLine;
 import com.varsha.inventory.model.ReservationStatus;
 import com.varsha.inventory.model.StockItem;
+import com.varsha.inventory.model.StockPolicy;
 import com.varsha.inventory.repository.ReservationRepository;
 import com.varsha.inventory.repository.StockItemRepository;
+import com.varsha.inventory.service.policy.ReservationStrategy;
+import com.varsha.inventory.service.policy.ReservationStrategy.StockDelta;
+import com.varsha.inventory.service.policy.StockPolicyResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Sort;
@@ -19,6 +22,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -34,11 +38,16 @@ public class InventoryService {
     private final StockItemRepository stock;
     private final ReservationRepository reservations;
     private final AtpService atp;
+    private final StockPolicyResolver resolver;
 
-    public InventoryService(StockItemRepository stock, ReservationRepository reservations, AtpService atp) {
+    public InventoryService(StockItemRepository stock,
+                            ReservationRepository reservations,
+                            AtpService atp,
+                            StockPolicyResolver resolver) {
         this.stock = stock;
         this.reservations = reservations;
         this.atp = atp;
+        this.resolver = resolver;
     }
 
     @Transactional(readOnly = true)
@@ -62,6 +71,7 @@ public class InventoryService {
             item.setSku(sku);
             item.setAvailableQty(0);
             item.setReservedQty(0);
+            // stockPolicy defaults to FINITE on the Java side (StockItem field default)
         }
         item.setAvailableQty(item.getAvailableQty() + quantity);
         StockItem saved = stock.save(item);
@@ -81,8 +91,14 @@ public class InventoryService {
 
     /**
      * HOLD stock for an order. Idempotent on {@code orderId}: a repeat call returns the existing
-     * reservation without moving stock again. All-or-nothing — if any line lacks stock, nothing
-     * is reserved. SKUs are locked in sorted order to avoid deadlocks under concurrency.
+     * reservation without moving stock again. All-or-nothing — if any line lacks stock (or is
+     * COMING_SOON), nothing is reserved. SKUs are locked in sorted order to avoid deadlocks.
+     *
+     * <p><b>Phase A dispatch (stock-policy seam):</b> per SKU, we read the policy off a
+     * non-locking prefetch, then delegate to the matching {@link ReservationStrategy}. FINITE
+     * is the only active policy in Phase A; all other strategies exist as compile-time stubs.
+     * The two-pass design (non-locking prefetch, then locking only for FINITE/BACKORDER) keeps
+     * the lock scope minimal and the sorted-order deadlock guarantee intact (§6.5 of design doc).
      */
     @Transactional
     public ReservationResponse reserve(ReserveRequest req) {
@@ -91,32 +107,45 @@ public class InventoryService {
             return ReservationResponse.from(existing); // idempotent replay
         }
 
-        // collapse duplicate SKUs, then iterate in sorted (lock) order
+        // Collapse duplicate SKUs, then iterate in sorted (lock) order.
         Map<String, Integer> wanted = new TreeMap<>();
         for (Line l : req.lines()) {
             wanted.merge(l.sku(), l.qty(), Integer::sum);
         }
 
-        Map<String, StockItem> locked = new LinkedHashMap<>();
+        // Non-locking prefetch to read policies for all SKUs in one query.
+        // We do this BEFORE the locking pass so we know which rows need locks.
+        Map<String, StockPolicy> policyMap = loadPolicies(wanted.keySet());
+
+        // Lock rows in sorted order (same TreeMap iteration) — only for lock-requiring policies.
+        // Non-lock policies (COMING_SOON, INFINITE) either throw or skip; they take no lock.
         for (Map.Entry<String, Integer> e : wanted.entrySet()) {
-            StockItem item = stock.findBySkuForUpdate(e.getKey())
-                    .orElseThrow(() -> new NotFoundException("No stock record for SKU: " + e.getKey()));
-            if (item.getAvailableQty() < e.getValue()) {
-                throw new InsufficientStockException(
-                        "Insufficient stock for SKU " + e.getKey()
-                                + ": requested " + e.getValue() + ", available " + item.getAvailableQty());
+            String sku = e.getKey();
+            int qty = e.getValue();
+            StockPolicy policy = policyOf(sku, policyMap);
+            ReservationStrategy strat = resolver.get(policy);
+
+            if (strat.requiresDbLock()) {
+                StockItem locked = stock.findBySkuForUpdate(sku)
+                        .orElseThrow(() -> new NotFoundException("No stock record for SKU: " + sku));
+                // Evaluate while we have the lock — throws InsufficientStockException for 409.
+                StockDelta delta = strat.evaluateReserve(sku, qty, locked);
+                if (delta.availableDelta() != 0 || delta.reservedDelta() != 0) {
+                    locked.setAvailableQty(locked.getAvailableQty() + delta.availableDelta());
+                    locked.setReservedQty(locked.getReservedQty() + delta.reservedDelta());
+                }
+            } else {
+                // No lock needed — still evaluate (may throw for COMING_SOON).
+                strat.evaluateReserve(sku, qty, null);
+                // If evaluateReserve didn't throw, the line is accepted (INFINITE: no-op delta).
             }
-            locked.put(e.getKey(), item);
         }
 
-        // all checks passed — apply the holds
+        // All checks passed — record the reservation with all lines regardless of policy.
         Reservation res = new Reservation();
         res.setOrderId(req.orderId());
         res.setStatus(ReservationStatus.HELD);
         for (Map.Entry<String, Integer> e : wanted.entrySet()) {
-            StockItem item = locked.get(e.getKey());
-            item.setAvailableQty(item.getAvailableQty() - e.getValue());
-            item.setReservedQty(item.getReservedQty() + e.getValue());
             res.getLines().add(new ReservationLine(e.getKey(), e.getValue()));
         }
         return ReservationResponse.from(reservations.save(res));
@@ -133,9 +162,18 @@ public class InventoryService {
         if (res.getStatus() == ReservationStatus.RELEASED) {
             throw new ConflictException("Reservation already released, cannot commit: " + orderId);
         }
+        // Load all line policies in one query.
+        List<String> lineSkus = res.getLines().stream().map(ReservationLine::getSku).toList();
+        Map<String, StockPolicy> policyMap = loadPolicies(lineSkus);
         for (ReservationLine l : res.getLines()) {
-            StockItem item = lockOrThrow(l.getSku());
-            item.setReservedQty(item.getReservedQty() - l.getQty());
+            StockPolicy policy = policyOf(l.getSku(), policyMap);
+            ReservationStrategy strat = resolver.get(policy);
+            if (strat.movesReservedOnCommit()) {
+                StockItem item = lockOrThrow(l.getSku());
+                // Drain reserved. Belt-and-braces: never go below zero (§6.4 mid-flight edge).
+                item.setReservedQty(Math.max(0, item.getReservedQty() - l.getQty()));
+            }
+            // COMING_SOON / INFINITE: no-op (reserved was never bumped)
         }
         res.setStatus(ReservationStatus.COMMITTED);
         res.setUpdatedAt(Instant.now());
@@ -153,13 +191,24 @@ public class InventoryService {
         if (res.getStatus() == ReservationStatus.COMMITTED) {
             throw new ConflictException("Reservation already committed, cannot release: " + orderId);
         }
+        // Load all line policies in one query.
+        List<String> lineSkus = res.getLines().stream().map(ReservationLine::getSku).toList();
+        Map<String, StockPolicy> policyMap = loadPolicies(lineSkus);
         for (ReservationLine l : res.getLines()) {
-            StockItem item = lockOrThrow(l.getSku());
-            item.setAvailableQty(item.getAvailableQty() + l.getQty());
-            item.setReservedQty(item.getReservedQty() - l.getQty());
-            // The order failed/cancelled — give the units back to ATP that checkout decremented, so
-            // they become sellable again. Best-effort; the DB row above is authoritative.
-            atp.credit(l.getSku(), l.getQty());
+            StockPolicy policy = policyOf(l.getSku(), policyMap);
+            ReservationStrategy strat = resolver.get(policy);
+            if (strat.movesReservedOnCommit()) {
+                StockItem item = lockOrThrow(l.getSku());
+                item.setAvailableQty(item.getAvailableQty() + l.getQty());
+                // Belt-and-braces: never go below zero (§6.4 mid-flight edge).
+                item.setReservedQty(Math.max(0, item.getReservedQty() - l.getQty()));
+                // The order failed/cancelled — give the units back to ATP that checkout decremented,
+                // so they become sellable again. Best-effort; the DB row above is authoritative.
+                // Only ledger policies credit ATP; non-ledger policies (COMING_SOON/INFINITE) never
+                // debited a counter, so crediting would wrongly inflate it.
+                atp.credit(l.getSku(), l.getQty());
+            }
+            // COMING_SOON / INFINITE: no stock move, no atp.credit
         }
         res.setStatus(ReservationStatus.RELEASED);
         res.setUpdatedAt(Instant.now());
@@ -169,5 +218,25 @@ public class InventoryService {
     private StockItem lockOrThrow(String sku) {
         return stock.findBySkuForUpdate(sku)
                 .orElseThrow(() -> new NotFoundException("No stock record for SKU: " + sku));
+    }
+
+    /**
+     * Batch non-locking read to classify a set of SKUs by policy. Returns a map sku -> policy.
+     * Absent SKUs (no stock row) default to FINITE in {@link #policyOf} — a missing row will 404
+     * when reserve() attempts the actual lock, which is the correct error for a truly unknown SKU.
+     */
+    private Map<String, StockPolicy> loadPolicies(Iterable<String> skuIterable) {
+        List<String> skuList = new ArrayList<>();
+        skuIterable.forEach(skuList::add);
+        List<StockItem> rows = stock.findAllBySkuIn(skuList);
+        Map<String, StockPolicy> map = new LinkedHashMap<>();
+        for (StockItem s : rows) {
+            map.put(s.getSku(), s.getStockPolicy());
+        }
+        return map;
+    }
+
+    private StockPolicy policyOf(String sku, Map<String, StockPolicy> policyMap) {
+        return policyMap.getOrDefault(sku, StockPolicy.FINITE);
     }
 }

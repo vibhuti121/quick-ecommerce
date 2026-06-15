@@ -2,6 +2,8 @@ package com.varsha.inventory.model;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -36,6 +38,15 @@ public class StockItem {
     @Column(name = "updated_at", nullable = false)
     private Instant updatedAt;
 
+    /**
+     * How this SKU is fulfilled (Flyway V3). Defaults to {@link StockPolicy#FINITE} on the
+     * Java side so a new {@code StockItem} created by {@code addStock} (before persisting) is
+     * FINITE without touching any DTO. The DB DEFAULT 'FINITE' covers every pre-V3 row.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "stock_policy", nullable = false, length = 16)
+    private StockPolicy stockPolicy = StockPolicy.FINITE;
+
     @PrePersist
     @PreUpdate
     void touch() {
@@ -59,4 +70,7 @@ public class StockItem {
 
     public Instant getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(Instant updatedAt) { this.updatedAt = updatedAt; }
+
+    public StockPolicy getStockPolicy() { return stockPolicy; }
+    public void setStockPolicy(StockPolicy stockPolicy) { this.stockPolicy = stockPolicy; }
 }

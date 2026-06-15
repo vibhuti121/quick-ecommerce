@@ -7,6 +7,8 @@ import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 
 public interface StockItemRepository extends JpaRepository<StockItem, Long> {
@@ -21,4 +23,12 @@ public interface StockItemRepository extends JpaRepository<StockItem, Long> {
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select s from StockItem s where s.sku = :sku")
     Optional<StockItem> findBySkuForUpdate(@Param("sku") String sku);
+
+    /**
+     * Batch non-locking read of multiple SKUs — used by the ATP pre-pass to classify policies
+     * before running the Lua script, and by commit/release to read policies in bulk without a
+     * per-line round-trip. No lock; callers that need locking use {@link #findBySkuForUpdate}.
+     */
+    @Query("select s from StockItem s where s.sku in :skus")
+    List<StockItem> findAllBySkuIn(@Param("skus") Collection<String> skus);
 }
