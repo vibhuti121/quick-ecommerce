@@ -1,0 +1,30 @@
+      ↳  50% — ✓ 97 / ✗ 96
+    ✗ checkout has orderId
+      ↳  50% — ✓ 97 / ✗ 96
+
+    CUSTOM
+    journey_errors.................: 49.74% 96 out of 193
+    orders_accepted................: 50.25% 97 out of 193
+
+    HTTP
+    http_req_duration..............: avg=265.31ms min=1.59ms med=47.8ms  max=4.27s  p(90)=752.34ms p(95)=1.43s   
+      { expected_response:true }...: avg=195.23ms min=3.03ms med=48.53ms max=2.16s  p(90)=606.92ms p(95)=933.73ms
+    http_req_failed................: 15.62% 123 out of 787
+    http_reqs......................: 787    12.592515/s
+
+    EXECUTION
+    iteration_duration.............: avg=4.18s    min=2.25s  med=3.76s   max=10.27s p(90)=5.96s    p(95)=7.43s   
+    iterations.....................: 193    3.088126/s
+    vus............................: 1      min=1          max=15
+    vus_max........................: 15     min=15         max=15
+
+    NETWORK
+    data_received..................: 2.7 MB 44 kB/s
+    data_sent......................: 425 kB 6.8 kB/s
+
+
+
+
+running (1m02.5s), 00/15 VUs, 193 complete and 0 interrupted iterations
+journey ✓ [ 100% ] 00/15 VUs  1m0s
+time="2026-06-12T21:24:21Z" level=error msg="thresholds on metrics 'checks, http_req_failed, journey_errors, orders_accepted' have been crossed"

@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>QuickCart — Product Status Report</title>
+<style>
+  :root { --ink:#1a1a2e; --muted:#5b5b76; --line:#e4e4ef; --brand:#5319e7; --ok:#0e8a16; --bad:#b60205; --amber:#d98300; --bg:#faf9ff; }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  @page { size: A4; margin: 13mm 14mm; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: var(--ink); margin: 0; font-size: 13px; line-height: 1.5; }
+  .page { padding: 0; }
+  .page-break { page-break-before: always; }
+  table, .cards, .card, .note, .shot, .hero, .shotblock { page-break-inside: avoid; }
+  h2, h3 { page-break-after: avoid; }
+  .shotblock { margin-bottom: 6px; }
+  h1 { font-size: 27px; margin: 0 0 4px; letter-spacing: -0.5px; }
+  h2 { font-size: 17px; margin: 30px 0 10px; padding-bottom: 6px; border-bottom: 2px solid var(--brand); color: var(--brand); }
+  h3 { font-size: 14px; margin: 18px 0 6px; }
+  p { margin: 8px 0; }
+  .sub { color: var(--muted); font-size: 12px; }
+  .lead { font-size: 13.5px; }
+  .tag { display:inline-block; background:var(--brand); color:#fff; border-radius:20px; padding:2px 12px; font-size:11px; font-weight:600; vertical-align:middle; }
+  .hero { background: linear-gradient(120deg,#5319e7,#8b5cf6); color:#fff; border-radius:14px; padding:26px 30px; margin-bottom:6px; }
+  .hero h1 { color:#fff; }
+  .hero .sub { color:#e8e0ff; }
+  table { width:100%; border-collapse:collapse; margin:10px 0 6px; font-size:12px; }
+  th, td { text-align:left; padding:7px 10px; border-bottom:1px solid var(--line); }
+  th { background:var(--bg); font-weight:600; color:var(--muted); text-transform:uppercase; font-size:10.5px; letter-spacing:.4px; }
+  td.num, th.num { text-align:right; font-variant-numeric: tabular-nums; }
+  .ok { color:var(--ok); font-weight:600; }
+  .bad { color:var(--bad); font-weight:600; }
+  .amber { color:var(--amber); font-weight:600; }
+  .cards { display:flex; gap:12px; margin:14px 0; }
+  .card { flex:1; border:1px solid var(--line); border-radius:10px; padding:14px 16px; background:#fff; }
+  .card .big { font-size:24px; font-weight:700; color:var(--brand); }
+  .card .lbl { font-size:11px; color:var(--muted); }
+  .shot { width:100%; border:1px solid var(--line); border-radius:10px; margin:8px 0 4px; }
+  .cap { font-size:11px; color:var(--muted); font-style:italic; margin:0 0 14px; }
+  .pill { display:inline-block; border-radius:6px; padding:1px 8px; font-size:11px; font-weight:600; }
+  .pill.green { background:#e6f4ea; color:var(--ok); }
+  .pill.red { background:#fde7e7; color:var(--bad); }
+  .pill.amber { background:#fdf1de; color:var(--amber); }
+  .note { background:var(--bg); border-left:3px solid var(--brand); padding:10px 14px; border-radius:0 8px 8px 0; font-size:12px; margin:12px 0; }
+  .foot { margin-top:18px; padding-top:10px; border-top:1px solid var(--line); color:var(--muted); font-size:10.5px; }
+  ul { margin:6px 0; padding-left:20px; }
+  li { margin:3px 0; }
+</style>
+</head>
+<body>
+
+<div class="page">
+  <div class="hero">
+    <span class="tag">PRODUCT STATUS REPORT</span>
+    <h1>⚡ QuickCart</h1>
+    <p class="sub">A plain-English snapshot of what's built — backed by live data from the running system.<br/>
+    Prepared 9 June 2026 · Stage: working prototype (MVP), running end-to-end · Audience: product &amp; business stakeholders</p>
+  </div>
+
+  <h2>1 · The one-paragraph summary</h2>
+  <p class="lead">We have a <b>working online store</b> where a shopper can land, browse products, add them to a cart,
+  and check out — with the order confirmed and saved reliably. It is built the way large retailers build (many small,
+  independent services rather than one big program), so it can grow without being rebuilt. <b>The shopping experience
+  works today.</b> What stands between it and real customers is the <i>operational</i> layer — a real payment company, a
+  live website address, polish and safety nets (Section 5). <span class="sub">Think: the engine, chassis and a
+  test-drive-ready body are built and verified — it drives — but it isn't yet registered, insured or given its final paint.</span></p>
+
+  <div class="cards">
+    <div class="card"><div class="big">10</div><div class="lbl">orders placed end-to-end</div></div>
+    <div class="card"><div class="big">₹4,080</div><div class="lbl">value processed (all CONFIRMED)</div></div>
+    <div class="card"><div class="big">100%</div><div class="lbl">payments reconcile to orders</div></div>
+    <div class="card"><div class="big">12</div><div class="lbl">services running in concert</div></div>
+  </div>
+
+  <h2>2 · What a shopper can do today</h2>
+  <table>
+    <tr><th>Capability</th><th>Status</th><th>What it means for the customer</th></tr>
+    <tr><td>Browse a product catalogue</td><td><span class="pill green">Done</span></td><td>A grid of products with photos, categories and prices</td></tr>
+    <tr><td>Start shopping instantly (no signup)</td><td><span class="pill green">Done</span></td><td>A guest session is created automatically — zero friction</td></tr>
+    <tr><td>Sign in with Google</td><td><span class="pill green">Done</span></td><td>Optional account login for a saved identity</td></tr>
+    <tr><td>Add / remove / change cart quantity</td><td><span class="pill green">Done</span></td><td>A slide-out cart that updates live</td></tr>
+    <tr><td>Check out &amp; place an order</td><td><span class="pill green">Done</span></td><td>One button; order confirmed and saved</td></tr>
+    <tr><td>Get an order confirmation</td><td><span class="pill green">Done</span></td><td>Order number + total shown immediately</td></tr>
+    <tr><td>Order survives a system restart</td><td><span class="pill green">Done</span></td><td>Once placed, an order is never lost</td></tr>
+    <tr><td><b>Pay with a real card / UPI</b></td><td><span class="pill red">Not yet</span></td><td>Payment is currently <i>simulated</i> — no real money moves</td></tr>
+  </table>
+
+  <h2>3 · The live catalogue (straight from the database)</h2>
+  <p class="sub">Five distinct product <i>types</i> are supported out of the box — physical, digital, service, subscription and rental.</p>
+  <table>
+    <tr><th>SKU</th><th>Product</th><th>Category</th><th class="num">Price (₹)</th></tr>
+    <tr><td>RENT-DRILL-001</td><td>Cordless Drill (Daily Rental)</td><td>tools · rental</td><td class="num">149.00</td></tr>
+    <tr><td>SUB-STREAM-001</td><td>StreamPlus Monthly</td><td>media · subscription</td><td class="num">299.00</td></tr>
+    <tr><td>PHY-TSHIRT-001</td><td>Cotton Round-Neck T-Shirt <span class="sub">(S/M/L variants)</span></td><td>apparel · physical</td><td class="num">499.00</td></tr>
+    <tr><td>DIG-EBOOK-001</td><td>Designing Data-Intensive Applications (eBook)</td><td>books · digital</td><td class="num">799.00</td></tr>
+    <tr><td>SVC-CLEAN-001</td><td>Home Deep-Cleaning (2 BHK)</td><td>home-services · service</td><td class="num">1,999.00</td></tr>
+  </table>
+
+  <div class="foot">QuickCart · Product Status Report · page 1</div>
+
+  <div class="page-break"></div>
+  <h2>4 · The shopper's journey — actual screenshots</h2>
+  <p class="sub">Captured 9 June 2026 from the running application. Every step below works in the live prototype.</p>
+
+  <div class="shotblock">
+    <h3>Screen 1 — Storefront (landing + browse)</h3>
+    <img class="shot" src="screenshots/01-storefront.png" />
+    <p class="cap">The ⚡ QuickCart header and catalogue grid showing the five curated products with category badges, prices in ₹, and "Add to cart".</p>
+  </div>
+
+  <div class="shotblock page-break">
+    <h3>Screen 2 — Cart (slides in from the right)</h3>
+    <img class="shot" src="screenshots/02-cart.png" />
+    <p class="cap">The slide-in cart: Cordless Drill ₹149 + StreamPlus ₹299, per-line quantity controls, a running total of ₹448, and one-click Checkout.</p>
+  </div>
+
+  <div class="shotblock">
+    <h3>Screen 3 — Order confirmation</h3>
+    <img class="shot" src="screenshots/03-confirmation.png" />
+    <p class="cap">A <b>real end-to-end checkout</b> — settled through the checkout saga, returning a genuine order id and "Total paid: ₹448". Not a mockup.</p>
+  </div>
+
+  <div class="page-break"></div>
+  <h2>5 · Proof it actually worked — the order behind the screenshot</h2>
+  <p class="sub">This exact order is in the database right now. The screenshot, the order record and the payment record all agree.</p>
+  <table>
+    <tr><th>Field</th><th>Value (from the live <code>order</code> service)</th></tr>
+    <tr><td>Order ID</td><td>b1e0bff2-3fdd-435d-ad10-a75771ac7a54</td></tr>
+    <tr><td>Status</td><td><span class="ok">CONFIRMED</span></td></tr>
+    <tr><td>Total</td><td>₹448.00 INR</td></tr>
+    <tr><td>Placed</td><td>2026-06-09 06:08 UTC</td></tr>
+    <tr><td>Idempotency key</td><td><span class="sub">7d0ab80a-… (guarantees no double-charge on retry)</span></td></tr>
+  </table>
+  <table>
+    <tr><th>Line item</th><th>SKU</th><th class="num">Unit (₹)</th><th class="num">Qty</th></tr>
+    <tr><td>Cordless Drill (Daily Rental)</td><td>RENT-DRILL-001</td><td class="num">149.00</td><td class="num">1</td></tr>
+    <tr><td>StreamPlus Monthly</td><td>SUB-STREAM-001</td><td class="num">299.00</td><td class="num">1</td></tr>
+    <tr><td colspan="2"><b>Order total</b></td><td class="num"><b>448.00</b></td><td class="num"><b>2</b></td></tr>
+  </table>
+
+  <div class="note"><b>Reconciliation check (the money adds up):</b> across all activity the database holds
+  <b>10 CONFIRMED orders = ₹4,080</b> and <b>10 SUCCESS payments = ₹4,080</b>. Orders and payments match to the rupee —
+  exactly the integrity a finance team would audit for.</div>
+
+  <h2>6 · The honest path to live</h2>
+  <table>
+    <tr><th>Priority</th><th>What's needed</th><th>Rough effort</th></tr>
+    <tr><td><span class="pill red">Blocker</span></td><td>Real payment provider (Razorpay) — replace simulated payments</td><td>~1.5–2 weeks</td></tr>
+    <tr><td><span class="pill red">Blocker</span></td><td>Live website + domain + browser-trusted certificate</td><td>~1 week</td></tr>
+    <tr><td><span class="pill red">Blocker</span></td><td>Proper hosting + managed database with backups</td><td>~3–4 days</td></tr>
+    <tr><td><span class="pill amber">Needed</span></td><td>Alerts, money-logic tests, real product data &amp; photos, fuller storefront</td><td>~2 weeks</td></tr>
+    <tr><td><span class="pill green">Parallel</span></td><td>Compliance: payment KYC, privacy/terms/refund policies, any licensing</td><td>calendar time</td></tr>
+  </table>
+  <p class="sub"><b>Realistic timeline to a first real order:</b> ~4–6 weeks of focused work plus payment-provider approval time.
+  This is broken into 14 concrete tickets under the <b>"Phase A — Make it sellable"</b> milestone (GitHub issues #5–#18).</p>
+
+  <div class="note"><b>Already production-grade (not being redone):</b> the checkout saga, no-double-charge (idempotency),
+  no-oversell (stock reservation), restart-durability, role-based access control, rate-limiting, TLS at the edge,
+  and an automated build + 16-check smoke + security-scan quality gate.</div>
+
+  <div class="foot">QuickCart · Product Status Report · generated 9 June 2026 from live system data</div>
+</div>
+
+</body>
+</html>
