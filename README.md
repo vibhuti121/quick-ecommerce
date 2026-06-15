@@ -361,6 +361,28 @@ Frontend changes aren't verified by `npm run build`
 alone — rebuild the `frontend` container and grep the served bundle (`docker compose exec -T frontend
 grep -ro "honey-teaser" /usr/share/nginx/html/assets`).
 
+**"Taste Arcade" games hub (`?games`).** The Taste Match game is surfaced on home through a small games
+ecosystem. A **`GamesHub`** ("Taste Arcade", `components/GamesHub.tsx`) opens as an **overlay rendered
+inside the storefront** at `?games` (no new router dep — it extends the existing URL-param sniff and uses
+`history.pushState`/`popstate`, so the browser Back button and the in-hub "‹ Back to shop" both return
+home **without remounting the SPA**, i.e. a logged-in shopper stays logged in). The hub (Direction A) puts
+a **reward panel on top** — the player's Taste Rank mascot, the India Fruit Passport map, and the badge
+grid (all the same components Taste Match renders, now exported and reused) — over a **games grid**: Taste
+Match (Featured · Live) plus *Fruit Memory* and *Origin Quiz* as disabled "Coming soon" slots. Guests see
+the same grid under a "Play to earn your Taste Rank" placeholder (still free to play; no new gate). Two
+home entry points route into it: a light **`GameTeaser`** editorial block near the `HoneyTeaser`, and a
+**Taste Arcade slide** in the `UpdatesCarousel`. An always-present **reward chip** in the `Header` (B1)
+shows the rank/level/XP-to-next + a `🍈 N/14` passport count (guest variant nudges "Play to earn yours
+→") and is the persistent entry point. **Persistence (V7, live):** for a logged-in player, a completed run
+fires `POST /api/catalog/taste/profile` (`upsertTasteProfile`) to save progress server-side, and the chip
++ hub read server truth via `GET /api/catalog/taste/profile`, falling back to localStorage when the seam
+returns null; **guests never call it** (the `/api/catalog/taste/**` paths stay authenticated — a `guest-`
+token → 401/403 → localStorage only). The game itself still launches at `?taste-match` in `PROTOTYPE_MODE`
+(the demand/notify flip stays a separate go-live gate). No cart/checkout/honey logic lives in these
+surfaces — **honey/ghee stay non-buyable and the checkout gate is untouched**. All new gold CTAs use the
+marigold + charcoal / `--tm-bg` pairing for **AA** contrast; entrance motion is two-layer reduce-motion
+gated.
+
 **Tear down:**
 ```bash
 docker compose down                   # keep data (named volumes survive)
