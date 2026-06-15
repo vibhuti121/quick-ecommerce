@@ -79,18 +79,22 @@ codemap instead of re-deriving architecture from source).
   `~/mallde/`. Never write under `.claude/` from a headless run (it is hard-blocked).
 - **Commit only when explicitly asked.** Do not commit or push on your own.
 
-## 7. Planned (NOT yet built): `tech-debt-finder`
+## 7. Built: `tech-debt-finder` (read-only audit agent)
 
-A future **read-only audit agent** — not implemented yet, do not assume it exists. When built, its
-contract will be:
+Live at `.claude/agents/tuned/tech-debt-finder.md`, registered in `.claude/varsha-routing.md`. Route to
+it via `/varsha` with "find the tech debt / audit <service> / what breaks first". Contract:
 
-- **Sweeps the repo** for tech debt across system-design, security, and correctness, reusing the
-  codemap to stay token-cheap; it does **not** duplicate `sysdesign` / `security-agent` /
-  `dependency-auditor` — it surfaces issues and points deep ones at those specialists.
-- **Reports only — never fixes.** It writes a **severity-ranked report** under `docs/tech-debt/`
-  (modeled on the `docs/scaling-quest/PROGRESS.md` ledger), with file:line, severity, and a suggested
-  fix per finding.
-- **Routing:** findings are fed back into `/varsha`, which dispatches the chosen items to
-  `backend-orchestrator` / `devops` / `sysdesign` etc. Finder **diagnoses**, `/varsha` **dispatches**,
-  orchestrators **fix**. (A subagent cannot invoke `/varsha` itself — the hand-off is an explicit
-  step, not something the finder does.)
+- **Scoped per invocation, on-demand only.** The caller targets a service, a single lens (e.g.
+  security-only), or changed-files-since-a-ref; whole-repo is an explicit call. No background routine.
+- **Sweeps** for system-design, security, and correctness debt — reusing the codemap to stay
+  token-cheap and weighting the classes the build gate is blind to (Flyway-at-boot, HTTP-contract drift,
+  runtime authz holes). It does **not** duplicate `sysdesign` / `security-agent` / `dependency-auditor` —
+  it surfaces issues and points deep ones at those specialists.
+- **Reports only — never fixes.** Writes a **severity-ranked ledger** under `docs/tech-debt/`
+  (`README.md` index + `P0-critical.md` / `P1-high.md` / `P2-medium.md` / `P3-low.md`), each finding a
+  row with stable ID, `file:line`, failure mode, and suggested fix. Edits no source; runs no
+  build/deploy/migration; never commits.
+- **Routing:** findings feed back into `/varsha`, which dispatches each to the named owner
+  (architecture → `sysdesign`, security → `backend-orchestrator`, CVEs → `qa-orchestrator`, "broken now"
+  → `problem-solver`). Finder **diagnoses**, `/varsha` **dispatches**, orchestrators **fix**. (A subagent
+  cannot invoke `/varsha` itself — feeding its Route plan back in is the caller's explicit step.)

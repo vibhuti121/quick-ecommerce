@@ -25,6 +25,7 @@ PROJECT PROFILE + the scoped task. Spawn independent domains in parallel.
 | Deploy / `docker-compose.prod` / Cloudflare / TLS / backups / "take it live" / "box" | **devops** | `devops-orchestrator` |
 | Architecture / scaling / 0→1M roadmap / schema design / service split-merge / cost-at-N | **sysdesign** | `architecture-agent` |
 | "Where is X / how does Y work / which file owns Z" / repo orientation | **codebase-explorer** | `code-navigator` |
+| Tech-debt audit / "find the tech debt" / "what breaks first" / sys-design+security smell sweep | **tech-debt-finder** | — |
 | Backend service / REST endpoint / entity / DB query / business logic | — | `backend-orchestrator` |
 | QA gate / tsc / build broken / contract check (auto after every change) | — | `qa-orchestrator` |
 | Infra / `.env` / OAuth client / secrets / cloud project setup | — | `infra-orchestrator` |
@@ -50,3 +51,10 @@ PROJECT PROFILE + the scoped task. Spawn independent domains in parallel.
 - The generic backend/qa/infra/realtime/problem-solver/ops-resolver/protocol/research agents have **no
   tuned equivalent** in this repo — they are the primary path for their domain.
 - This repo is `realtime: yes` (coturn present) → `realtime-orchestrator` is live, not dormant.
+- `tech-debt-finder` is a **read-only auditor** — it is scoped per invocation (a service / a lens /
+  changed-files; whole-repo is an explicit call), reads the codemap first, and writes a severity-ranked
+  ledger under `docs/tech-debt/` (P0–P3 + README). It **diagnoses, never fixes**: it surfaces findings
+  and names the fix owner, then Varsha dispatches each — architecture → `sysdesign`, security →
+  `backend-orchestrator` (→ `security-agent`), CVEs → `qa-orchestrator` (→ `dependency-auditor`),
+  "is it broken now" → `problem-solver`. A subagent can't call `/varsha`, so feeding its Route plan back
+  into Varsha is the caller's explicit next step.
