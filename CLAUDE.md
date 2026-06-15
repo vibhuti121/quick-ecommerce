@@ -98,3 +98,33 @@ it via `/varsha` with "find the tech debt / audit <service> / what breaks first"
   (architecture → `sysdesign`, security → `backend-orchestrator`, CVEs → `qa-orchestrator`, "broken now"
   → `problem-solver`). Finder **diagnoses**, `/varsha` **dispatches**, orchestrators **fix**. (A subagent
   cannot invoke `/varsha` itself — feeding its Route plan back in is the caller's explicit step.)
+
+## 8. Built: `/pm` — Product-Manager hub (Layer 0.5, read-only)
+
+Live at `~/.claude/commands/pm.md`, registered in `.claude/varsha-routing.md`. A **sibling hub skill** the
+founder invokes directly (`/pm`) when the question is *"what should we improve / build next"* or *"audit the
+whole product and give me a ranked plan"* — not a spawnable subagent (`/varsha` doesn't spawn it). Contract:
+
+- **Product lane only.** It improves the **software product** — FE/BE code, tech debt, reliability,
+  performance, UX-interactivity, accessibility, feature-completeness. It is **NOT** responsible for the
+  business plan / GTM / demand / revenue — those stay with the founder + `coo-advisor` + `growth-lead`. It
+  makes the product *retention-worthy*; they do the retaining. It takes **direction** from founder inputs but
+  is measured on **product quality**.
+- **Diagnoses + prioritizes + routes — never fixes** (same contract as §7's `tech-debt-finder`). It runs an
+  **intake interview** (job #1), fans out **read-only** to `tech-debt-finder` / `fe-quality`+`fe-commerce` /
+  `sysdesign` / `growth-lead`, **RICE-scores** the merged findings against a 6-dimension **Product Health
+  Score** (reliability · performance · code-health · UX-interactivity · a11y · feature-completeness), and
+  writes a ledger under `docs/product/` (`README.md` + `BACKLOG.md` + `HEALTH.md`). It edits **no** source,
+  runs **no** build/deploy/migration, **never commits**.
+- **North star + cadence.** Small verified **kaizen cycles** raising the Product Health Score; default each
+  cycle attacks the lowest sub-score unless founder intake overrides. 3-month goal = make quick-ecommerce the
+  best fruit-commerce product that **holds customers** (retention-grade quality). Cycle-1 seed directive =
+  improve the **gaming centre + its scoring algorithm** (`TasteMatch`/`FruitQuiz`/`tasteMatch.ts`).
+- **Algorithm rule (hard).** Any scoring-algorithm proposal MUST show real math on the real code vars +
+  improvement-over-time + accuracy/uncertainty band, and be validated on the `scoreSim` harness — no
+  strategy-only proposals (per the founder's standing rule).
+- **Routing:** `/pm`'s picks feed back into `/varsha`, which dispatches each to the named owner (architecture
+  → `sysdesign`, FE → `fe-lead`, commerce-UX → `fe-commerce`, backend/security → `backend-orchestrator`, CVEs
+  → `qa-orchestrator`, "broken now" → `problem-solver`). PM **prioritizes**, `/varsha` **dispatches**,
+  orchestrators **build**. (A skill cannot invoke `/varsha` itself — feeding its Route plan back in is the
+  founder's explicit step.)

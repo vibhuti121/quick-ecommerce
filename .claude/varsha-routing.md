@@ -26,6 +26,7 @@ PROJECT PROFILE + the scoped task. Spawn independent domains in parallel.
 | Architecture / scaling / 0→1M roadmap / schema design / service split-merge / cost-at-N | **sysdesign** | `architecture-agent` |
 | "Where is X / how does Y work / which file owns Z" / repo orientation | **codebase-explorer** | `code-navigator` |
 | Tech-debt audit / "find the tech debt" / "what breaks first" / sys-design+security smell sweep | **tech-debt-finder** | — |
+| Product prioritization / "what should we improve / build next" / holistic FE+BE product audit → scored backlog | **`/pm`** (sibling hub skill — founder-invoked, see Notes) | — |
 | Backend service / REST endpoint / entity / DB query / business logic | — | `backend-orchestrator` |
 | QA gate / tsc / build broken / contract check (auto after every change) | — | `qa-orchestrator` |
 | Infra / `.env` / OAuth client / secrets / cloud project setup | — | `infra-orchestrator` |
@@ -58,3 +59,12 @@ PROJECT PROFILE + the scoped task. Spawn independent domains in parallel.
   `backend-orchestrator` (→ `security-agent`), CVEs → `qa-orchestrator` (→ `dependency-auditor`),
   "is it broken now" → `problem-solver`. A subagent can't call `/varsha`, so feeding its Route plan back
   into Varsha is the caller's explicit next step.
+- **`/pm`** is a **Layer-0.5 sibling HUB skill**, not a spawnable subagent — Varsha does **not** spawn it
+  (it's a slash command the founder runs). It improves the *software product only* (FE/BE/debt/reliability/
+  perf/UX-interactivity/a11y/feature-completeness); business/GTM/demand/revenue stay with the founder +
+  `coo-advisor` + `growth-lead`. It fans out **read-only** to `tech-debt-finder` / `fe-quality`+`fe-commerce` /
+  `sysdesign` / `growth-lead`, RICE-scores against a 6-dimension **Product Health Score**, writes a ledger
+  under `docs/product/` (it **diagnoses, never fixes** — same contract as `tech-debt-finder`), and ends with a
+  Route plan the **founder feeds back into `/varsha`** for dispatch. So for a holistic "make the product
+  better / what should we build next" ask, point the founder to **`/pm`**; for a single scoped build, route
+  the domain directly as usual.
