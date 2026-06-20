@@ -97,6 +97,21 @@ icons, and ≥18px/bold.
   free; cart carries over on sign-in. UI shows "Sign in to place your order." Preserve on any cart change.
 - Video-call gating (logged-in customers only) is also invariant — don't touch `VideoCall/` for catalogue work.
 
+## 4c. Backend owns logic — frontend is PRESENTATION ONLY (INVARIANT — do not break)
+You (fe-lead / fe-build / fe-commerce) write **presentation only**: fetch, render, capture input. **No
+business logic in the frontend** — no algorithms, scoring, business rules, validation, derivations, or
+business-meaning data (curated mappings, eligibility/exclusion rules, price/quantity math, dedupe). All
+of that is a **backend endpoint you call**. If a task needs logic, **fe-lead escalates to the backend
+through `/varsha`** (→ `sysdesign` + `backend-orchestrator`) — do not implement it in TypeScript.
+Surfacing data the backend already serves (§6) is fine; *computing business meaning* in the client is
+not. (CLAUDE.md §9.)
+
+## 4d. Routing — path-based for pages (CONVENTION)
+Distinct full-screen **pages** get real `react-router-dom` **paths** (e.g. `/fruit-xi`), never `?query`
+flags. Drawers/modals/overlays (cart, profile, product detail) stay **state-driven** — still
+modern-correct. Migrate legacy `?games`/`?taste-match` overlays to routes opportunistically. New pages
+default to a path. (CLAUDE.md §10.)
+
 ---
 
 ## 5. Component inventory (REUSE — don't recreate)
@@ -544,3 +559,31 @@ For **each UI surface** we change, run this loop — this is the core ritual of 
   honey-dark-on-cream 4.08:1); fe-lead fixed using established house token pairings — `.gt-cta` & `.game-play` →
   --marigold bg + --text/--tm-bg label (6.14:1 / 11.14:1), `.gt-eyebrow` → --text (10.25:1), `.chip-tier b` → --litchi-dark
   (5.27:1); re-verified in the served bundle, all 4 now ≥AA. NOT committed/pushed (founder commits only when asked).
+- 2026-06-20 · Fruit XI fan-box page · chosen: **Team-kit-coloured 4-3-3 pitch builder** (AUTO-MODE —
+  founder rule: pick strongest direction, don't block on AskUserQuestion) · why: a World-Cup-2026 fan
+  ritual that's instantly legible (tap a slot, tap a fruit → a lineup); kit colours come straight off
+  the team API record as inline `--kit-primary/--kit-secondary` (the hex IS the data — zero client-side
+  colour mapping); premium/warm via the existing token layer + a forest-pitch motif. Repo's FIRST router
+  (CLAUDE.md §10): `react-router-dom` 6.30.4, `<BrowserRouter>` in main.tsx, `<Routes>` in App.tsx
+  (`/`→Storefront, `/fruit-xi`→FruitXiPage, `/taste-match`→TasteMatchApp w/ one-release `?taste-match`
+  redirect, `*`→`/`); drawers/`?call=` stay state-driven. PRESENTATION ONLY (CLAUDE.md §9): teams,
+  dedupe, honey-exclusion, colour-match autofill, and the box TOTAL are ALL server-computed
+  (`/api/catalog/fruit-xi/{teams,box,autofill}`); the page only renders responses + drives the existing
+  add-to-cart loop + the existing notify() demand path. New: `pages/FruitXiPage.tsx`,
+  `components/FruitXi/{PitchBuilder,FruitTray,XiShareCard}.tsx`; edited `api.ts`/`types.ts` (thin
+  wrappers + mirror types), `main.tsx`/`App.tsx` (router), `Header.tsx` (Link), `index.css` (scoped
+  `.fruit-xi-*`/`.pitch-*`/`.tray-fruit-*`/`.xi-share-*` + reduced-motion guard). QA (fe-quality):
+  `npm run build` clean (tsc strict + vite, 0 errors; only the pre-existing >500kB chunk advisory);
+  **container-truth** — rebuilt frontend container, all served-bundle markers HIT in
+  `/usr/share/nginx/html/assets/` (JS: fruit-xi/teams ×1, fruit-xi/box ×1, fruit-xi/autofill ×1,
+  "Build your Fruit XI" ×3; CSS: fruit-xi-pitch ×1, pitch-jersey ×9); SPA deep-link `/fruit-xi` AND
+  `/taste-match` both return 200 + index.html (nginx try_files fallback). Heavy services (ELK/OpenSearch/
+  videocall/backend) kept DOWN per founder lean-testing rule; gateway can't boot without backend deps so
+  verified against the frontend nginx directly. INVARIANTS: honey-not-buyable ✓ (server excludes honey
+  from /box as HONEY_NOT_BUYABLE + tray disables coming-soon; page never re-introduces it); checkout-gate
+  ✓ (page only adds to cart — guest cart is free; order placement still needs a non-guest account,
+  untouched). BACKEND-CONTRACT NOTE: task spec asked to fire notify with a `team` field, but the real
+  `NotifyExtra` is `{name?, source?, fruits?}` (no team) and notify() REQUIRES pincode/city/state — so
+  the demand signal reuses the shared `NotifyForm` (complete valid POST) and folds the team code into
+  `source` as `fruit-xi:<CODE>` rather than send an invalid body. Not committed/pushed (founder commits
+  only when asked). [Figma: n/a — in-code build, AUTO-MODE]

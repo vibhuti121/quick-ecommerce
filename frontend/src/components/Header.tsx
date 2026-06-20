@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { peekTier, tierProgress, TIERS } from '../lib/tasteXp';
 import { peekPassport } from '../lib/tastePassport';
 import { isLoggedIn } from '../lib/tasteProfile';
@@ -100,6 +101,13 @@ export default function Header({ itemCount, onOpenCart, onOpenProfile, onOpenGam
             </span>
           )}
         </button>
+
+        {/* Fruit XI fan-box entry — a real path-based route (CLAUDE.md §10), so a react-router Link, not
+            an anchor: client-nav, no full reload. */}
+        <Link className="fruit-xi-nav" to="/fruit-xi">
+          <span aria-hidden="true">⚽</span>
+          <span>Build your Fruit XI</span>
+        </Link>
 
         <button className="profile-button" onClick={onOpenProfile} aria-label="Open profile">
           <span className="profile-icon">👤</span>

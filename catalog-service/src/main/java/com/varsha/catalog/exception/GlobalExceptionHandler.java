@@ -33,4 +33,27 @@ public class GlobalExceptionHandler {
                 .collect(Collectors.joining("; "));
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, detail);
     }
+
+    /**
+     * Fruit XI: unknown team code in /box or /autofill.
+     * Returns 400 with code UNKNOWN_TEAM matching the cart-service ProblemDetail idiom.
+     */
+    @ExceptionHandler(UnknownTeamException.class)
+    public ProblemDetail handleUnknownTeam(UnknownTeamException ex) {
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+        pd.setProperty("code", "UNKNOWN_TEAM");
+        return pd;
+    }
+
+    /**
+     * Fruit XI: null/empty lineup in /box.
+     * Returns 400 with code EMPTY_LINEUP. Distinct from a 200 where all ids resolved to excluded
+     * items (that path goes through /box normally and returns items=[]).
+     */
+    @ExceptionHandler(EmptyLineupException.class)
+    public ProblemDetail handleEmptyLineup(EmptyLineupException ex) {
+        ProblemDetail pd = ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+        pd.setProperty("code", "EMPTY_LINEUP");
+        return pd;
+    }
 }

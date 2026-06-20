@@ -137,6 +137,62 @@ export interface DeviceTasteProgress {
   pincode?: string;
 }
 
+// ---- Fruit XI fan-box (the /fruit-xi page) --------------------------------------------------
+// Shapes of the catalog-service /api/catalog/fruit-xi/* responses. PRESENTATION ONLY: the FE never
+// derives team data, kit colours, dedupe, the honey-exclusion, or the total — every value here comes
+// straight off the backend (curated teams, server-summed total, server-excluded honey). See CLAUDE.md §9.
+
+// One curated WC-2026 team. flag is an emoji; the two colours are hex strings (e.g. "#ffdf00") applied
+// as inline style to theme the pitch/jerseys — never mapped/computed client-side.
+export interface WorldCupTeam {
+  code: string;          // "BRA"
+  name: string;          // "Brazil"
+  flag: string;          // 🇧🇷
+  colorPrimary: string;  // hex
+  colorSecondary: string;// hex
+}
+
+// One line of a composed fan box (also the autofill pick shape, sans the colour-bucket extras). Carries
+// exactly the fields the existing add-to-cart path consumes — note basePrice (NOT price) + currency.
+export interface FruitXiItem {
+  productId: number;
+  sku: string;
+  name: string;
+  basePrice: number;
+  currency: string;
+  imageUrl: string | null;
+  quantity: number;      // always 1 per contract
+}
+
+// Why a productId didn't make the box. reason is a server enum — rendered honestly, never re-derived.
+export interface FruitXiExcluded {
+  productId: number;
+  reason: 'DUPLICATE' | 'HONEY_NOT_BUYABLE' | 'NOT_FOUND_OR_INACTIVE' | string;
+}
+
+// POST /api/catalog/fruit-xi/box response. total is server-computed.
+export interface FruitXiBox {
+  team: string;
+  items: FruitXiItem[];
+  excluded: FruitXiExcluded[];
+  total: number;
+}
+
+// One autofill pick — the box item shape plus the backend's transparency fields.
+export interface AutofillItem extends FruitXiItem {
+  colorBucket: string;   // RED | ORANGE | YELLOW | GREEN | PURPLE | WHITE | UNCLASSIFIED
+  explain: string;       // the rule that placed it, e.g. "attribute:kitColor"
+}
+
+// POST /api/catalog/fruit-xi/autofill response. filled may be < requested when the catalogue is small —
+// we render exactly `filled` items (no padding).
+export interface AutofillResult {
+  team: string;
+  requested: number;     // always 11
+  filled: number;        // actual count returned
+  items: AutofillItem[];
+}
+
 // A wishlisted product — client-side only (localStorage). Stores just enough to render the tab.
 export interface WishlistItem {
   id: number;

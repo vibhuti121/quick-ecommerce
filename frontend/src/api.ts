@@ -1,9 +1,11 @@
 import type {
+  AutofillResult,
   Cart,
   CartItem,
   DeliveryDetails,
   DeliveryStatus,
   DeviceTasteProgress,
+  FruitXiBox,
   Order,
   OrderStatus,
   OrderSummary,
@@ -12,6 +14,7 @@ import type {
   TasteProfile,
   UserProfile,
   Variant,
+  WorldCupTeam,
 } from './types';
 
 // Everything goes through the API gateway (the real edge), not the individual services. In production
@@ -613,6 +616,37 @@ export async function upsertTasteProfile(
   } catch {
     return null;
   }
+}
+
+// ---- Fruit XI fan-box (the /fruit-xi page) ----------------------------------
+// Thin CALL-ONLY wrappers over catalog-service /api/catalog/fruit-xi/* — PUBLIC (rides the existing
+// gateway /api/catalog/** route; the /fruit-xi prefix is whitelisted in AuthFilter PUBLIC_PATHS, so no
+// auth header is needed and request()'s guest-token attach is harmless). NO logic here by design
+// (CLAUDE.md §9): the curated teams, kit colours, dedupe, the honey-exclusion and the server-summed
+// total ALL come from the backend — these just fetch + return the typed JSON. The `box` items carry the
+// exact fields addToCart consumes, so the page reuses the existing add-to-cart loop unchanged.
+
+// The 20 curated WC-2026 teams (code/name/flag + the two kit-colour hexes used to theme the pitch).
+export async function getFruitXiTeams(): Promise<WorldCupTeam[]> {
+  return request<WorldCupTeam[]>('/api/catalog/fruit-xi/teams');
+}
+
+// Compose a fan box from the user's lineup. The server dedupes, excludes honey (HONEY_NOT_BUYABLE) and
+// missing/inactive SKUs, and sums the total — we never touch any of that, just render what comes back.
+export async function composeFanBox(team: string, lineup: number[]): Promise<FruitXiBox> {
+  return request<FruitXiBox>('/api/catalog/fruit-xi/box', {
+    method: 'POST',
+    body: JSON.stringify({ team, lineup }),
+  });
+}
+
+// Ask the backend for its deterministic, kit-colour-matched suggested XI (same team → byte-identical
+// order). `filled` may be < 11 when the catalogue is small — the page renders exactly what's returned.
+export async function autofillXi(team: string): Promise<AutofillResult> {
+  return request<AutofillResult>('/api/catalog/fruit-xi/autofill', {
+    method: 'POST',
+    body: JSON.stringify({ team }),
+  });
 }
 
 export function formatPrice(value: number): string {

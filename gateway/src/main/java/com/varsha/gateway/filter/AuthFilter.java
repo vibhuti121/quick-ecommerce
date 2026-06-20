@@ -43,6 +43,10 @@ public class AuthFilter implements GlobalFilter, Ordered {
         // public launch-interest signup ("Notify me"). Note: /api/catalog/admin/notify does NOT startsWith
         // this, so the admin list stays behind the ADMIN_PATHS check below.
         "/api/catalog/notify",
+        // Fruit XI fan-box (WC-2026 themed) — all three endpoints are public (anonymous fans can
+        // browse teams, compose a box, and get an autofill without a login). The prefix startsWith
+        // check covers /fruit-xi/teams, /fruit-xi/box, and /fruit-xi/autofill in one line.
+        "/api/catalog/fruit-xi",
         // WebRTC signaling (video calls). The socket carries the short-lived call GRANT in its handshake
         // auth payload — NOT an Authorization header — so the gateway can't gate the WS upgrade here;
         // signaling-service verifies the grant itself (separate VIDEOCALL_GRANT_SECRET, fail-closed).

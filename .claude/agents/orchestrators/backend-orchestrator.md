@@ -16,6 +16,11 @@ tools: Read, Bash, Grep, Agent(model-agent,controller-agent,config-agent,build-a
 ## Responsibility
 Build and maintain all backend services. Each service is a separate sub-task.
 
+> **Ownership (CLAUDE.md §9):** the backend owns **all business logic** — algorithms, business rules,
+> validation, scoring, and business-meaning data live here and are exposed via endpoints. The frontend
+> is presentation only; if a task implies logic, it is **yours** (or `sysdesign`'s to spec), never the
+> frontend's.
+
 ## Input
 ```
 service_name: the service named in the task — one of the PROFILE `services` list
