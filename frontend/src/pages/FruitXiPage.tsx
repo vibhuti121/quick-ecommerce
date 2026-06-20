@@ -207,12 +207,17 @@ export default function FruitXiPage() {
       {/* Minimal page chrome — a back link home + the brand, no full storefront header (this is a
           focused builder surface). */}
       <header className="fruit-xi-topbar">
-        <Link to="/" className="fruit-xi-back" aria-label="Back to the shop">
+        {/* a11y: aria-label matches the visible text ("Back to shop") so screen-reader and sighted users
+            hear/read the same name (no label-content-name-mismatch). */}
+        <Link to="/" className="fruit-xi-back" aria-label="Back to shop">
           ‹ Back to shop
         </Link>
         <span className="fruit-xi-brand">MaLLADE</span>
       </header>
 
+      {/* a11y: a single <main> landmark so screen readers can jump straight to the page content
+          (the storefront's <main> lives on the / route only; this page needs its own). */}
+      <main className="fruit-xi-main">
       <motion.section className="fruit-xi-hero" {...intro}>
         <p className="fruit-xi-eyebrow">⚽ World Cup 2026</p>
         <h1 className="display-2">Build your Fruit XI</h1>
@@ -426,6 +431,7 @@ export default function FruitXiPage() {
           )}
         </div>
       )}
+      </main>
     </div>
   );
 }

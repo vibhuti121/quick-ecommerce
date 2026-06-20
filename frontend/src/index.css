@@ -6305,7 +6305,9 @@ textarea:focus-visible,
 }
 .fruit-xi-back {
   font-weight: 600;
-  color: var(--honey-dark);
+  /* a11y: --honey-dark on the cream --bg was 4.08:1 (fails AA normal-text 4.5:1). --text clears it
+     comfortably; this is a back link, the brand voice doesn't need the honey hue here. */
+  color: var(--text);
   text-decoration: none;
 }
 .fruit-xi-back:hover { text-decoration: underline; }
@@ -6324,7 +6326,9 @@ textarea:focus-visible,
 }
 .fruit-xi-eyebrow {
   font-weight: 700;
-  color: var(--litchi);
+  /* a11y: --litchi on cream was 3.92:1 (fails AA normal-text). --litchi-dark keeps the litchi brand hue
+     at 5.27:1 — clears AA. (mirrors the house pattern: brand hue for fills, the -dark tint for small copy.) */
+  color: var(--litchi-dark);
   margin: 0 0 6px;
 }
 .fruit-xi-lede {
@@ -6473,7 +6477,15 @@ textarea:focus-visible,
 .pitch-jersey-num {
   font-family: var(--font-display);
   font-weight: 700;
-  color: var(--kit-secondary);
+  /* a11y: the jersey fill is the team's API kit-primary and the number was the API kit-secondary — two
+     arbitrary hexes with NO contrast guarantee (10/20 teams failed AA, 7 failed even large-text 3:1:
+     MAR 1.29, POR 1.81, IND 2.16, ARG/URU 2.41, BRA 2.50, NED 2.94). Fix is hex-agnostic + presentation
+     only (CLAUDE.md §9 — no client-side colour math): a fixed WHITE glyph carried on a fixed dark scrim
+     halo (text-shadow), which clears AA over any kit-primary fill. kit-secondary is no longer load-bearing. */
+  color: #fff;
+  text-shadow:
+    0 0 3px rgba(0, 0, 0, 0.95),
+    0 1px 2px rgba(0, 0, 0, 0.85);
   font-size: 0.95rem;
 }
 .pitch-jersey-fruit { width: 100%; height: 100%; object-fit: cover; }
@@ -6642,8 +6654,14 @@ textarea:focus-visible,
 .fruit-xi-share-card {
   --kit-primary: var(--forest);
   --kit-secondary: var(--marigold);
+  position: relative;
   padding: 18px;
   border-radius: var(--radius);
+  /* a11y: white text was placed directly on the kit-primary gradient. For light/white kits (ENG/GER/USA/
+     JPN/KOR primary=#FFF) the top gradient stop is white → white-on-white = 1.00:1 (total fail), and 11/20
+     teams failed AA here. Fix is hex-agnostic + presentation only: keep the kit-primary gradient as the
+     card's tint, but lay a FIXED dark scrim (.fruit-xi-share-card::before below) under the content so the
+     white text always lands on a dark-enough backing regardless of the API hex. */
   background: linear-gradient(
     150deg,
     var(--kit-primary),
@@ -6651,6 +6669,20 @@ textarea:focus-visible,
   );
   color: #fff;
   box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+/* Fixed dark scrim — kit colour shows through (~58% darkened) so it still reads as the team's card, while
+   white text clears AA on the resulting backing for every kit incl. the all-white ones. */
+.fruit-xi-share-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: rgba(20, 16, 10, 0.58);
+  pointer-events: none;
+}
+.fruit-xi-share-card > * {
+  position: relative;
+  z-index: 1;
 }
 .xi-share-head { display: flex; align-items: center; gap: 12px; }
 .xi-share-flag { font-size: 2rem; line-height: 1; }
@@ -6672,10 +6704,16 @@ textarea:focus-visible,
   font-weight: 600;
 }
 .fruit-xi-share-btn {
-  background: var(--kit-secondary);
-  color: #1a1a1a;
-  border: none;
+  /* a11y: #1a1a1a text on the API kit-secondary failed AA for dark secondaries (GER 1.21, KOR 1.46,
+     MAR 2.32, USA/JPN 2.63, ENG 2.96 …). Fix is hex-agnostic + presentation only: a fixed legible
+     surface (--surface bg + --text glyph, an AA pairing) that wears the kit-secondary only as an accent
+     border + ring — the team colour still reads, the label is always legible over any kit hue. */
+  background: var(--surface);
+  color: var(--text);
+  border: 2px solid var(--kit-secondary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--kit-secondary) 35%, transparent);
 }
+.fruit-xi-share-btn:hover { background: var(--bg); }
 .fruit-xi-notify {
   padding: 18px;
   border: 1px solid var(--border);
