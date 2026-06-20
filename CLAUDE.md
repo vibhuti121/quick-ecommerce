@@ -128,3 +128,28 @@ whole product and give me a ranked plan"* — not a spawnable subagent (`/varsha
   → `qa-orchestrator`, "broken now" → `problem-solver`). PM **prioritizes**, `/varsha` **dispatches**,
   orchestrators **build**. (A skill cannot invoke `/varsha` itself — feeding its Route plan back in is the
   founder's explicit step.)
+
+## 9. Architecture principle — logic lives in the BACKEND (frontend is presentation only)
+
+**All business logic lives in the backend.** The frontend (`frontend/`) is **presentation only**: it
+fetches, renders, and captures input. It must **not** contain algorithms, business rules, derivations,
+validation, scoring, or data that encodes business meaning (curated mappings, eligibility/exclusion
+rules, price/quantity math, dedupe). Anything logic-bearing is a **backend endpoint the frontend calls**.
+
+- **At scope time (`/varsha`):** any task that would place logic/validation/business-data in the
+  frontend is **split** — logic → `sysdesign` (contract) + `backend-orchestrator` (build); presentation
+  → `fe-lead`. Never green-light frontend-resident logic.
+- **fe-lead / fe-build / fe-commerce** write presentation only. If a task needs logic, fe-lead
+  **escalates to the backend through `/varsha`** rather than implementing it in TypeScript. (Surfacing
+  data the backend already serves is fine; *computing business meaning* in the client is not.)
+- **sysdesign / backend-orchestrator** own all business logic and expose it via endpoints; if a
+  frontend task implies logic, claim it as a backend contract.
+- Sits alongside §8's algorithm rule: a *scored* algorithm is backend AND must show real math +
+  sim-harness validation; a deterministic rule is just backend.
+
+## 10. Convention — path-based routing for pages (not query params)
+
+New full-screen **pages** in the storefront get real `react-router-dom` **paths** (e.g. `/fruit-xi`),
+never `?query` flags. Drawers/modals/overlays (cart, profile, product detail) stay **state-driven** —
+that is still modern-correct. Legacy full-screen overlays (`?games`, `?taste-match`) migrate to routes
+opportunistically. `fe-lead` defaults every new page to a path-based route.

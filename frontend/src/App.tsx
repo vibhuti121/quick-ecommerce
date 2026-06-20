@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Navigate, Route, Routes } from 'react-router-dom';
 import Header from './components/Header';
+import FruitXiPage from './pages/FruitXiPage';
 import Hero from './components/Hero';
 import TrustBand from './components/TrustBand';
 import FruitQuiz from './components/FruitQuiz';
@@ -51,15 +53,10 @@ import { deriveQuizFruitsOrFallback } from './lib/quizFruits';
 import { isGiTagged, isLabTested } from './lib/provenance';
 import { getLastViewedId, setLastViewedId } from './lib/recentlyViewed';
 
-// LOCAL-ONLY prototype gate. "Taste Match" is a founder-score artifact reachable ONLY at ?taste-match
-// (or #taste-match) — it renders a standalone app that never appears in the production nav / on
-// mallde.in. Read once at module load (no router); frontend-only, capture is STUBBED (see TasteMatch).
-const IS_TASTE_MATCH =
-  typeof window !== 'undefined' &&
-  (window.location.search.includes('taste-match') || window.location.hash.includes('taste-match'));
-
-// The standalone prototype shell — kept out of the main App tree so it pulls in no catalogue/cart/auth
-// hooks at all (true local preview). Rendered by App only when the local-only gate is set.
+// The standalone "Taste Match" prototype shell — a founder-score artifact at /taste-match (migrated from
+// the legacy ?taste-match gate; never in the production nav / on mallde.in). Kept out of the main App
+// tree so it pulls in no catalogue/cart/auth hooks at all (true local preview). PROTOTYPE_MODE stub
+// intact (see TasteMatch); capture is STUBBED.
 function TasteMatchApp() {
   return (
     <div className="app tm-standalone">
@@ -68,11 +65,32 @@ function TasteMatchApp() {
   );
 }
 
-// Top-level shell: pick the standalone prototype OR the full storefront. Branching HERE (rather than
-// early-returning inside Storefront) keeps the storefront's hooks unconditional — no Rules-of-Hooks
-// violation — while the prototype mounts nothing of the catalogue/cart/auth tree.
+// Top-level router (CLAUDE.md §10 — the repo's first path-based routing). Full-screen PAGES are routes;
+// drawers/modals/overlays inside <Storefront/> (cart, profile, product detail, the ?call= invite, the
+// ?games hub) stay state-driven, which is still modern-correct. Branching at the route level (rather than
+// early-returning inside Storefront) keeps the storefront's hooks unconditional — no Rules-of-Hooks issue.
+//   "/"            → the full storefront (unchanged)
+//   "/fruit-xi"    → the Fruit XI fan-box page
+//   "/taste-match" → the standalone prototype (migrated from ?taste-match)
+//   "*"            → redirect home
 export default function App() {
-  return IS_TASTE_MATCH ? <TasteMatchApp /> : <Storefront />;
+  // One-release back-compat: an old ?taste-match link (legacy query gate) redirects to /taste-match so
+  // bookmarks/shares don't break. Read once at module init via the location; harmless on every other path.
+  const legacyTasteMatch =
+    typeof window !== 'undefined' &&
+    (window.location.search.includes('taste-match') || window.location.hash.includes('taste-match'));
+  if (legacyTasteMatch && window.location.pathname !== '/taste-match') {
+    return <Navigate to="/taste-match" replace />;
+  }
+
+  return (
+    <Routes>
+      <Route path="/" element={<Storefront />} />
+      <Route path="/fruit-xi" element={<FruitXiPage />} />
+      <Route path="/taste-match" element={<TasteMatchApp />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
 }
 
 function Storefront() {
@@ -524,11 +542,12 @@ function Storefront() {
     setCartOpen(false);
   }, []);
 
-  // Launch the Taste Match game. It lives behind the module-load gate IS_TASTE_MATCH (?taste-match) so it
-  // mounts the standalone prototype shell — navigating there is the cleanest entry (and keeps the game's
-  // PROTOTYPE_MODE stub intact). A real hard nav is intentional: the game is a separate render tree.
+  // Launch the Taste Match game. It now lives at the /taste-match ROUTE, which mounts the standalone
+  // prototype shell (a separate render tree that pulls in no catalogue/cart/auth hooks, keeping the
+  // game's PROTOTYPE_MODE stub intact). A hard nav is intentional here: a full reload onto the route
+  // gives the prototype its clean standalone mount.
   const handlePlayGame = useCallback(() => {
-    window.location.assign(window.location.pathname + '?taste-match');
+    window.location.assign('/taste-match');
   }, []);
 
   return (

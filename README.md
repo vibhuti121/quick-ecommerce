@@ -383,6 +383,24 @@ surfaces — **honey/ghee stay non-buyable and the checkout gate is untouched**.
 marigold + charcoal / `--tm-bg` pairing for **AA** contrast; entrance motion is two-layer reduce-motion
 gated.
 
+**"Build your Fruit XI" fan-box (`/fruit-xi`).** A World-Cup-2026 ritual: pick a team, line up your
+favourite MaLLADE fruits in a **4-3-3** pitch (tap a slot, tap a fruit), then drop the whole fan-box in
+your cart — or hit **Auto-fill XI** for a kit-colour-matched lineup. This is the storefront's **first
+real router** (`react-router-dom` v6): `<BrowserRouter>` wraps the app and `<Routes>` map `/`→storefront,
+`/fruit-xi`→the builder, `/taste-match`→the game (the legacy `?taste-match` overlay now redirects here for
+one release); cart/profile drawers and the `?call=` video overlay stay state-driven. The page is
+**presentation only** — the 20 curated teams (flag + kit hexes), the box composition (dedupe, honey
+exclusion, the **server-computed total**), and the colour-matched autofill all come from
+`GET/POST /api/catalog/fruit-xi/{teams,box,autofill}`; the client just renders the responses, drives the
+existing add-to-cart loop, and fires the existing `notify` demand path (the picked team rides in
+`source` as `fruit-xi:<CODE>`, fruit slugs in `fruits`). **Honey stays non-buyable** (the backend excludes
+it from `/box` as `HONEY_NOT_BUYABLE` and the tray disables coming-soon items) and the **checkout gate is
+untouched** (the box only adds to a cart — placing the order still needs a non-guest account). New entry
+points: a **`⚽ Build your Fruit XI`** link in the `Header` and a back-to-shop chrome on the page itself.
+New files: `pages/FruitXiPage.tsx` + `components/FruitXi/{PitchBuilder,FruitTray,XiShareCard}.tsx`; scoped
+`.fruit-xi-*`/`.pitch-*` styles with a reduced-motion guard. Deep-linking `/fruit-xi` works on hard refresh
+(nginx `try_files … /index.html` SPA fallback).
+
 **Tear down:**
 ```bash
 docker compose down                   # keep data (named volumes survive)

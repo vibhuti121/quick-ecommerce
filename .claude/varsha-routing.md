@@ -14,6 +14,16 @@ You spawn the **orchestrator / lead**, not its children — orchestrators hold t
 `Agent(<reportees>)` grant and spawn their specialists themselves. Pass each spawned agent only the
 PROJECT PROFILE + the scoped task. Spawn independent domains in parallel.
 
+## Architecture principle (apply at scope time, BEFORE routing)
+
+**Logic lives in the backend; the frontend is presentation only** (CLAUDE.md §9). Any task that
+proposes an algorithm, business rule, validation, or business-meaning data in the frontend is **split,
+not routed whole**: logic → `sysdesign` (contract) + `backend-orchestrator` (build); presentation →
+`fe-lead`. Never route a logic-bearing task to a frontend agent.
+
+**Path-based routing** (CLAUDE.md §10): new full-screen pages get `react-router-dom` paths, not
+`?query` flags; drawers stay state-driven. `fe-lead` owns this default.
+
 ## Table
 
 | Domain | Prefer (tuned project agent) | Generic fallback |

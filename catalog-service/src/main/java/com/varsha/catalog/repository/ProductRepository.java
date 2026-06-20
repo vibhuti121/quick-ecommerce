@@ -37,6 +37,12 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     Page<Product> findByActiveTrueAndCategoryIgnoreCaseAndIdNot(String category, Long id, Pageable pageable);
 
     /**
+     * Fruit XI autofill pool: all active products in the given category, sorted by id ASC for
+     * deterministic autofill ordering. No pagination — the pool is small (O(tens) of fruit SKUs).
+     */
+    List<Product> findByActiveTrueAndCategoryIgnoreCaseOrderByIdAsc(String category);
+
+    /**
      * Degraded search path when OpenSearch is unreachable: a case-insensitive substring match over
      * name/description/sku on active products. No fuzziness, no attribute search, no relevance ranking
      * — just enough that the search endpoint never 503s during an OpenSearch outage.
