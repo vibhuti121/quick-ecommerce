@@ -1,0 +1,769 @@
+{
+  "info": {
+    "_postman_id": "b1f0c0de-0000-4000-8000-quickecommerce1",
+    "name": "quick-ecommerce (MaLLADE) — Backend API",
+    "description": "Full backend API surface for the MaLLADE storefront, reachable through the TLS gateway on :8443.\n\n## How to use\n1. Import this collection AND `quick-ecommerce.postman_environment.json` (the matching environment), then select that environment top-right.\n2. Set `baseUrl` (default `https://localhost:8443`; for prod use `https://mallde.in`).\n3. Postman will hit a self-signed cert on localhost — turn OFF SSL verification (Settings → General → SSL certificate verification) for local. mallde.in has a real Cloudflare cert.\n4. Mint a token first:\n   - **Auth → Guest token** → saves `guestToken` (browse + cart, NOT checkout).\n   - **Auth → Register** or **Auth → Login** → saves `userToken` (real account; needed for checkout/orders).\n   - **Auth → Login (as ADMIN)** → saves `adminToken` (admin endpoints). Use your admin@mallade.test credentials.\n   These use test scripts that auto-capture the returned `token` into collection variables — no copy/paste.\n5. Auth'd requests reference `{{userToken}}` / `{{adminToken}}` / `{{guestToken}}` via Bearer auth automatically.\n\n## Gotchas baked into the requests\n- Login/Register field is `identifier` (email OR phone), NOT `email`.\n- Honey SKUs 400 at POST /api/cart/items (\"coming soon\") — use a `category:fruit` productId.\n- Checkout requires a NON-guest JWT (guest-* tokens 403) AND an `Idempotency-Key` header (missing = 400).\n- Oversell guard is two-layer: Redis ATP fast-check (409) + DB pessimistic lock (durable).\n- Admin endpoints are doubly gated (gateway RBAC + in-service AdminRoleFilter).\n- order-service `/admin/orders/**` are NOT gateway-routed (admin-app internal only) — documented but unreachable via baseUrl.\n- Internal saga endpoints (inventory reservations/commit/release, payments charge, co-purchase) are service-to-service; included for testing/debug, not normal client flows.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": { "type": "noauth" },
+  "variable": [
+    { "key": "baseUrl", "value": "https://localhost:8443" },
+    { "key": "guestToken", "value": "" },
+    { "key": "userToken", "value": "" },
+    { "key": "adminToken", "value": "" },
+    { "key": "productId", "value": "1" },
+    { "key": "sku", "value": "FRT-001" },
+    { "key": "orderId", "value": "" },
+    { "key": "callGrant", "value": "" },
+    { "key": "topic", "value": "honey" },
+    { "key": "otpPhone", "value": "+919999999999" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Guest token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.expect(pm.response.code).to.eql(200));",
+                  "const t = pm.response.json().token;",
+                  "if (t) { pm.collectionVariables.set('guestToken', t); console.log('saved guestToken'); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Test Guest\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/auth/guest", "host": ["{{baseUrl}}"], "path": ["auth", "guest"] },
+            "description": "Public. Mints a short-lived GUEST JWT (browse + cart, but checkout 403s on guest-* tokens). `name` is required (1-40 chars)."
+          }
+        },
+        {
+          "name": "Register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.expect(pm.response.code).to.eql(200));",
+                  "const t = pm.response.json().token;",
+                  "if (t) { pm.collectionVariables.set('userToken', t); console.log('saved userToken'); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"identifier\": \"buyer@example.com\",\n  \"password\": \"password123\",\n  \"displayName\": \"Test Buyer\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/auth/register", "host": ["{{baseUrl}}"], "path": ["auth", "register"] },
+            "description": "Public self-serve signup. `identifier` = email OR phone (max 120, validated), `password` 8-72 chars, `displayName` optional. 400 if identifier format invalid."
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.expect(pm.response.code).to.eql(200));",
+                  "const t = pm.response.json().token;",
+                  "if (t) { pm.collectionVariables.set('userToken', t); console.log('saved userToken'); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"identifier\": \"buyer@example.com\",\n  \"password\": \"password123\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] },
+            "description": "Public. Field is `identifier` (email OR phone), NOT `email`. Generic 401 on any mismatch (anti-enumeration). Saves userToken."
+          }
+        },
+        {
+          "name": "Login (as ADMIN)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200', () => pm.expect(pm.response.code).to.eql(200));",
+                  "const t = pm.response.json().token;",
+                  "if (t) { pm.collectionVariables.set('adminToken', t); console.log('saved adminToken'); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"identifier\": \"admin@mallade.test\",\n  \"password\": \"CHANGE_ME_ADMIN_PASSWORD\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/auth/login", "host": ["{{baseUrl}}"], "path": ["auth", "login"] },
+            "description": "Same /auth/login endpoint — log in as your ADMIN user (role=ADMIN) and this saves the JWT to `adminToken` for the admin folders. Use the password stamped onto admin@mallade.test (the authdb BCrypt password, NOT nginx basic-auth)."
+          }
+        },
+        {
+          "name": "OTP — request",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"phone\": \"{{otpPhone}}\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/auth/otp/request", "host": ["{{baseUrl}}"], "path": ["auth", "otp", "request"] },
+            "description": "Public. Always returns {sent:true} regardless of phone validity (no enumeration oracle). `devCode` only echoed when OTP_DEV_ECHO=true. phone pattern ^\\+?[0-9]{8,15}$."
+          }
+        },
+        {
+          "name": "OTP — verify",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j && j.token) { pm.collectionVariables.set('userToken', j.token); console.log('saved userToken'); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"phone\": \"{{otpPhone}}\",\n  \"code\": \"123456\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/auth/otp/verify", "host": ["{{baseUrl}}"], "path": ["auth", "otp", "verify"] },
+            "description": "Public. code = 4-8 digits. 429 if too many attempts; generic 401 on mismatch. On success saves userToken."
+          }
+        },
+        {
+          "name": "Google Sign-In",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"credential\": \"GOOGLE_ID_TOKEN_HERE\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/auth/google", "host": ["{{baseUrl}}"], "path": ["api", "auth", "google"] },
+            "description": "Public. Exchanges a Google ID-token for a JWT (Taste Match V7). Returns clean 503 {disabled:true} when GOOGLE_CLIENT_ID is not configured. credential max 4096 chars."
+          }
+        },
+        {
+          "name": "Me",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{userToken}}", "type": "string" }] },
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/auth/me", "host": ["{{baseUrl}}"], "path": ["auth", "me"] },
+            "description": "Requires Bearer JWT. Returns the current account's profile. Gateway injects X-User-Id from the token."
+          }
+        },
+        {
+          "name": "Update display name",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j && j.token) { pm.collectionVariables.set('userToken', j.token); console.log('refreshed userToken'); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{userToken}}", "type": "string" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"displayName\": \"New Name\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/auth/me/display-name", "host": ["{{baseUrl}}"], "path": ["auth", "me", "display-name"] },
+            "description": "Requires Bearer JWT. displayName 1-40 chars. Returns a fresh JWT (re-saved to userToken)."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Catalog — Browse & Search",
+      "item": [
+        {
+          "name": "List products",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/catalog/products?size=200&page=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "catalog", "products"],
+              "query": [
+                { "key": "size", "value": "200", "description": "default 20; use 200 so newest SKUs aren't paged off (smoke gotcha)" },
+                { "key": "page", "value": "0" },
+                { "key": "category", "value": "fruit", "disabled": true },
+                { "key": "type", "value": "FRUIT", "disabled": true }
+              ]
+            },
+            "description": "Public. Paginated product list. Default page size = 20 — pass ?size=200 to see everything."
+          }
+        },
+        {
+          "name": "Get product by id",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/catalog/products/{{productId}}", "host": ["{{baseUrl}}"], "path": ["api", "catalog", "products", "{{productId}}"] },
+            "description": "Public. Single product detail. 404 if missing."
+          }
+        },
+        {
+          "name": "Search products",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/catalog/products/search?q=litchi&size=20&page=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "catalog", "products", "search"],
+              "query": [
+                { "key": "q", "value": "litchi" },
+                { "key": "size", "value": "20" },
+                { "key": "page", "value": "0" },
+                { "key": "category", "value": "fruit", "disabled": true },
+                { "key": "type", "value": "FRUIT", "disabled": true }
+              ]
+            },
+            "description": "Public. OpenSearch-backed. Blank q returns normal browse; degrades to ILIKE when search is unavailable."
+          }
+        },
+        {
+          "name": "Recommendations for product",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/catalog/products/{{productId}}/recommendations?size=8",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "catalog", "products", "{{productId}}", "recommendations"],
+              "query": [{ "key": "size", "value": "8" }]
+            },
+            "description": "Public. Hybrid co-purchase + content-based. Best-effort (returns [] never 503); 404 only if anchor product missing."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Catalog — Notify (launch interest)",
+      "item": [
+        {
+          "name": "Notify signup",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"topic\": \"honey\",\n  \"name\": \"Test User\",\n  \"source\": \"postman\",\n  \"fruits\": [\"litchi\", \"mango\"],\n  \"phone\": \"9999999999\",\n  \"email\": \"buyer@example.com\",\n  \"pincode\": \"560001\",\n  \"city\": \"Bangalore\",\n  \"state\": \"Karnataka\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/catalog/notify", "host": ["{{baseUrl}}"], "path": ["api", "catalog", "notify"] },
+            "description": "Public. Launch-interest signup (honey teaser / fruit quiz / fruit-xi demand). REQUIRED: topic, phone (10-digit Indian mobile), pincode (6-digit), city, state. Idempotent on (topic, phone). fruits = per-fruit demand fan-out. WARNING: this writes a real demand row — do NOT spam against prod."
+          }
+        },
+        {
+          "name": "Notify count",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/catalog/notify/count?topic={{topic}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "catalog", "notify", "count"],
+              "query": [{ "key": "topic", "value": "{{topic}}" }]
+            },
+            "description": "Public. Aggregate count only (no PII). topic required."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Catalog — Fruit XI (WC-2026)",
+      "item": [
+        {
+          "name": "Teams",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/catalog/fruit-xi/teams", "host": ["{{baseUrl}}"], "path": ["api", "catalog", "fruit-xi", "teams"] },
+            "description": "Public. Static WC-2026 team roster (code, name, flag, kit colours)."
+          }
+        },
+        {
+          "name": "Compose fan box",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"team\": \"BRA\",\n  \"lineup\": [6, 6, 7, 8, 9]\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/catalog/fruit-xi/box", "host": ["{{baseUrl}}"], "path": ["api", "catalog", "fruit-xi", "box"] },
+            "description": "Public. Server composes a cart-ready box: DEDUPES, EXCLUDES honey, drops missing/inactive SKUs, returns server-computed total + excluded reasons. 400 on UNKNOWN_TEAM / EMPTY_LINEUP."
+          }
+        },
+        {
+          "name": "Autofill XI",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"team\": \"BRA\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/catalog/fruit-xi/autofill", "host": ["{{baseUrl}}"], "path": ["api", "catalog", "fruit-xi", "autofill"] },
+            "description": "Public. Deterministic 11-slot fill by team kit colours (NOT a scored algorithm). Same team+catalogue → identical order every time."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Catalog — Taste Profile (account)",
+      "item": [
+        {
+          "name": "Get taste profile",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{userToken}}", "type": "string" }] },
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/catalog/taste/profile", "host": ["{{baseUrl}}"], "path": ["api", "catalog", "taste", "profile"] },
+            "description": "Requires NON-guest Bearer JWT (guest-* tokens 403). Returns XP/tier/rank/badges/streak/persona; zeroed default if none."
+          }
+        },
+        {
+          "name": "Upsert taste profile",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{userToken}}", "type": "string" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"xp\": 120,\n  \"tier\": \"Sprout\",\n  \"rank\": 4,\n  \"discoveredFruits\": [\"litchi\", \"mango\"],\n  \"badges\": [\"first-taste\"],\n  \"currentStreak\": 3,\n  \"bestStreak\": 5,\n  \"persona\": \"Explorer\",\n  \"state\": \"Karnataka\",\n  \"pincode\": \"560001\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/catalog/taste/profile", "host": ["{{baseUrl}}"], "path": ["api", "catalog", "taste", "profile"] },
+            "description": "Requires NON-guest Bearer JWT. Monotonic merge upsert; all fields optional; unknown fields ignored."
+          }
+        },
+        {
+          "name": "Merge device progress",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{userToken}}", "type": "string" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"deviceProgress\": {\n    \"xp\": 80,\n    \"discoveredFruits\": [\"guava\"],\n    \"currentStreak\": 2\n  }\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/catalog/taste/profile/merge", "host": ["{{baseUrl}}"], "path": ["api", "catalog", "taste", "profile", "merge"] },
+            "description": "Requires NON-guest Bearer JWT. Merges an anonymous device snapshot into the account on login."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Catalog — Admin",
+      "item": [
+        {
+          "name": "List all products (admin)",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }] },
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/catalog/admin/products", "host": ["{{baseUrl}}"], "path": ["api", "catalog", "admin", "products"] },
+            "description": "ADMIN only. All products incl. inactive, active-first. Doubly gated (gateway RBAC + AdminRoleFilter)."
+          }
+        },
+        {
+          "name": "Create product (admin)",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"sku\": \"FRT-NEW-001\",\n  \"name\": \"Test Fruit\",\n  \"description\": \"A test product\",\n  \"productType\": \"FRUIT\",\n  \"category\": \"fruit\",\n  \"basePrice\": 199.00,\n  \"currency\": \"INR\",\n  \"imageUrl\": null,\n  \"active\": true,\n  \"variants\": []\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/catalog/admin/products", "host": ["{{baseUrl}}"], "path": ["api", "catalog", "admin", "products"] },
+            "description": "ADMIN only. REQUIRED: sku, name, productType, basePrice (>=0). Returns 201 + Location header."
+          }
+        },
+        {
+          "name": "Update product (admin)",
+          "request": {
+            "method": "PUT",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"sku\": \"FRT-NEW-001\",\n  \"name\": \"Updated Fruit\",\n  \"description\": \"Updated\",\n  \"productType\": \"FRUIT\",\n  \"category\": \"fruit\",\n  \"basePrice\": 249.00,\n  \"currency\": \"INR\",\n  \"active\": true,\n  \"variants\": []\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/catalog/admin/products/{{productId}}", "host": ["{{baseUrl}}"], "path": ["api", "catalog", "admin", "products", "{{productId}}"] },
+            "description": "ADMIN only. Full replacement of the product."
+          }
+        },
+        {
+          "name": "Bulk enable/disable (admin)",
+          "request": {
+            "method": "PATCH",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"ids\": [{{productId}}],\n  \"active\": false\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/catalog/admin/products/active", "host": ["{{baseUrl}}"], "path": ["api", "catalog", "admin", "products", "active"] },
+            "description": "ADMIN only. Bulk enable/disable (single-row = one-element ids list). Products are disabled, never deleted. ids non-empty."
+          }
+        },
+        {
+          "name": "Upload product image (admin)",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }] },
+            "header": [],
+            "body": { "mode": "formdata", "formdata": [{ "key": "file", "type": "file", "src": [] }] },
+            "url": { "raw": "{{baseUrl}}/api/catalog/admin/products/{{productId}}/image", "host": ["{{baseUrl}}"], "path": ["api", "catalog", "admin", "products", "{{productId}}", "image"] },
+            "description": "ADMIN only. Multipart upload to MinIO; updates the product imageUrl. Pick a file in the form-data `file` field."
+          }
+        },
+        {
+          "name": "All notify signups (admin)",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }] },
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/catalog/admin/notify", "host": ["{{baseUrl}}"], "path": ["api", "catalog", "admin", "notify"] },
+            "description": "ADMIN only. Full notify rows incl. PII — founder's demand console."
+          }
+        },
+        {
+          "name": "Demand aggregate (admin)",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }] },
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/catalog/admin/notify/demand", "host": ["{{baseUrl}}"], "path": ["api", "catalog", "admin", "notify", "demand"] },
+            "description": "ADMIN only. Aggregated demand: headcount, per-fruit, per-state, latest leads."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Cart",
+      "item": [
+        {
+          "name": "Get cart",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{userToken}}", "type": "string" }] },
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/cart", "host": ["{{baseUrl}}"], "path": ["api", "cart"] },
+            "description": "Requires Bearer JWT (guest OK). Empty cart returns {items:{}, total:0, itemCount:0}. Swap to {{guestToken}} to test guest cart."
+          }
+        },
+        {
+          "name": "Add / update cart item",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{userToken}}", "type": "string" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"productId\": {{productId}},\n  \"quantity\": 1\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/cart/items", "host": ["{{baseUrl}}"], "path": ["api", "cart", "items"] },
+            "description": "Requires Bearer JWT. quantity is a SIGNED DELTA (+1 adds, -1 removes; <=0 removes line). HONEY 400s here (category==='honey', \"coming soon\") — use a fruit productId."
+          }
+        },
+        {
+          "name": "Remove cart line",
+          "request": {
+            "method": "DELETE",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{userToken}}", "type": "string" }] },
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/cart/items/{{productId}}", "host": ["{{baseUrl}}"], "path": ["api", "cart", "items", "{{productId}}"] },
+            "description": "Requires Bearer JWT. Removes one line, returns updated cart."
+          }
+        },
+        {
+          "name": "Clear cart",
+          "request": {
+            "method": "DELETE",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{userToken}}", "type": "string" }] },
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/cart", "host": ["{{baseUrl}}"], "path": ["api", "cart"] },
+            "description": "Requires Bearer JWT. Empties the entire cart."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Orders",
+      "item": [
+        {
+          "name": "Checkout",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Fresh idempotency key per send so retries don't 409 unintentionally.",
+                  "pm.collectionVariables.set('idempotencyKey', 'pm-' + Date.now());"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j && j.orderId) { pm.collectionVariables.set('orderId', j.orderId); console.log('saved orderId ' + j.orderId); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{userToken}}", "type": "string" }] },
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"currency\": \"INR\",\n  \"customerName\": \"Test Buyer\",\n  \"customerPhone\": \"9999999999\",\n  \"deliveryAddress\": \"1 MG Road\",\n  \"pincode\": \"560001\",\n  \"city\": \"Bangalore\",\n  \"state\": \"Karnataka\",\n  \"items\": [\n    {\n      \"productId\": {{productId}},\n      \"sku\": \"{{sku}}\",\n      \"name\": \"Test Fruit\",\n      \"unitPrice\": 199.00,\n      \"quantity\": 1\n    }\n  ]\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/orders/checkout", "host": ["{{baseUrl}}"], "path": ["api", "orders", "checkout"] },
+            "description": "Requires NON-guest Bearer JWT (guest-* 403). `Idempotency-Key` header REQUIRED (missing = 400; pre-request script auto-generates one). Returns 202 ACCEPTED, saga-driven. All items must be fruit (honey rejected), oversell 409, duplicate order 409. Required body fields: currency, customerName, customerPhone, deliveryAddress, pincode, city, state, items[] (productId, sku, name, unitPrice>=0, quantity>=1)."
+          }
+        },
+        {
+          "name": "Get order by id",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{userToken}}", "type": "string" }] },
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/orders/{{orderId}}", "host": ["{{baseUrl}}"], "path": ["api", "orders", "{{orderId}}"] },
+            "description": "Requires Bearer JWT. Order detail (no per-user ownership check — shareable by link)."
+          }
+        },
+        {
+          "name": "My orders",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{userToken}}", "type": "string" }] },
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/orders", "host": ["{{baseUrl}}"], "path": ["api", "orders"] },
+            "description": "Requires Bearer JWT. The caller's order history, newest first."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Inventory",
+      "item": [
+        {
+          "name": "Stock for SKU",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{userToken}}", "type": "string" }] },
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/inventory/stock/{{sku}}", "host": ["{{baseUrl}}"], "path": ["api", "inventory", "stock", "{{sku}}"] },
+            "description": "Requires Bearer JWT. {sku, availableQty, reservedQty}."
+          }
+        },
+        {
+          "name": "Admin — all stock",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }] },
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/inventory/admin/stock", "host": ["{{baseUrl}}"], "path": ["api", "inventory", "admin", "stock"] },
+            "description": "ADMIN only. All stock rows for the inventory page."
+          }
+        },
+        {
+          "name": "Admin — restock (+N)",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"sku\": \"{{sku}}\",\n  \"quantity\": 50\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/inventory/admin/stock", "host": ["{{baseUrl}}"], "path": ["api", "inventory", "admin", "stock"] },
+            "description": "ADMIN only. Restock +N units. quantity required & >=1."
+          }
+        },
+        {
+          "name": "[internal] ATP reserve (fast pre-check)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"lines\": [\n    { \"sku\": \"{{sku}}\", \"qty\": 1 }\n  ]\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/inventory/atp/reserve", "host": ["{{baseUrl}}"], "path": ["api", "inventory", "atp", "reserve"] },
+            "description": "INTERNAL (order-service calls this). Redis ATP fast pre-check; always 200, result = RESERVED | INSUFFICIENT | DEGRADED. INSUFFICIENT 409s checkout; DEGRADED still allows (DB lock is the real guard)."
+          }
+        },
+        {
+          "name": "[internal] Reserve (saga step 1)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"lines\": [\n    { \"sku\": \"{{sku}}\", \"qty\": 1 }\n  ]\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/inventory/reservations", "host": ["{{baseUrl}}"], "path": ["api", "inventory", "reservations"] },
+            "description": "INTERNAL saga step. DB PESSIMISTIC_WRITE lock = durable oversell guard; idempotent on orderId."
+          }
+        },
+        {
+          "name": "[internal] Commit reservation",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/inventory/reservations/{{orderId}}/commit", "host": ["{{baseUrl}}"], "path": ["api", "inventory", "reservations", "{{orderId}}", "commit"] },
+            "description": "INTERNAL saga step 3. Idempotent."
+          }
+        },
+        {
+          "name": "[internal] Release reservation",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/inventory/reservations/{{orderId}}/release", "host": ["{{baseUrl}}"], "path": ["api", "inventory", "reservations", "{{orderId}}", "release"] },
+            "description": "INTERNAL saga compensation. Idempotent."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Payments",
+      "item": [
+        {
+          "name": "[internal] Charge",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"orderId\": \"{{orderId}}\",\n  \"amount\": 199.00,\n  \"currency\": \"INR\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/payments/charge", "host": ["{{baseUrl}}"], "path": ["api", "payments", "charge"] },
+            "description": "INTERNAL saga hook (order-service poller calls this). Idempotent on orderId. provider = MOCK | COD per PAYMENT_PROVIDER env."
+          }
+        },
+        {
+          "name": "Payment status",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{userToken}}", "type": "string" }] },
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/payments/{{orderId}}", "host": ["{{baseUrl}}"], "path": ["api", "payments", "{{orderId}}"] },
+            "description": "Requires Bearer JWT. Payment status for an order."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Videocall",
+      "item": [
+        {
+          "name": "Eligibility (record Tally)",
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{userToken}}", "type": "string" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/videocall/eligibility", "host": ["{{baseUrl}}"], "path": ["api", "videocall", "eligibility"] },
+            "description": "Requires NON-guest Bearer JWT (guest 403). Upsert Tally completion; 201 if new, 200 if idempotent. Gateway injects X-User-Id / X-User-Email."
+          }
+        },
+        {
+          "name": "Grant (gate check)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const j = pm.response.json();",
+                  "if (j && j.grant) { pm.collectionVariables.set('callGrant', j.grant); console.log('saved callGrant (10-min TTL)'); }"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{userToken}}", "type": "string" }] },
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"roomId\": \"\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/api/videocall/grant", "host": ["{{baseUrl}}"], "path": ["api", "videocall", "grant"] },
+            "description": "Requires Bearer JWT. Returns {available:false} (no reason leaked) for guest/ineligible/cooldown. If available: signed grant (HS256, aud=videocall-grant, exp=+600s, maxParticipants=3) + STUN/TURN servers. The grant travels in the Socket.IO handshake auth payload, NOT an Authorization header."
+          }
+        },
+        {
+          "name": "Admin — eligibility roster",
+          "request": {
+            "method": "GET",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }] },
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/api/videocall/admin/eligibility", "host": ["{{baseUrl}}"], "path": ["api", "videocall", "admin", "eligibility"] },
+            "description": "ADMIN only. Founder's Tally roster."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Gateway / Health",
+      "item": [
+        {
+          "name": "Gateway health",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/health", "host": ["{{baseUrl}}"], "path": ["health"] },
+            "description": "Public. Edge health probe → {status:'UP'}."
+          }
+        },
+        {
+          "name": "Auth-service health",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/auth/../health", "host": ["{{baseUrl}}"], "path": ["health"] },
+            "description": "Public. Note: most service /health probes are internal (docker healthchecks); the edge /health above is the client-facing one."
+          }
+        },
+        {
+          "name": "Circuit-breaker fallback",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/fallback/unavailable", "host": ["{{baseUrl}}"], "path": ["fallback", "unavailable"] },
+            "description": "Resilience4j fallback route → {status:'UNAVAILABLE'}."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin (order-service — NOT gateway-routed)",
+      "item": [
+        {
+          "name": "[doc only] All orders",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "http://localhost:8094/admin/orders?status=&deliveryStatus=",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8094",
+              "path": ["admin", "orders"],
+              "query": [
+                { "key": "status", "value": "" },
+                { "key": "deliveryStatus", "value": "" }
+              ]
+            },
+            "description": "DOC ONLY — order-service :8094 is NOT exposed on a host port and these /admin/orders paths are NOT routed by the gateway. They are reachable only from the admin-app over the internal docker network (loopback 127.0.0.1:5174, nginx basic-auth). Listed for completeness; will not respond via baseUrl."
+          }
+        },
+        {
+          "name": "[doc only] Mark delivered",
+          "request": {
+            "method": "POST",
+            "url": {
+              "raw": "http://localhost:8094/admin/orders/{{orderId}}/mark-delivered",
+              "protocol": "http",
+              "host": ["localhost"],
+              "port": "8094",
+              "path": ["admin", "orders", "{{orderId}}", "mark-delivered"]
+            },
+            "description": "DOC ONLY — admin-app internal only (COD pilot delivery flip). Not gateway-routed."
+          }
+        },
+        {
+          "name": "[internal] Co-purchase data",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/api/orders/products/{{productId}}/co-purchase?limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "orders", "products", "{{productId}}", "co-purchase"],
+              "query": [{ "key": "limit", "value": "10", "description": "default 10, hard cap 50" }]
+            },
+            "description": "INTERNAL service-to-service (catalog-service calls this for hybrid recommendations). No auth, no PII. limit capped at 50."
+          }
+        }
+      ]
+    }
+  ]
+}
